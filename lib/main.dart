@@ -13,11 +13,16 @@ import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/doctor/providers/doctor_provider.dart';
 import 'features/doctor/screens/doctor_dashboard.dart';
+import 'features/doctor/screens/doctor_appointments_screen.dart';
 import 'features/patient/providers/patient_provider.dart';
 import 'features/patient/providers/doctor_list_provider.dart';
 import 'features/patient/screens/patient_dashboard.dart';
+import 'features/patient/screens/patient_appointments_screen.dart';
 import 'features/profile/providers/profile_provider.dart';
 import 'features/profile/screens/profile_screen.dart';
+import 'features/appointment/providers/appointment_provider.dart';
+import 'features/medical_records/screens/medical_record_detail_screen.dart';
+import 'features/payment/screens/payment_screen.dart';
 import 'shared/constants/colors.dart';
 import 'shared/constants/styles.dart';
 
@@ -129,6 +134,12 @@ void main() async {
             apiService: context.read<ApiService>(),
           ),
         ),
+        // Add AppointmentProvider - THIS WAS MISSING
+        ChangeNotifierProvider(
+          create: (context) => AppointmentProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -175,6 +186,10 @@ class MyApp extends StatelessWidget {
         '/doctor/dashboard': (context) => const DoctorDashboard(),
         '/profile': (context) => const ProfileScreen(),
         '/patient/doctors': (context) => const DoctorsListScreen(),
+        // Added missing routes
+        '/patient/appointments': (context) => const PatientAppointmentsScreen(),
+        '/doctor/appointments': (context) => const DoctorAppointmentsScreen(),
+        // Add other routes as needed
       },
       builder: (context, child) {
         return GestureDetector(
