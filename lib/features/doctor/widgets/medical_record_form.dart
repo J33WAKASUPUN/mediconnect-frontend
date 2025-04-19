@@ -9,11 +9,11 @@ class MedicalRecordForm extends StatefulWidget {
   final Function(Map<String, dynamic>) onSubmit;
 
   const MedicalRecordForm({
-    Key? key,
+    super.key,
     required this.appointmentId,
     required this.patientName,
     required this.onSubmit,
-  }) : super(key: key);
+  });
 
   @override
   _MedicalRecordFormState createState() => _MedicalRecordFormState();
@@ -27,7 +27,7 @@ class _MedicalRecordFormState extends State<MedicalRecordForm> {
   final TextEditingController _prescriptionController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   
-  List<String> _tests = [];
+  final List<String> _tests = [];
   final TextEditingController _testController = TextEditingController();
   
   bool _isSubmitting = false;
@@ -123,7 +123,7 @@ class _MedicalRecordFormState extends State<MedicalRecordForm> {
               const SizedBox(height: 24),
               
               // Tests
-              Text('Tests', style: AppStyles.heading3),
+              Text('Tests', style: AppStyles.subtitle1),
               const SizedBox(height: 8),
               
               Row(
@@ -147,7 +147,7 @@ class _MedicalRecordFormState extends State<MedicalRecordForm> {
               const SizedBox(height: 8),
               
               // Test list
-              ..._tests.map((test) => _buildTestItem(test)).toList(),
+              ..._tests.map((test) => _buildTestItem(test)),
               
               const SizedBox(height: 16),
               
@@ -188,7 +188,7 @@ class _MedicalRecordFormState extends State<MedicalRecordForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppStyles.heading3),
+        Text(label, style: AppStyles.subtitle1),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,

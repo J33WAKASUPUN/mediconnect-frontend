@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
+import '../../../core/models/medical_record_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -213,11 +214,14 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
 
   void _navigateToMedicalRecord(BuildContext context, Appointment appointment) {
     if (appointment.medicalRecord != null) {
+      // Create a MedicalRecord from the appointment's medicalRecord map
+      final record = MedicalRecord.fromJson(appointment.medicalRecord!);
+      
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => MedicalRecordDetailScreen(
-            recordId: appointment.medicalRecord!['_id'],
+            record: record,
           ),
         ),
       );

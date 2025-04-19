@@ -203,6 +203,15 @@ class ApiService {
     }
   }
 
+  dynamic _handleError(dynamic e) {
+    if (e is DioException) {
+      return _handleDioError(e);
+    } else {
+      print('General API Error: $e');
+      return Exception('Error: $e');
+    }
+  }
+
   // Login
   Future<Map<String, dynamic>> login({
     required String email,
@@ -430,21 +439,6 @@ class ApiService {
     }
   }
 
-// Create medical record for an appointment
-  Future<Map<String, dynamic>> createMedicalRecord(
-      String appointmentId, Map<String, dynamic> medicalData) async {
-    try {
-      final response = await _dio.post(
-        ApiEndpoints.getFullUrl(
-            '${ApiEndpoints.appointments}/$appointmentId/medical-record'),
-        data: medicalData,
-      );
-      return response.data;
-    } catch (e) {
-      throw _handleError(e);
-    }
-  }
-
 // Get doctor availability slots
   Future<Map<String, dynamic>> getDoctorAvailability(String doctorId) async {
     try {
@@ -558,33 +552,37 @@ class ApiService {
   }
 
 // Create a new medical record
-  Future<Map<String, dynamic>> createMedicalRecord({
-    required String appointmentId,
-    required String diagnosis,
-    required String symptoms,
-    required String treatment,
-    required String prescription,
-    required List<String> tests,
-    required String notes,
-  }) async {
-    try {
-      final response = await _dio.post(
-        ApiEndpoints.getFullUrl(ApiEndpoints.medicalRecords),
-        data: {
-          'appointmentId': appointmentId,
-          'diagnosis': diagnosis,
-          'symptoms': symptoms,
-          'treatment': treatment,
-          'prescription': prescription,
-          'tests': tests,
-          'notes': notes,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      throw _handleError(e);
-    }
+  // Replace the existing createMedicalRecord method (around line 560-587) with this:
+
+// Create a new detailed medical record
+  // Create medical record for an appointment
+  // Create a new medical record
+Future<Map<String, dynamic>> createMedicalRecord({
+  required String appointmentId,
+  required String diagnosis,
+  required String symptoms,
+  required String treatment,
+  required String prescription,
+  required List<String> tests,  // Changed from String to List<String>
+  required String notes,
+}) async {
+  try {
+    final response = await _dio.post(
+      ApiEndpoints.getFullUrl('${ApiEndpoints.appointments}/$appointmentId/medical-record'),
+      data: {
+        'diagnosis': diagnosis,
+        'symptoms': symptoms,
+        'treatment': treatment,
+        'prescription': prescription,
+        'tests': tests,  // Pass the list directly
+        'notes': notes,
+      },
+    );
+    return response.data;
+  } catch (e) {
+    throw _handleError(e);
   }
+}
 
 // Get a single medical record
   Future<Map<String, dynamic>> getMedicalRecord(String recordId) async {

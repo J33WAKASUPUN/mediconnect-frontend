@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -10,7 +11,7 @@ import '../../appointment/widgets/appointment_card.dart';
 import '../widgets/medical_record_form.dart';
 
 class DoctorAppointmentsScreen extends StatefulWidget {
-  const DoctorAppointmentsScreen({Key? key}) : super(key: key);
+  const DoctorAppointmentsScreen({super.key});
 
   @override
   _DoctorAppointmentsScreenState createState() => _DoctorAppointmentsScreenState();

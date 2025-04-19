@@ -10,11 +10,11 @@ class NotificationItem extends StatelessWidget {
   final VoidCallback onMarkRead;
 
   const NotificationItem({
-    Key? key,
+    super.key,
     required this.notification,
     required this.onTap,
     required this.onMarkRead,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

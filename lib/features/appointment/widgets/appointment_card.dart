@@ -19,7 +19,7 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback? onPaymentPressed;
 
   const AppointmentCard({
-    Key? key,
+    super.key,
     required this.appointment,
     this.isPatientView = true,
     this.isCompact = false,
@@ -31,7 +31,7 @@ class AppointmentCard extends StatelessWidget {
     this.onViewMedicalRecord,
     this.onCreateMedicalRecord,
     this.onPaymentPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

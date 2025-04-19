@@ -8,10 +8,10 @@ class PaymentConfirmationSheet extends StatefulWidget {
   final Function(String paymentMethod, String? transactionDetails) onConfirm;
   
   const PaymentConfirmationSheet({
-    Key? key,
+    super.key,
     required this.appointment,
     required this.onConfirm,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentConfirmationSheetState createState() => _PaymentConfirmationSheetState();
@@ -90,7 +90,7 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
           const SizedBox(height: 24),
           
           // Payment Method Selection
-          Text('Select Payment Method', style: AppStyles.heading3),
+          Text('Select Payment Method', style: AppStyles.subtitle1),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedPaymentMethod,
@@ -116,7 +116,7 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
           
           // Transaction Details (not visible for cash)
           if (_selectedPaymentMethod != 'Cash') ...[
-            Text('Transaction Reference (Optional)', style: AppStyles.heading3),
+            Text('Transaction Reference (Optional)', style: AppStyles.subtitle1),
             const SizedBox(height: 8),
             TextField(
               controller: _transactionController,
@@ -174,7 +174,7 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
           Text(
             value,
             style: isTotal 
-                ? AppStyles.heading3
+                ? AppStyles.subtitle1
                 : AppStyles.bodyText1,
           ),
         ],

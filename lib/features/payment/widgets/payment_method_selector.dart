@@ -14,10 +14,10 @@ class PaymentMethodSelector extends StatefulWidget {
   final PaymentMethodType? initialSelection;
 
   const PaymentMethodSelector({
-    Key? key,
+    super.key,
     required this.onSelect,
     this.initialSelection,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentMethodSelectorState createState() => _PaymentMethodSelectorState();
@@ -38,7 +38,7 @@ class _PaymentMethodSelectorState extends State<PaymentMethodSelector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(          'Select Payment Method',
-          style: AppStyles.heading3,
+          style: AppStyles.subtitle1,
         ),
         const SizedBox(height: 16),
         

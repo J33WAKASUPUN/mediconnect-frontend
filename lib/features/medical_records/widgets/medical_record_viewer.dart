@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import '../../../core/models/medical_record_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
@@ -10,9 +10,9 @@ class MedicalRecordViewer extends StatelessWidget {
   final MedicalRecord record;
 
   const MedicalRecordViewer({
-    Key? key,
+    super.key,
     required this.record,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,9 +34,9 @@ class MedicalRecordViewer extends StatelessWidget {
             
             // Tests
             if (record.tests.isNotEmpty) ...[
-              Text('Tests', style: AppStyles.heading3),
+              Text('Tests', style: AppStyles.subtitle1),
               const SizedBox(height: 8),
-              ...record.tests.map((test) => _buildBulletItem(test)).toList(),
+              ...record.tests.map((test) => _buildBulletItem(test)),
               const SizedBox(height: 16),
             ],
             
@@ -123,7 +123,7 @@ class MedicalRecordViewer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: AppStyles.heading3),
+        Text(title, style: AppStyles.subtitle1),
         const SizedBox(height: 8),
         Text(
           content,
@@ -153,8 +153,9 @@ class MedicalRecordViewer extends StatelessWidget {
   }
 
   Future<void> _openPdf(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
+    final Uri uri = Uri.parse(url);
+    if (await url_launcher.canLaunchUrl(uri)) {
+      await url_launcher.launchUrl(uri);
     }
   }
 }

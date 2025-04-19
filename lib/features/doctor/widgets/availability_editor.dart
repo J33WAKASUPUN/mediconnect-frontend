@@ -8,10 +8,10 @@ class AvailabilityEditor extends StatefulWidget {
   final Function(List<AvailableTimeSlot>) onSave;
 
   const AvailabilityEditor({
-    Key? key,
+    super.key,
     required this.initialAvailability,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   _AvailabilityEditorState createState() => _AvailabilityEditorState();
@@ -95,7 +95,7 @@ class _AvailabilityEditorState extends State<AvailabilityEditor> {
               children: [
                 Text(
                   daySlot.day,
-                  style: AppStyles.heading3,
+                  style: AppStyles.heading1,
                 ),
                 TextButton.icon(
                   onPressed: () => _addTimeSlot(daySlot),

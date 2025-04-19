@@ -6,32 +6,39 @@ import '../../../core/services/api_service.dart';
 class AppointmentProvider with ChangeNotifier {
   final ApiService _apiService;
 
-  AppointmentProvider({required ApiService apiService}) : _apiService = apiService;
+  AppointmentProvider({required ApiService apiService})
+      : _apiService = apiService;
 
   List<Appointment> _appointments = [];
   bool _isLoading = false;
   String? _error;
-  Map<String, Map<String, List<String>>> _doctorAvailability = {};
+  final Map<String, Map<String, List<String>>> _doctorAvailability = {};
 
   // Getters
   List<Appointment> get appointments => _appointments;
-  List<Appointment> get pendingAppointments => _appointments.where((apt) => apt.status == 'pending').toList();
-  List<Appointment> get confirmedAppointments => _appointments.where((apt) => apt.status == 'confirmed').toList();
-  List<Appointment> get upcomingAppointments => _appointments.where((apt) => apt.isUpcoming).toList();
-  List<Appointment> get pastAppointments => _appointments.where((apt) => apt.isPast).toList();
+  List<Appointment> get pendingAppointments =>
+      _appointments.where((apt) => apt.status == 'pending').toList();
+  List<Appointment> get confirmedAppointments =>
+      _appointments.where((apt) => apt.status == 'confirmed').toList();
+  List<Appointment> get upcomingAppointments =>
+      _appointments.where((apt) => apt.isUpcoming).toList();
+  List<Appointment> get pastAppointments =>
+      _appointments.where((apt) => apt.isPast).toList();
   List<Appointment> get todayAppointments {
     final today = DateTime.now();
-    return _appointments.where((apt) => 
-      apt.appointmentDate.year == today.year && 
-      apt.appointmentDate.month == today.month && 
-      apt.appointmentDate.day == today.day &&
-      (apt.status == 'confirmed' || apt.status == 'pending')
-    ).toList();
+    return _appointments
+        .where((apt) =>
+            apt.appointmentDate.year == today.year &&
+            apt.appointmentDate.month == today.month &&
+            apt.appointmentDate.day == today.day &&
+            (apt.status == 'confirmed' || apt.status == 'pending'))
+        .toList();
   }
-  
+
   bool get isLoading => _isLoading;
   String? get error => _error;
-  Map<String, Map<String, List<String>>> get doctorAvailability => _doctorAvailability;
+  Map<String, Map<String, List<String>>> get doctorAvailability =>
+      _doctorAvailability;
 
   // Load all appointments
   Future<void> loadAppointments() async {
@@ -41,7 +48,8 @@ class AppointmentProvider with ChangeNotifier {
 
     try {
       final jsonList = await _apiService.getAppointments();
-      _appointments = jsonList.map((json) => Appointment.fromJson(json)).toList();
+      _appointments =
+          jsonList.map((json) => Appointment.fromJson(json)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -90,14 +98,16 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   // Update appointment status (for both patients and doctors)
-  Future<bool> updateAppointmentStatus(String appointmentId, String status) async {
+  Future<bool> updateAppointmentStatus(
+      String appointmentId, String status) async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
 
-      final response = await _apiService.updateAppointmentStatus(appointmentId, status);
-      
+      final response =
+          await _apiService.updateAppointmentStatus(appointmentId, status);
+
       if (response['success']) {
         await loadAppointments(); // Refresh the list
         return true;
@@ -116,31 +126,29 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   // Convenience methods for common status changes
-  Future<bool> confirmAppointment(String appointmentId) => 
+  Future<bool> confirmAppointment(String appointmentId) =>
       updateAppointmentStatus(appointmentId, 'confirmed');
-      
-  Future<bool> completeAppointment(String appointmentId) => 
+
+  Future<bool> completeAppointment(String appointmentId) =>
       updateAppointmentStatus(appointmentId, 'completed');
-      
-  Future<bool> cancelAppointment(String appointmentId) => 
+
+  Future<bool> cancelAppointment(String appointmentId) =>
       updateAppointmentStatus(appointmentId, 'cancelled');
-      
-  Future<bool> markNoShow(String appointmentId) => 
+
+  Future<bool> markNoShow(String appointmentId) =>
       updateAppointmentStatus(appointmentId, 'no-show');
 
   // Add review to appointment
-  Future<bool> addReview(String appointmentId, int rating, String comment) async {
+  Future<bool> addReview(
+      String appointmentId, int rating, String comment) async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
 
       final response = await _apiService.addAppointmentReview(
-        appointmentId, 
-        rating, 
-        comment
-      );
-      
+          appointmentId, rating, comment);
+
       if (response['success']) {
         await loadAppointments(); // Refresh the list
         return true;
@@ -159,6 +167,8 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   // Create medical record for an appointment (doctor only)
+  // Replace the createMedicalRecord method (lines 162-193) with this:
+// Create medical record for an appointment (doctor only)
   Future<bool> createMedicalRecord(
       String appointmentId, Map<String, dynamic> medicalData) async {
     try {
@@ -193,32 +203,33 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   // Get doctor availability
-  Future<Map<String, List<String>>> getDoctorAvailability(String doctorId) async {
+  Future<Map<String, List<String>>> getDoctorAvailability(
+      String doctorId) async {
     try {
       // If we already have the data, return it
       if (_doctorAvailability.containsKey(doctorId)) {
         return _doctorAvailability[doctorId] ?? {};
       }
-      
+
       _isLoading = true;
       _error = null;
       notifyListeners();
 
       final response = await _apiService.getDoctorAvailability(doctorId);
-      
+
       if (response['success'] && response['availability'] != null) {
         // Process the availability data
         final Map<String, List<String>> availability = {};
-        
+
         for (var slot in response['availability']) {
           final String day = slot['day'];
           final List<String> times = List<String>.from(slot['slots'] ?? []);
           availability[day] = times;
         }
-        
+
         // Cache the data
         _doctorAvailability[doctorId] = availability;
-        
+
         _isLoading = false;
         notifyListeners();
         return availability;
@@ -246,7 +257,7 @@ class AppointmentProvider with ChangeNotifier {
 
       // Convert to the format expected by the API
       final List<Map<String, dynamic>> availabilityData = [];
-      
+
       availability.forEach((day, slots) {
         availabilityData.add({
           'day': day,
@@ -254,8 +265,9 @@ class AppointmentProvider with ChangeNotifier {
         });
       });
 
-      final response = await _apiService.updateDoctorAvailability(doctorId, availabilityData);
-      
+      final response = await _apiService.updateDoctorAvailability(
+          doctorId, availabilityData);
+
       if (response['success']) {
         // Update the cached data
         _doctorAvailability[doctorId] = availability;
