@@ -13,7 +13,7 @@ class ApiService {
 
   ApiService() {
     print('Initializing ApiService with base URL: ${ApiEndpoints.baseUrl}');
-    
+
     _dio = Dio(BaseOptions(
       baseUrl: ApiEndpoints.baseUrl,
       responseType: ResponseType.json,
@@ -77,7 +77,7 @@ class ApiService {
   Future<List<Map<String, dynamic>>> getAllDoctors() async {
     try {
       print('Fetching doctors with token: ${_authToken?.substring(0, 10)}...');
-      
+
       final response = await _dio.get(
         ApiEndpoints.getFullUrl(ApiEndpoints.doctors),
         queryParameters: {
@@ -106,12 +106,13 @@ class ApiService {
     } on DioException catch (e) {
       print('DioException in getAllDoctors: ${e.message}');
       print('DioException response: ${e.response?.data}');
-      
+
       if (e.response?.data is Map) {
-        final errorMessage = e.response?.data['message'] ?? 'Failed to load doctors';
+        final errorMessage =
+            e.response?.data['message'] ?? 'Failed to load doctors';
         throw errorMessage;
       }
-      
+
       throw _handleDioError(e);
     } catch (e) {
       print('Error in getAllDoctors: $e');
@@ -133,7 +134,8 @@ class ApiService {
   }) async {
     try {
       // Generate username based on firstName
-      final username = firstName.toUpperCase().padRight(12, '0').substring(0, 12);
+      final username =
+          firstName.toUpperCase().padRight(12, '0').substring(0, 12);
 
       // Validate image if provided
       if (profilePicture != null) {
@@ -156,7 +158,8 @@ class ApiService {
         if (profilePicture != null)
           'profilePicture': await MultipartFile.fromFile(
             profilePicture.path,
-            filename: '${username}_${DateTimeHelper.getCurrentUTC().replaceAll(RegExp(r'[: ]'), '-')}${path.extension(profilePicture.path)}',
+            filename:
+                '${username}_${DateTimeHelper.getCurrentUTC().replaceAll(RegExp(r'[: ]'), '-')}${path.extension(profilePicture.path)}',
             contentType: MediaType(
               'image',
               path.extension(profilePicture.path).replaceAll('.', ''),
@@ -184,7 +187,7 @@ class ApiService {
   dynamic _handleDioError(DioException e) {
     print('Handling DioError: ${e.message}');
     print('Response: ${e.response?.data}');
-    
+
     if (e.response != null) {
       if (e.response?.data is Map) {
         final message = e.response?.data['message'] ?? 'An error occurred';
@@ -250,7 +253,8 @@ class ApiService {
         if (profilePicture != null)
           'profilePicture': await MultipartFile.fromFile(
             profilePicture.path,
-            filename: 'profile_${DateTimeHelper.getCurrentUTC().replaceAll(RegExp(r'[: ]'), '-')}${path.extension(profilePicture.path)}',
+            filename:
+                'profile_${DateTimeHelper.getCurrentUTC().replaceAll(RegExp(r'[: ]'), '-')}${path.extension(profilePicture.path)}',
             contentType: MediaType(
               'image',
               path.extension(profilePicture.path).replaceAll('.', ''),
@@ -286,7 +290,8 @@ class ApiService {
         if (bloodType != null) 'bloodType': bloodType,
         if (medicalHistory != null) 'medicalHistory': medicalHistory,
         if (allergies != null) 'allergies': allergies,
-        if (currentMedications != null) 'currentMedications': currentMedications,
+        if (currentMedications != null)
+          'currentMedications': currentMedications,
         if (chronicConditions != null) 'chronicConditions': chronicConditions,
         if (emergencyContacts != null) 'emergencyContacts': emergencyContacts,
         if (insuranceInfo != null) 'insuranceInfo': insuranceInfo,
@@ -319,9 +324,10 @@ class ApiService {
         if (licenseNumber != null) 'licenseNumber': licenseNumber,
         if (yearsOfExperience != null) 'yearsOfExperience': yearsOfExperience,
         if (education != null) 'education': education,
-        if (hospitalAffiliations != null) 
+        if (hospitalAffiliations != null)
           'hospitalAffiliations': hospitalAffiliations,
-        if (availableTimeSlots != null) 'availableTimeSlots': availableTimeSlots,
+        if (availableTimeSlots != null)
+          'availableTimeSlots': availableTimeSlots,
         if (consultationFees != null) 'consultationFees': consultationFees,
         if (expertise != null) 'expertise': expertise,
       };
@@ -335,5 +341,316 @@ class ApiService {
       throw _handleDioError(e);
     }
   }
-}
 
+// Get all appointments for the logged-in user (patient or doctor)
+  Future<List<Map<String, dynamic>>> getAppointments() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.appointmentsByUser),
+      );
+      if (response.data['success'] && response.data['appointments'] is List) {
+        return List<Map<String, dynamic>>.from(response.data['appointments']);
+      }
+      return [];
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Doctor-specific appointments
+  Future<List<Map<String, dynamic>>> getDoctorAppointments() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.appointmentsByDoctor),
+      );
+      if (response.data['success'] && response.data['appointments'] is List) {
+        return List<Map<String, dynamic>>.from(response.data['appointments']);
+      }
+      return [];
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Create a new appointment
+  Future<Map<String, dynamic>> createAppointment({
+    required String doctorId,
+    required String appointmentDate,
+    required String timeSlot,
+    required String reason,
+    required double amount,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.appointments),
+        data: {
+          'doctorId': doctorId,
+          'appointmentDate': appointmentDate,
+          'timeSlot': timeSlot,
+          'reason': reason,
+          'amount': amount,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Update appointment status
+  Future<Map<String, dynamic>> updateAppointmentStatus(
+      String appointmentId, String status) async {
+    try {
+      final response = await _dio.patch(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.appointments}/$appointmentId/status'),
+        data: {'status': status},
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Add review to appointment
+  Future<Map<String, dynamic>> addAppointmentReview(
+      String appointmentId, int rating, String comment) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.appointments}/$appointmentId/review'),
+        data: {
+          'rating': rating,
+          'comment': comment,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Create medical record for an appointment
+  Future<Map<String, dynamic>> createMedicalRecord(
+      String appointmentId, Map<String, dynamic> medicalData) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.appointments}/$appointmentId/medical-record'),
+        data: medicalData,
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Get doctor availability slots
+  Future<Map<String, dynamic>> getDoctorAvailability(String doctorId) async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.doctors}/$doctorId/availability'),
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Update doctor availability
+  Future<Map<String, dynamic>> updateDoctorAvailability(
+      String doctorId, List<Map<String, dynamic>> availability) async {
+    try {
+      final response = await _dio.put(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.doctors}/$doctorId/availability'),
+        data: {'availability': availability},
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Create a payment
+  Future<Map<String, dynamic>> createPayment({
+    required String appointmentId,
+    required String paymentMethod,
+    required double amount,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments),
+        data: {
+          'appointmentId': appointmentId,
+          'paymentMethod': paymentMethod,
+          'amount': amount,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Verify a payment
+  Future<Map<String, dynamic>> verifyPayment({
+    required String paymentId,
+    required String transactionId,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.paymentVerify),
+        data: {
+          'paymentId': paymentId,
+          'transactionId': transactionId,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Get payment by appointment ID
+  Future<Map<String, dynamic>> getPaymentForAppointment(
+      String appointmentId) async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.payments}/appointment/$appointmentId'),
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Get all payments for a user (patient or doctor)
+  Future<List<Map<String, dynamic>>> getUserPayments() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.payments}/user'),
+      );
+      if (response.data['success'] && response.data['payments'] is List) {
+        return List<Map<String, dynamic>>.from(response.data['payments']);
+      }
+      return [];
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Get all medical records for a patient
+  Future<List<Map<String, dynamic>>> getPatientMedicalRecords() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.patientMedicalRecords),
+      );
+      if (response.data['success'] && response.data['records'] is List) {
+        return List<Map<String, dynamic>>.from(response.data['records']);
+      }
+      return [];
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Create a new medical record
+  Future<Map<String, dynamic>> createMedicalRecord({
+    required String appointmentId,
+    required String diagnosis,
+    required String symptoms,
+    required String treatment,
+    required String prescription,
+    required List<String> tests,
+    required String notes,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.medicalRecords),
+        data: {
+          'appointmentId': appointmentId,
+          'diagnosis': diagnosis,
+          'symptoms': symptoms,
+          'treatment': treatment,
+          'prescription': prescription,
+          'tests': tests,
+          'notes': notes,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Get a single medical record
+  Future<Map<String, dynamic>> getMedicalRecord(String recordId) async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.medicalRecords}/$recordId'),
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Get the PDF of a medical record
+  Future<String?> getMedicalRecordPdf(String recordId) async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.medicalRecords}/$recordId/pdf'),
+      );
+      if (response.data['success'] && response.data['pdfUrl'] != null) {
+        return response.data['pdfUrl'];
+      }
+      return null;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Get all notifications for the logged-in user
+  Future<List<Map<String, dynamic>>> getUserNotifications() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.notifications),
+      );
+      if (response.data['success'] && response.data['notifications'] is List) {
+        return List<Map<String, dynamic>>.from(response.data['notifications']);
+      }
+      return [];
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Mark notification as read
+  Future<Map<String, dynamic>> markNotificationAsRead(
+      String notificationId) async {
+    try {
+      final response = await _dio.patch(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.notifications}/$notificationId/read'),
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+// Mark all notifications as read
+  Future<Map<String, dynamic>> markAllNotificationsAsRead() async {
+    try {
+      final response = await _dio.patch(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.notifications}/read-all'),
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+}

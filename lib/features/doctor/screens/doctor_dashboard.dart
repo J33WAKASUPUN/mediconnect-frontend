@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
@@ -195,49 +196,88 @@ class DoctorDashboardContent extends StatelessWidget {
   }
 
   Widget _buildTodayAppointments() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Today\'s Appointments', style: AppStyles.heading2),
-        const SizedBox(height: 8),
-        Card(
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 5,
-            separatorBuilder: (context, index) => const Divider(),
-            itemBuilder: (context, index) {
-              return ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.primary,
-                  child: Icon(Icons.person, color: AppColors.textLight),
-                ),
-                title: Text('Patient ${index + 1}'),
-                subtitle: Text('Appointment Time: ${9 + index}:00 AM'),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Confirmed',
-                    style: TextStyle(color: AppColors.success),
-                  ),
-                ),
-                onTap: () {
-                  // TODO: Navigate to appointment details
+  return Consumer<AppointmentProvider>(
+    builder: (context, provider, child) {
+      if (provider.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      
+      final todayAppointments = provider.todayAppointments;
+      
+      if (todayAppointments.isEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Today\'s Appointments', style: AppStyles.heading2),
+            const SizedBox(height: 16),
+            const Center(
+              child: Text('No appointments scheduled for today'),
+            ),
+          ],
+        );
+      }
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Today\'s Appointments', style: AppStyles.heading2),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/doctor/appointments');
                 },
-              );
-            },
+                child: const Text('View All'),
+              ),
+            ],
           ),
-        ),
-      ],
-    );
-  }
+          const SizedBox(height: 8),
+          Card(
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: todayAppointments.length,
+              separatorBuilder: (context, index) => const Divider(),
+              itemBuilder: (context, index) {
+                final appointment = todayAppointments[index];
+                final patientName = appointment.patientDetails != null
+                    ? '${appointment.patientDetails!['firstName']} ${appointment.patientDetails!['lastName']}'
+                    : 'Patient';
+                
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    child: Text(
+                      patientName.substring(0, 1),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  title: Text(patientName),
+                  subtitle: Text(appointment.timeSlot),
+                  trailing: Chip(
+                    label: Text(
+                      appointment.status.toUpperCase(),
+                      style: TextStyle(
+                        color: appointment.statusColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                    backgroundColor: appointment.statusColor.withOpacity(0.1),
+                  ),
+                  onTap: () {
+                    // Navigate to appointment detail
+                    Navigator.pushNamed(context, '/doctor/appointments');
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Widget _buildRecentPatients() {
     return Column(

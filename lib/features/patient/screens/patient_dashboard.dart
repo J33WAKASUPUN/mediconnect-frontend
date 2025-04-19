@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
@@ -270,68 +272,86 @@ class PatientDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildUpcomingAppointments() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // Inside _buildUpcomingAppointments() in patient_dashboard.dart:
+
+Widget _buildUpcomingAppointments() {
+  return Consumer<AppointmentProvider>(
+    builder: (context, appointmentProvider, child) {
+      if (appointmentProvider.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final upcomingAppointments = appointmentProvider.upcomingAppointments;
+      
+      if (upcomingAppointments.isEmpty) {
+        return Column(
           children: [
-            Text('Upcoming Appointments', style: AppStyles.heading2),
-            CustomButton(
-              text: 'Book New',
-              onPressed: () {
-                // TODO: Navigate to book appointment
-              },
-              icon: Icons.add,
-              isSecondary: true,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Upcoming Appointments', style: AppStyles.heading2),
+                CustomButton(
+                  text: 'Book New',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/patient/doctors');
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 48,
+                    color: AppColors.primary.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('No upcoming appointments'),
+                ],
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListView.separated(
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Upcoming Appointments', style: AppStyles.heading2),
+              CustomButton(
+                text: 'View All',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/patient/appointments');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            separatorBuilder: (context, index) => const Divider(),
+            itemCount: upcomingAppointments.take(3).length,
             itemBuilder: (context, index) {
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: const Icon(
-                    Icons.calendar_today,
-                    color: AppColors.primary,
-                  ),
-                ),
-                title: Text('Dr. Smith ${index + 1}'),
-                subtitle: Text(
-                  'March ${12 + index}, 2025 - ${9 + index}:00 AM',
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Confirmed',
-                    style: TextStyle(color: AppColors.success),
-                  ),
-                ),
+              final appointment = upcomingAppointments[index];
+              return AppointmentCard(
+                appointment: appointment,
+                isCompact: true,
                 onTap: () {
-                  // TODO: Navigate to appointment details
+                  Navigator.pushNamed(context, '/patient/appointments');
                 },
               );
             },
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
+    },
+  );
+}
 
   Widget _buildRecentMedicalRecords() {
     return Column(
