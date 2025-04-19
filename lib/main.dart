@@ -55,6 +55,14 @@ void main() async {
   final storageService = StorageService(prefs);
   final apiService = ApiService();
 
+  // Log session information
+  print(SessionInfo.getFormattedCurrentTime());
+  print(SessionInfo.getFormattedUserLogin());
+  
+  // Store session info in SharedPreferences
+  await prefs.setString('last_login_time', SessionInfo.getCurrentUTC());
+  await prefs.setString('last_user_login', SessionInfo.getUserLogin());
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -79,6 +87,10 @@ void main() async {
         ),
         Provider<ApiService>(
           create: (_) => apiService,
+        ),
+        // Add SessionInfo as a provider to make it accessible throughout the app
+        Provider<SessionInfo>(
+          create: (_) => SessionInfo(),
         ),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
