@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/payment/providers/payment_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
@@ -8,11 +10,11 @@ import '../../../core/models/appointment_model.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Appointment appointment;
-  
+
   const PaymentScreen({
-    Key? key,
+    super.key,
     required this.appointment,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentScreenState createState() => _PaymentScreenState();
@@ -21,13 +23,17 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   bool _isProcessing = false;
   String? _selectedPaymentMethod;
-  final List<String> _paymentMethods = ['Credit Card', 'Debit Card', 'Mobile Payment'];
+  final List<String> _paymentMethods = [
+    'Credit Card',
+    'Debit Card',
+    'Mobile Payment'
+  ];
 
   // Get appointment amount
   double get appointmentFee {
     return widget.appointment.amount;
   }
-  
+
   // Get doctor name from appointment
   String get doctorName {
     if (widget.appointment.doctorDetails != null) {
@@ -35,7 +41,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
     return 'Doctor';
   }
-  
+
   // Get appointment reason as type
   String get appointmentType {
     return widget.appointment.reason;
@@ -86,11 +92,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
             Text('Appointment Summary', style: AppStyles.heading2),
             const Divider(height: 24),
             _buildInfoRow('Doctor', doctorName),
-            _buildInfoRow('Date', _formatDate(widget.appointment.appointmentDate)),
+            _buildInfoRow(
+                'Date', _formatDate(widget.appointment.appointmentDate)),
             _buildInfoRow('Time', widget.appointment.timeSlot),
             _buildInfoRow('Reason', appointmentType),
             const Divider(height: 24),
-            _buildInfoRow('Consultation Fee', '\$${appointmentFee.toStringAsFixed(2)}', isTotal: true),
+            _buildInfoRow(
+                'Consultation Fee', '\$${appointmentFee.toStringAsFixed(2)}',
+                isTotal: true),
           ],
         ),
       ),
@@ -223,7 +232,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         children: [
           Text(
             label,
-            style: isTotal ? AppStyles.bodyText1.copyWith(fontWeight: FontWeight.bold) : AppStyles.bodyText1,
+            style: isTotal
+                ? AppStyles.bodyText1.copyWith(fontWeight: FontWeight.bold)
+                : AppStyles.bodyText1,
           ),
           Text(
             value,
@@ -252,30 +263,54 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _isProcessing = true;
     });
 
-    // Simulate payment processing
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Use PaymentProvider to initiate the payment
+      final result = await context.read<PaymentProvider>().initiatePayment(
+            appointmentId: widget.appointment.id,
+            paymentMethod: _selectedPaymentMethod!,
+            amount: widget.appointment.amount,
+          );
 
-    setState(() {
-      _isProcessing = false;
-    });
+      if (result['success'] == true) {
+        // Reload appointments to reflect the payment
+        await context.read<AppointmentProvider>().loadAppointments();
 
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Payment Successful'),
-        content: const Text('Your payment was processed successfully. You will receive a confirmation email shortly.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Return to previous screen
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+        // Show success dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Payment Successful'),
+              content: const Text(
+                  'Your payment was processed successfully. You will receive a confirmation email shortly.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Return to previous screen
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Payment failed')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
   }
 }

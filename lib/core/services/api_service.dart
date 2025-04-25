@@ -384,39 +384,71 @@ class ApiService {
 // Create a new appointment
   Future<Map<String, dynamic>> createAppointment({
     required String doctorId,
-    required String appointmentDate,
+    required String dateTime, // Changed from appointmentDate
     required String timeSlot,
-    required String reason,
+    required String reasonForVisit, // Changed from reason
     required double amount,
   }) async {
     try {
+      // Create a properly formatted appointment data object
+      final data = {
+        'doctorId': doctorId,
+        'dateTime': dateTime, // This should be a complete date-time string
+        'timeSlot': timeSlot,
+        'reasonForVisit': reasonForVisit,
+        'duration': 30 // Default duration in minutes as required by backend
+      };
+
+      print("Creating appointment with data: $data");
+
       final response = await _dio.post(
         ApiEndpoints.getFullUrl(ApiEndpoints.appointments),
-        data: {
-          'doctorId': doctorId,
-          'appointmentDate': appointmentDate,
-          'timeSlot': timeSlot,
-          'reason': reason,
-          'amount': amount,
-        },
+        data: data,
       );
+
       return response.data;
     } catch (e) {
+      print("Error creating appointment: $e");
+
+      if (e is DioException && e.response != null) {
+        // Handle error response from the server
+        final errorResponse = e.response!;
+        if (errorResponse.data is Map<String, dynamic>) {
+          return errorResponse.data as Map<String, dynamic>;
+        } else if (errorResponse.data is String) {
+          return {'success': false, 'message': errorResponse.data};
+        }
+      }
+
       throw _handleError(e);
     }
   }
 
-// Update appointment status
   Future<Map<String, dynamic>> updateAppointmentStatus(
-      String appointmentId, String status) async {
+      String appointmentId, String status,
+      {String? cancellationReason}) async {
     try {
+      Map<String, dynamic> data = {'status': status};
+
+      // If cancellation reason is provided, add it
+      if (cancellationReason != null && cancellationReason.isNotEmpty) {
+        data['cancellationReason'] = cancellationReason;
+        data['cancelledBy'] = 'patient'; // or 'doctor' based on context
+      }
+
+      print("Updating appointment $appointmentId to status: $status");
+      print("Using data: $data");
+
+      // Use the correct endpoint format
       final response = await _dio.patch(
-        ApiEndpoints.getFullUrl(
-            '${ApiEndpoints.appointments}/$appointmentId/status'),
-        data: {'status': status},
+        '${ApiEndpoints.baseUrl}/api/appointments/$appointmentId',
+        data: data,
       );
+
+      print("Update response: ${response.data}");
       return response.data;
     } catch (e) {
+      print("Error updating appointment status: $e");
       throw _handleError(e);
     }
   }
@@ -557,32 +589,33 @@ class ApiService {
 // Create a new detailed medical record
   // Create medical record for an appointment
   // Create a new medical record
-Future<Map<String, dynamic>> createMedicalRecord({
-  required String appointmentId,
-  required String diagnosis,
-  required String symptoms,
-  required String treatment,
-  required String prescription,
-  required List<String> tests,  // Changed from String to List<String>
-  required String notes,
-}) async {
-  try {
-    final response = await _dio.post(
-      ApiEndpoints.getFullUrl('${ApiEndpoints.appointments}/$appointmentId/medical-record'),
-      data: {
-        'diagnosis': diagnosis,
-        'symptoms': symptoms,
-        'treatment': treatment,
-        'prescription': prescription,
-        'tests': tests,  // Pass the list directly
-        'notes': notes,
-      },
-    );
-    return response.data;
-  } catch (e) {
-    throw _handleError(e);
+  Future<Map<String, dynamic>> createMedicalRecord({
+    required String appointmentId,
+    required String diagnosis,
+    required String symptoms,
+    required String treatment,
+    required String prescription,
+    required List<String> tests, // Changed from String to List<String>
+    required String notes,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(
+            '${ApiEndpoints.appointments}/$appointmentId/medical-record'),
+        data: {
+          'diagnosis': diagnosis,
+          'symptoms': symptoms,
+          'treatment': treatment,
+          'prescription': prescription,
+          'tests': tests, // Pass the list directly
+          'notes': notes,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw _handleError(e);
+    }
   }
-}
 
 // Get a single medical record
   Future<Map<String, dynamic>> getMedicalRecord(String recordId) async {
@@ -617,11 +650,30 @@ Future<Map<String, dynamic>> createMedicalRecord({
       final response = await _dio.get(
         ApiEndpoints.getFullUrl(ApiEndpoints.notifications),
       );
-      if (response.data['success'] && response.data['notifications'] is List) {
-        return List<Map<String, dynamic>>.from(response.data['notifications']);
+
+      print("Notifications response status: ${response.statusCode}");
+
+      // Check for successful response
+      if (response.statusCode == 200) {
+        // Handle the response data structure
+        if (response.data is Map<String, dynamic> &&
+            response.data.containsKey('data')) {
+          // If response has a 'data' field containing the array
+          final List<dynamic> notificationsData = response.data['data'];
+          print("Found ${notificationsData.length} notifications in response");
+          return List<Map<String, dynamic>>.from(notificationsData);
+        } else if (response.data is List) {
+          // If response is directly the array
+          print(
+              "Found ${response.data.length} notifications in response (direct list)");
+          return List<Map<String, dynamic>>.from(response.data);
+        }
       }
+
+      print("No notifications found in response or invalid format");
       return [];
     } catch (e) {
+      print("Error fetching notifications: $e");
       throw _handleError(e);
     }
   }
@@ -630,24 +682,97 @@ Future<Map<String, dynamic>> createMedicalRecord({
   Future<Map<String, dynamic>> markNotificationAsRead(
       String notificationId) async {
     try {
-      final response = await _dio.patch(
+      print("Marking notification as read: $notificationId");
+      final response = await _dio.put(
         ApiEndpoints.getFullUrl(
-            '${ApiEndpoints.notifications}/$notificationId/read'),
+            '${ApiEndpoints.notifications}/$notificationId'),
       );
+
       return response.data;
     } catch (e) {
-      throw _handleError(e);
+      print("Error marking notification as read: $e");
+      return {
+        'success': false,
+        'message': 'Failed to mark notification as read: $e'
+      };
     }
   }
 
 // Mark all notifications as read
-  Future<Map<String, dynamic>> markAllNotificationsAsRead() async {
+  Future<Map<String, dynamic>> markAllNotificationsAsRead(
+      List<String> notificationIds) async {
     try {
-      final response = await _dio.patch(
-        ApiEndpoints.getFullUrl('${ApiEndpoints.notifications}/read-all'),
+      print("Marking all notifications as read with individual requests");
+
+      // Track success count
+      int successCount = 0;
+
+      // Make individual requests for each notification
+      for (String id in notificationIds) {
+        try {
+          final result = await markNotificationAsRead(id);
+          if (result['success'] == true) {
+            successCount++;
+          }
+        } catch (e) {
+          print("Error marking notification $id as read: $e");
+        }
+      }
+
+      return {
+        'success': true,
+        'message':
+            'Marked $successCount/${notificationIds.length} notifications as read',
+        'count': successCount
+      };
+    } catch (e) {
+      print("Error in batch mark as read: $e");
+      return {
+        'success': false,
+        'message': 'Failed to mark notifications as read: $e'
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> createNotification({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    String? relatedId,
+  }) async {
+    try {
+      final data = {
+        'userId': userId,
+        'title': title,
+        'message': message,
+        'type': type,
+        'relatedId': relatedId,
+      };
+
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.notifications),
+        data: data,
       );
+
       return response.data;
     } catch (e) {
+      // Just log the error, don't throw since the notification is not critical
+      print("Error creating notification (this is not critical): $e");
+      return {'success': false, 'message': 'Notification API unavailable'};
+    }
+  }
+
+  Future<dynamic> getUserAppointments() async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.appointments),
+      );
+
+      print("Raw API response for appointments: ${response.statusCode}");
+      return response.data;
+    } catch (e) {
+      print("API error getting appointments: $e");
       throw _handleError(e);
     }
   }

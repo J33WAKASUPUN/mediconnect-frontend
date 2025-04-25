@@ -3,17 +3,23 @@ import '../../../shared/constants/colors.dart';
 
 class AppointmentStatusBadge extends StatelessWidget {
   final String status;
-  
+
   const AppointmentStatusBadge({
     super.key,
     required this.status,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     Color statusColor;
-    
+    String displayText = status.toUpperCase();
+
+    // Map status values to display text and colors
     switch (status.toLowerCase()) {
+      case 'pending_payment':
+        statusColor = Colors.orange;
+        displayText = 'PAYMENT NEEDED';
+        break;
       case 'pending':
         statusColor = AppColors.warning;
         break;
@@ -27,12 +33,14 @@ class AppointmentStatusBadge extends StatelessWidget {
         statusColor = AppColors.error;
         break;
       case 'no-show':
+      case 'no_show':
         statusColor = Colors.grey;
+        displayText = 'NO SHOW';
         break;
       default:
         statusColor = AppColors.textSecondary;
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -41,7 +49,7 @@ class AppointmentStatusBadge extends StatelessWidget {
         border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
       child: Text(
-        status.toUpperCase(),
+        displayText,
         style: TextStyle(
           color: statusColor,
           fontWeight: FontWeight.bold,

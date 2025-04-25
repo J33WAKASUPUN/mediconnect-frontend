@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
@@ -35,11 +36,15 @@ class DoctorDashboardState extends State<DoctorDashboard> {
   final userLogin = SessionHelper.getUserLogin();
 
   @override
-  void initState() {
-    super.initState();
-    // Load initial data
-    Future.microtask(() => context.read<DoctorProvider>().getDoctorProfile());
-  }
+void initState() {
+  super.initState();
+  // Load initial data
+  Future.microtask(() {
+    context.read<DoctorProvider>().getDoctorProfile();
+    context.read<AppointmentProvider>().loadAppointments();
+    context.read<NotificationProvider>().loadNotifications();
+  });
+}
 
   @override
   Widget build(BuildContext context) {

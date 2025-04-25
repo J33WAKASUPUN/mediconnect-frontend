@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mediconnect/shared/constants/colors.dart';
@@ -20,6 +19,8 @@ class Appointment {
   final Map<String, dynamic>? medicalRecord;
   final String? paymentId;
   final bool isNotified;
+  final String? cancelledBy;
+  final String? cancellationReason;
 
   Appointment({
     required this.id,
@@ -38,19 +39,30 @@ class Appointment {
     this.medicalRecord,
     this.paymentId,
     this.isNotified = false,
+    this.cancelledBy,
+    this.cancellationReason,
   });
 
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
       id: json['_id'] ?? '',
-      doctorId: json['doctorId'] ?? '',
-      patientId: json['patientId'] ?? '',
-      appointmentDate: json['appointmentDate'] != null
-          ? DateTime.tryParse(json['appointmentDate'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      doctorId: json['doctorId'] is Map
+          ? json['doctorId']['_id']
+          : json['doctorId'] ?? '',
+      patientId: json['patientId'] is Map
+          ? json['patientId']['_id']
+          : json['patientId'] ?? '',
+      appointmentDate: json['dateTime'] != null
+          ? DateTime.tryParse(json['dateTime'].toString()) ?? DateTime.now()
+          : (json['appointmentDate'] != null
+              ? DateTime.tryParse(json['appointmentDate'].toString()) ??
+                  DateTime.now()
+              : DateTime.now()),
       timeSlot: json['timeSlot'] ?? '',
-      reason: json['reason'] ?? '',
-      amount: (json['amount'] ?? 0).toDouble(),
+      reason: json['reasonForVisit'] ?? json['reason'] ?? '',
+      amount: json['amount'] != null
+          ? (json['amount'] is num ? json['amount'].toDouble() : 0.0)
+          : 0.0,
       status: json['status'] ?? 'pending',
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
@@ -58,12 +70,16 @@ class Appointment {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
-      doctorDetails: json['doctorDetails'],
-      patientDetails: json['patientDetails'],
+      doctorDetails:
+          json['doctorId'] is Map ? json['doctorId'] : json['doctorDetails'],
+      patientDetails:
+          json['patientId'] is Map ? json['patientId'] : json['patientDetails'],
       review: json['review'],
       medicalRecord: json['medicalRecord'],
       paymentId: json['paymentId'],
       isNotified: json['isNotified'] ?? false,
+      cancelledBy: json['cancelledBy'],
+      cancellationReason: json['cancellationReason'],
     );
   }
 
@@ -83,6 +99,8 @@ class Appointment {
       'medicalRecord': medicalRecord,
       'paymentId': paymentId,
       'isNotified': isNotified,
+      'cancelledBy': cancelledBy,
+      'cancellationReason': cancellationReason,
     };
   }
 
@@ -92,26 +110,31 @@ class Appointment {
 
   bool get isUpcoming {
     final now = DateTime.now();
-    return appointmentDate.isAfter(now) && 
-           (status == 'pending' || status == 'confirmed');
+    // Check if this appointment is cancelled
+    if (status.toLowerCase() == 'cancelled' || cancelledBy != null) {
+      return false;
+    }
+    return appointmentDate.isAfter(now) &&
+        (status.toLowerCase() == 'pending' ||
+            status.toLowerCase() == 'confirmed' ||
+            status.toLowerCase() == 'pending_payment'); // Add this new status
   }
 
   bool get isPast {
     final now = DateTime.now();
-    return appointmentDate.isBefore(now) || 
-           (status == 'completed' || status == 'cancelled' || status == 'no-show');
+    // Consider cancelled appointments as past
+    if (status.toLowerCase() == 'cancelled' || cancelledBy != null) {
+      return true;
+    }
+    return appointmentDate.isBefore(now) ||
+        (status.toLowerCase() == 'completed' ||
+            status.toLowerCase() == 'no-show');
   }
-  
-  bool get needsPayment {
-    return status == 'confirmed' && paymentId == null;
-  }
-  
-  bool get canBeReviewed {
-    return status == 'completed' && review == null;
-  }
-  
+
   Color get statusColor {
     switch (status.toLowerCase()) {
+      case 'pending_payment':
+        return Colors.orange; // Or another distinct color
       case 'pending':
         return AppColors.warning;
       case 'confirmed':
@@ -121,6 +144,7 @@ class Appointment {
       case 'cancelled':
         return AppColors.error;
       case 'no-show':
+      case 'no_show': // Handle both formats
         return Colors.grey;
       default:
         return AppColors.textSecondary;

@@ -9,9 +9,9 @@ class MedicalRecordDetailScreen extends StatelessWidget {
   final MedicalRecord record;
   
   const MedicalRecordDetailScreen({
-    Key? key,
+    super.key,
     required this.record,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

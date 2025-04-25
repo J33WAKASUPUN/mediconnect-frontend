@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
+import 'package:mediconnect/features/medical_records/providers/medical_records_provider.dart';
+import 'package:mediconnect/features/notification/providers/notification_provider.dart';
+import 'package:mediconnect/features/patient/screens/patient_appointments_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
@@ -29,7 +32,7 @@ class PatientDashboardState extends State<PatientDashboard> {
 
   final List<Widget> _screens = [
     const PatientDashboardContent(),
-    const Center(child: Text('Appointments')), // Placeholder
+    const PatientAppointmentsScreen(),
     const ProfileScreen(),
   ];
 
@@ -40,7 +43,13 @@ class PatientDashboardState extends State<PatientDashboard> {
   void initState() {
     super.initState();
     // Load initial data
-    Future.microtask(() => context.read<PatientProvider>().getPatientProfile());
+    Future.microtask(() {
+      context.read<PatientProvider>().getPatientProfile();
+      context.read<AppointmentProvider>().loadAppointments();
+      context.read<NotificationProvider>().loadNotifications();
+      // Load other data as needed
+      context.read<MedicalRecordsProvider>().loadMedicalRecords();
+    });
   }
 
   @override
@@ -59,7 +68,7 @@ class PatientDashboardState extends State<PatientDashboard> {
         body: _screens[_currentIndex],
         bottomNavigationBar: CustomBottomNavigation(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: changeTab,
         ),
       ),
     );
@@ -274,84 +283,84 @@ class PatientDashboardContent extends StatelessWidget {
 
   // Inside _buildUpcomingAppointments() in patient_dashboard.dart:
 
-Widget _buildUpcomingAppointments() {
-  return Consumer<AppointmentProvider>(
-    builder: (context, appointmentProvider, child) {
-      if (appointmentProvider.isLoading) {
-        return const Center(child: CircularProgressIndicator());
-      }
+  Widget _buildUpcomingAppointments() {
+    return Consumer<AppointmentProvider>(
+      builder: (context, appointmentProvider, child) {
+        if (appointmentProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-      final upcomingAppointments = appointmentProvider.upcomingAppointments;
-      
-      if (upcomingAppointments.isEmpty) {
+        final upcomingAppointments = appointmentProvider.upcomingAppointments;
+
+        if (upcomingAppointments.isEmpty) {
+          return Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Upcoming Appointments', style: AppStyles.heading2),
+                  CustomButton(
+                    text: 'Book New',
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/patient/doctors');
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 48,
+                      color: AppColors.primary.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('No upcoming appointments'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Upcoming Appointments', style: AppStyles.heading2),
                 CustomButton(
-                  text: 'Book New',
+                  text: 'View All',
                   onPressed: () {
-                    Navigator.pushNamed(context, '/patient/doctors');
+                    Navigator.pushNamed(context, '/patient/appointments');
                   },
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 48,
-                    color: AppColors.primary.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('No upcoming appointments'),
-                ],
-              ),
+            const SizedBox(height: 8),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: upcomingAppointments.take(3).length,
+              itemBuilder: (context, index) {
+                final appointment = upcomingAppointments[index];
+                return AppointmentCard(
+                  appointment: appointment,
+                  isCompact: true,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/patient/appointments');
+                  },
+                );
+              },
             ),
           ],
         );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Upcoming Appointments', style: AppStyles.heading2),
-              CustomButton(
-                text: 'View All',
-                onPressed: () {
-                  Navigator.pushNamed(context, '/patient/appointments');
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: upcomingAppointments.take(3).length,
-            itemBuilder: (context, index) {
-              final appointment = upcomingAppointments[index];
-              return AppointmentCard(
-                appointment: appointment,
-                isCompact: true,
-                onTap: () {
-                  Navigator.pushNamed(context, '/patient/appointments');
-                },
-              );
-            },
-          ),
-        ],
-      );
-    },
-  );
-}
+      },
+    );
+  }
 
   Widget _buildRecentMedicalRecords() {
     return Column(

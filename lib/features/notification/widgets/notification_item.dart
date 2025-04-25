@@ -18,14 +18,23 @@ class NotificationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Use the isRead field directly from the notification
+    final isUnread = !notification.isRead;
+
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        // Mark as read when tapped
+        if (isUnread) {
+          onMarkRead();
+        }
+        onTap();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: notification.isRead 
-              ? Colors.transparent 
-              : notification.color.withOpacity(0.05),
+          color: isUnread
+              ? notification.color.withOpacity(0.05)
+              : Colors.transparent,
           border: Border(
             bottom: BorderSide(
               color: Colors.grey.shade200,
@@ -50,7 +59,7 @@ class NotificationItem extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            
+
             // Content
             Expanded(
               child: Column(
@@ -63,9 +72,8 @@ class NotificationItem extends StatelessWidget {
                         child: Text(
                           notification.title,
                           style: AppStyles.bodyText1.copyWith(
-                            fontWeight: notification.isRead 
-                                ? FontWeight.normal 
-                                : FontWeight.bold,
+                            fontWeight:
+                                isUnread ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
                       ),
@@ -86,9 +94,9 @@ class NotificationItem extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             // Read indicator
-            if (!notification.isRead)
+            if (isUnread)
               InkWell(
                 onTap: onMarkRead,
                 child: const Padding(

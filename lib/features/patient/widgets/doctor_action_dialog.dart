@@ -91,11 +91,11 @@ class DoctorActionDialog extends StatelessWidget {
               subtitle: const Text('Schedule a consultation'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Implement appointment booking
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Appointment booking coming soon!'),
-                  ),
+                // Replace SnackBar with proper navigation to the doctor profile
+                Navigator.pushNamed(
+                  context,
+                  '/doctor/profile',
+                  arguments: doctor,
                 );
               },
             ),
@@ -117,7 +117,7 @@ class DoctorActionDialog extends StatelessWidget {
               },
             ),
             const SizedBox(height: 8),
-            
+
             // Cancel Button
             TextButton(
               onPressed: () => Navigator.pop(context),

@@ -7,7 +7,7 @@ class AppNotification {
   final String userId;
   final String title;
   final String message;
-  final String type; // appointment, payment, medical_record, system
+  final String type; // appointment_created, appointment_confirmed, etc.
   final String? relatedId;
   final DateTime timestamp;
   final bool isRead;
@@ -24,45 +24,59 @@ class AppNotification {
   });
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
+    print("Processing notification JSON: ${json['_id']}");
+
+    // Extract the type - default to 'system' if not found
+    String notificationType = json['type'] ?? 'system';
+
+    // Map from backend types to our app types if needed
+    if (notificationType.contains('appointment')) {
+      notificationType = 'appointment';
+    } else if (notificationType.contains('payment')) {
+      notificationType = 'payment';
+    }
+
     return AppNotification(
       id: json['_id'] ?? '',
       userId: json['userId'] ?? '',
       title: json['title'] ?? '',
       message: json['message'] ?? '',
-      type: json['type'] ?? 'system',
-      relatedId: json['relatedId'],
-      timestamp: DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now(),
+      type: notificationType,
+      relatedId:
+          json['appointmentId'] ?? json['paymentId'] ?? json['relatedId'],
+      timestamp:
+          DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       isRead: json['isRead'] ?? false,
     );
   }
-  
+
   String get formattedDate => DateFormat('MMM dd, yyyy').format(timestamp);
-  
+
   IconData get icon {
-    switch (type) {
-      case 'appointment':
-        return Icons.calendar_today;
-      case 'payment':
-        return Icons.payment;
-      case 'medical_record':
-        return Icons.description;
-      case 'system':
-      default:
-        return Icons.notifications;
+    // More specific matching based on type prefixes
+    if (type.contains('appointment')) {
+      return Icons.calendar_today;
+    } else if (type.contains('payment') || type.contains('refund')) {
+      return Icons.payment;
+    } else if (type.contains('medical_record')) {
+      return Icons.description;
+    } else {
+      return Icons.notifications;
     }
   }
-  
+
   Color get color {
-    switch (type) {
-      case 'appointment':
-        return AppColors.primary;
-      case 'payment':
-        return AppColors.success;
-      case 'medical_record':
-        return AppColors.info;
-      case 'system':
-      default:
-        return AppColors.warning;
+    // More specific matching based on type and status
+    if (type.contains('created') || type.contains('pending')) {
+      return AppColors.warning; // Orange/yellow for pending states
+    } else if (type.contains('confirmed') || type.contains('completed')) {
+      return AppColors.success; // Green for success states
+    } else if (type.contains('cancelled') || type.contains('failed')) {
+      return AppColors.error; // Red for error/cancelled states
+    } else if (type.contains('medical_record')) {
+      return AppColors.info;
+    } else {
+      return AppColors.primary; // Default color
     }
   }
 }

@@ -6,15 +6,21 @@ class NotificationProvider with ChangeNotifier {
   final ApiService _apiService;
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
+  bool _usingLocalState = false;
   String? _error;
 
   NotificationProvider({required ApiService apiService})
       : _apiService = apiService;
 
   List<AppNotification> get notifications => _notifications;
-  List<AppNotification> get unreadNotifications => 
+  List<AppNotification> get unreadNotifications =>
       _notifications.where((notif) => !notif.isRead).toList();
-  int get unreadCount => unreadNotifications.length;
+  int get unreadCount {
+    final count = _notifications.where((notif) => notif.isRead == false).length;
+    print("Calculating unread count: $count");
+    return count;
+  }
+
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -25,11 +31,30 @@ class NotificationProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      print("Loading notifications from API...");
       final jsonList = await _apiService.getUserNotifications();
-      _notifications = jsonList.map((json) => AppNotification.fromJson(json)).toList();
+      print("Received ${jsonList.length} notifications from API");
+
+      // Process notifications and handle errors
+      _notifications = [];
+      for (var json in jsonList) {
+        try {
+          final notification = AppNotification.fromJson(json);
+          _notifications.add(notification);
+        } catch (e) {
+          print("Error parsing notification: $e");
+          print("Problematic JSON: $json");
+        }
+      }
+
+      // Sort by timestamp, newest first
+      _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      print("Successfully processed ${_notifications.length} notifications");
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      print("Error loading notifications: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -39,30 +64,36 @@ class NotificationProvider with ChangeNotifier {
   // Mark a notification as read
   Future<bool> markAsRead(String notificationId) async {
     try {
-      await _apiService.markNotificationAsRead(notificationId);
-      
-      // Update local state
-      _notifications = _notifications.map((notification) {
-        if (notification.id == notificationId) {
-          return AppNotification(
-            id: notification.id,
-            userId: notification.userId,
-            title: notification.title,
-            message: notification.message,
-            type: notification.type,
-            relatedId: notification.relatedId,
-            timestamp: notification.timestamp,
-            isRead: true,
-          );
+      if (!_usingLocalState) {
+        try {
+          await _apiService.markNotificationAsRead(notificationId);
+        } catch (e) {
+          print("API call failed, using local state: $e");
+          _usingLocalState = true;
         }
-        return notification;
-      }).toList();
-      
-      notifyListeners();
-      return true;
+      }
+
+      // Update local state
+      final index = _notifications.indexWhere((n) => n.id == notificationId);
+      if (index != -1) {
+        _notifications[index] = AppNotification(
+          id: _notifications[index].id,
+          userId: _notifications[index].userId,
+          title: _notifications[index].title,
+          message: _notifications[index].message,
+          type: _notifications[index].type,
+          relatedId: _notifications[index].relatedId,
+          timestamp: _notifications[index].timestamp,
+          isRead: true,
+        );
+
+        notifyListeners();
+        return true;
+      }
+
+      return false;
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      print("Error marking notification as read: $e");
       return false;
     }
   }
@@ -72,27 +103,32 @@ class NotificationProvider with ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
-      
-      await _apiService.markAllNotificationsAsRead();
-      
-      // Update local state
-      _notifications = _notifications.map((notification) {
-        return AppNotification(
-          id: notification.id,
-          userId: notification.userId,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          relatedId: notification.relatedId,
-          timestamp: notification.timestamp,
-          isRead: true,
-        );
-      }).toList();
-      
+
+      // Get all unread notification IDs
+      final unreadIds = _notifications
+          .where((notification) => !notification.isRead)
+          .map((notification) => notification.id)
+          .toList();
+
+      if (unreadIds.isEmpty) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      print("Marking ${unreadIds.length} notifications as read");
+      final result = await _apiService.markAllNotificationsAsRead(unreadIds);
+
+      // If we successfully marked some notifications as read, reload
+      if (result['success'] == true && result['count'] > 0) {
+        await loadNotifications();
+      }
+
       _isLoading = false;
       notifyListeners();
-      return true;
+      return result['success'] == true;
     } catch (e) {
+      print("Error marking all notifications as read: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();

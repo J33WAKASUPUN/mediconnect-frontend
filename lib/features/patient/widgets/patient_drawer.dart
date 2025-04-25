@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
-import 'package:mediconnect/features/patient/screens/patient_dashboard.dart';
+import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 
-class PatientDrawer extends StatelessWidget {
+class PatientDrawer extends StatefulWidget {
   const PatientDrawer({super.key});
+
+  @override
+  State<PatientDrawer> createState() => _PatientDrawerState();
+}
+
+class _PatientDrawerState extends State<PatientDrawer> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) {
+        context.read<NotificationProvider>().loadNotifications();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,11 +99,7 @@ class PatientDrawer extends StatelessWidget {
                   title: const Text('My Appointments'),
                   onTap: () {
                     Navigator.pop(context);
-                    final dashboardState =
-                        context.findAncestorStateOfType<PatientDashboardState>();
-                    if (dashboardState != null) {
-                      dashboardState.changeTab(1);
-                    }
+                    Navigator.pushNamed(context, '/patient/appointments');
                   },
                 ),
                 ListTile(
@@ -96,7 +107,7 @@ class PatientDrawer extends StatelessWidget {
                   title: const Text('Medical Records'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Navigate to medical records
+                    Navigator.pushNamed(context, '/medical-record/detail');
                   },
                 ),
                 ListTile(
@@ -112,31 +123,50 @@ class PatientDrawer extends StatelessWidget {
                   title: const Text('Profile'),
                   onTap: () {
                     Navigator.pop(context);
-                    final dashboardState =
-                        context.findAncestorStateOfType<PatientDashboardState>();
-                    if (dashboardState != null) {
-                      dashboardState.changeTab(2);
-                    }
+                    Navigator.pushNamed(context, '/profile');
                   },
                 ),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.notifications),
                   title: const Text('Notifications'),
-                  trailing: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      '2',
-                      style: TextStyle(color: AppColors.textLight),
-                    ),
+                  trailing: Consumer<NotificationProvider>(
+                    builder: (context, provider, _) {
+                      // Only show the badge if there are unread notifications
+                      if (provider.unreadCount > 0) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors
+                                .error, // Change to red to make it stand out more
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            provider.unreadCount.toString(),
+                            style: const TextStyle(
+                              color: AppColors.textLight,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Return an empty widget when there are no unread notifications
+                        return const SizedBox.shrink();
+                      }
+                    },
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Navigate to notifications
+                    // When navigating to notifications, ensure we refresh when coming back
+                    Navigator.pushNamed(context, '/notifications').then((_) {
+                      // This runs when returning from notifications screen
+                      if (mounted) {
+                        context
+                            .read<NotificationProvider>()
+                            .loadNotifications();
+                      }
+                    });
                   },
                 ),
                 ListTile(

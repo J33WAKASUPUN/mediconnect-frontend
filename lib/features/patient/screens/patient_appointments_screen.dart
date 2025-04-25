@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/core/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../core/models/medical_record_model.dart';
@@ -14,10 +15,11 @@ import '../../payment/screens/payment_screen.dart';
 import '../../medical_records/screens/medical_record_detail_screen.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
-  const PatientAppointmentsScreen({Key? key}) : super(key: key);
+  const PatientAppointmentsScreen({super.key});
 
   @override
-  _PatientAppointmentsScreenState createState() => _PatientAppointmentsScreenState();
+  _PatientAppointmentsScreenState createState() =>
+      _PatientAppointmentsScreenState();
 }
 
 class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
@@ -28,7 +30,15 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    Future.microtask(() {
+
+    print("Initializing PatientAppointmentsScreen");
+    // Use a more direct approach to load data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print("Loading appointments...");
+      // Print current user info
+      final user = context.read<AuthProvider>().user;
+      print("Current user: ${user?.id}, ${user?.role}");
+
       context.read<AppointmentProvider>().loadAppointments();
     });
   }
@@ -42,57 +52,62 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Appointments'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Upcoming'),
-            Tab(text: 'Past'),
+        appBar: AppBar(
+          title: const Text('My Appointments'),
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'Upcoming'),
+              Tab(text: 'Past'),
+            ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                context.read<AppointmentProvider>().loadAppointments();
+              },
+            ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<AppointmentProvider>().loadAppointments();
-            },
-          ),
-        ],
-      ),
-      body: Consumer<AppointmentProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const LoadingIndicator();
-          }
+        body: Consumer<AppointmentProvider>(
+          builder: (context, provider, child) {
+            print(
+                "Provider state: isLoading=${provider.isLoading}, error=${provider.error}");
+            print(
+                "Upcoming appointments: ${provider.upcomingAppointments.length}");
+            print("Past appointments: ${provider.pastAppointments.length}");
 
-          if (provider.error != null) {
-            return ErrorView(
-              message: provider.error!,
-              onRetry: () {
-                provider.loadAppointments();
-              },
+            if (provider.isLoading) {
+              return const LoadingIndicator();
+            }
+
+            if (provider.error != null) {
+              return ErrorView(
+                message: provider.error!,
+                onRetry: () {
+                  provider.loadAppointments();
+                },
+              );
+            }
+
+            return TabBarView(
+              controller: _tabController,
+              children: [
+                _buildAppointmentsList(
+                  context,
+                  provider.upcomingAppointments,
+                  true,
+                ),
+                _buildAppointmentsList(
+                  context,
+                  provider.pastAppointments,
+                  false,
+                ),
+              ],
             );
-          }
-
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildAppointmentsList(
-                context,
-                provider.upcomingAppointments,
-                true,
-              ),
-              _buildAppointmentsList(
-                context,
-                provider.pastAppointments,
-                false,
-              ),
-            ],
-          );
-        },
-      ),
-    );
+          },
+        ));
   }
 
   Widget _buildAppointmentsList(
@@ -144,22 +159,23 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
               // View appointment details
               // This could navigate to a detailed screen
             },
-            onCancelPressed: isUpcoming && appointment.status == 'pending' || appointment.status == 'confirmed'
+            onCancelPressed: isUpcoming && appointment.status == 'pending' ||
+                    appointment.status == 'confirmed'
                 ? () => _showCancelConfirmation(context, appointment.id)
                 : null,
-            onReviewPressed: !isUpcoming && 
-                            appointment.status == 'completed' && 
-                            appointment.review == null
+            onReviewPressed: !isUpcoming &&
+                    appointment.status == 'completed' &&
+                    appointment.review == null
                 ? () => _showReviewDialog(context, appointment)
                 : null,
-            onViewMedicalRecord: !isUpcoming && 
-                               appointment.status == 'completed' && 
-                               appointment.medicalRecord != null
+            onViewMedicalRecord: !isUpcoming &&
+                    appointment.status == 'completed' &&
+                    appointment.medicalRecord != null
                 ? () => _navigateToMedicalRecord(context, appointment)
                 : null,
-            onPaymentPressed: isUpcoming && 
-                             appointment.status == 'confirmed' && 
-                             appointment.paymentId == null
+            onPaymentPressed: isUpcoming &&
+                    appointment.status == 'confirmed' &&
+                    appointment.paymentId == null
                 ? () => _navigateToPayment(context, appointment)
                 : null,
           );
@@ -168,12 +184,14 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     );
   }
 
-  Future<void> _showCancelConfirmation(BuildContext context, String appointmentId) async {
+  Future<void> _showCancelConfirmation(
+      BuildContext context, String appointmentId) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Appointment'),
-        content: const Text('Are you sure you want to cancel this appointment?'),
+        content:
+            const Text('Are you sure you want to cancel this appointment?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -188,7 +206,9 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     );
 
     if (result == true) {
-      await context.read<AppointmentProvider>().cancelAppointment(appointmentId);
+      await context
+          .read<AppointmentProvider>()
+          .cancelAppointment(appointmentId);
     }
   }
 
@@ -196,17 +216,17 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     final doctorName = appointment.doctorDetails != null
         ? 'Dr. ${appointment.doctorDetails!['firstName']} ${appointment.doctorDetails!['lastName']}'
         : 'your doctor';
-        
+
     showDialog(
       context: context,
       builder: (context) => ReviewDialog(
         doctorName: doctorName,
         onSubmit: (rating, comment) async {
           await context.read<AppointmentProvider>().addReview(
-            appointment.id,
-            rating,
-            comment,
-          );
+                appointment.id,
+                rating,
+                comment,
+              );
         },
       ),
     );
@@ -216,7 +236,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     if (appointment.medicalRecord != null) {
       // Create a MedicalRecord from the appointment's medicalRecord map
       final record = MedicalRecord.fromJson(appointment.medicalRecord!);
-      
+
       Navigator.push(
         context,
         MaterialPageRoute(

@@ -57,10 +57,25 @@ class MedicalRecordsProvider with ChangeNotifier {
         tests: tests,
         notes: notes,
       );
-      
+
       _isLoading = false;
-      
+
       if (response['success']) {
+        // Create notification for the patient
+        final medicalRecordData =
+            response['record'] ?? response['medicalRecord'];
+        if (medicalRecordData != null &&
+            medicalRecordData['patientId'] != null) {
+          await _apiService.createNotification(
+            userId: medicalRecordData['patientId'],
+            title: 'New Medical Record',
+            message:
+                'A new medical record has been created for your appointment',
+            type: 'medical_record',
+            relatedId: medicalRecordData['_id'],
+          );
+        }
+
         await loadMedicalRecords(); // Refresh the list
         notifyListeners();
         return true;
@@ -84,10 +99,10 @@ class MedicalRecordsProvider with ChangeNotifier {
       notifyListeners();
 
       final pdfUrl = await _apiService.getMedicalRecordPdf(recordId);
-      
+
       _isLoading = false;
       notifyListeners();
-      
+
       return pdfUrl;
     } catch (e) {
       _error = e.toString();

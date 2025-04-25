@@ -118,8 +118,8 @@ class DoctorProfileScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildSection(
                   title: 'Hospital Affiliations',
-                  children:
-                      doctor.doctorProfile!.hospitalAffiliations.map((hospital) {
+                  children: doctor.doctorProfile!.hospitalAffiliations
+                      .map((hospital) {
                     return _buildInfoRow(
                       hospital.hospitalName,
                       hospital.role,
@@ -137,7 +137,8 @@ class DoctorProfileScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: doctor.doctorProfile!.expertise.map((expertise) {
+                      children:
+                          doctor.doctorProfile!.expertise.map((expertise) {
                         return Chip(
                           label: Text(expertise),
                           backgroundColor: AppColors.primary.withOpacity(0.1),
@@ -150,11 +151,13 @@ class DoctorProfileScreen extends StatelessWidget {
               ],
 
               // Available Time Periods
-              if (doctor.doctorProfile?.availableTimeSlots.isNotEmpty ?? false) ...[
+              if (doctor.doctorProfile?.availableTimeSlots.isNotEmpty ??
+                  false) ...[
                 const SizedBox(height: 16),
                 _buildSection(
                   title: 'Available Time Periods',
-                  children: doctor.doctorProfile!.availableTimeSlots.map((slot) {
+                  children:
+                      doctor.doctorProfile!.availableTimeSlots.map((slot) {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: Padding(
@@ -178,7 +181,8 @@ class DoctorProfileScreen extends StatelessWidget {
                                     '${time.startTime} - ${time.endTime}',
                                     style: const TextStyle(fontSize: 12),
                                   ),
-                                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                                  backgroundColor:
+                                      AppColors.primary.withOpacity(0.1),
                                   labelStyle: const TextStyle(
                                     color: AppColors.primary,
                                   ),
@@ -204,12 +208,7 @@ class DoctorProfileScreen extends StatelessWidget {
             FloatingActionButton.extended(
               heroTag: 'message',
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Messaging feature coming soon!'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                _safeShowSnackBar(context, 'Messaging feature coming soon!');
               },
               icon: const Icon(Icons.message_outlined),
               label: const Text('Message'),
@@ -233,23 +232,50 @@ class DoctorProfileScreen extends StatelessWidget {
   }
 
   void _showBookingBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => AppointmentBookingSheet(
-          doctor: doctor,
-          scrollController: scrollController,
+    FocusScope.of(context).unfocus(); // First unfocus any current focus
+
+    Future.delayed(const Duration(milliseconds: 50), () {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
-      ),
-    );
+        builder: (context) {
+          return StatefulBuilder(builder: (context, setState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.9, // Increase this from 0.7
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) => AppointmentBookingSheet(
+                doctor: doctor,
+                scrollController: scrollController,
+              ),
+            );
+          });
+        },
+      );
+    });
+  }
+
+  void _safeShowSnackBar(BuildContext context, String message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        final snackBar = SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(
+              bottom: MediaQuery.of(context).size.height * 0.1,
+              left: 16,
+              right: 16),
+        );
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(snackBar);
+      }
+    });
   }
 
   Widget _buildSection({

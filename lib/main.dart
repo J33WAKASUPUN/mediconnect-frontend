@@ -5,24 +5,50 @@ import 'package:mediconnect/features/patient/screens/doctor_list_screen.dart';
 import 'package:mediconnect/features/patient/screens/doctor_profile_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Core imports
 import 'core/providers/auth_provider.dart';
 import 'core/services/api_service.dart';
 import 'core/services/storage_service.dart';
+import 'core/models/appointment_model.dart';
+import 'core/models/medical_record_model.dart';
+
+// Feature imports - Auth
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/splash_screen.dart';
+
+// Feature imports - Doctor
 import 'features/doctor/providers/doctor_provider.dart';
 import 'features/doctor/screens/doctor_dashboard.dart';
 import 'features/doctor/screens/doctor_appointments_screen.dart';
+
+// Feature imports - Patient
 import 'features/patient/providers/patient_provider.dart';
 import 'features/patient/providers/doctor_list_provider.dart';
 import 'features/patient/screens/patient_dashboard.dart';
 import 'features/patient/screens/patient_appointments_screen.dart';
+
+// Feature imports - Profile
 import 'features/profile/providers/profile_provider.dart';
 import 'features/profile/screens/profile_screen.dart';
+
+// Feature imports - Appointment
 import 'features/appointment/providers/appointment_provider.dart';
+
+// Feature imports - Medical Records
+import 'features/medical_records/providers/medical_records_provider.dart';
 import 'features/medical_records/screens/medical_record_detail_screen.dart';
+
+// Feature imports - Payment
+import 'features/payment/providers/payment_provider.dart';
 import 'features/payment/screens/payment_screen.dart';
+
+// Feature imports - Notification
+import 'features/notification/providers/notification_provider.dart';
+import 'features/notification/screens/notification_screen.dart';
+
+// Shared imports
 import 'shared/constants/colors.dart';
 import 'shared/constants/styles.dart';
 
@@ -52,10 +78,10 @@ class SessionInfo {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
-  
+
   // Initialize Services
   final storageService = StorageService(prefs);
   final apiService = ApiService();
@@ -63,7 +89,7 @@ void main() async {
   // Log session information
   print(SessionInfo.getFormattedCurrentTime());
   print(SessionInfo.getFormattedUserLogin());
-  
+
   // Store session info in SharedPreferences
   await prefs.setString('last_login_time', SessionInfo.getCurrentUTC());
   await prefs.setString('last_user_login', SessionInfo.getUserLogin());
@@ -87,6 +113,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        // Core services
         Provider<StorageService>(
           create: (_) => storageService,
         ),
@@ -97,46 +124,75 @@ void main() async {
         Provider<SessionInfo>(
           create: (_) => SessionInfo(),
         ),
+        // Auth provider
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             apiService: apiService,
             storageService: storageService,
           ),
         ),
+        // Profile provider
         ChangeNotifierProxyProvider<AuthProvider, ProfileProvider>(
           create: (context) => ProfileProvider(
             apiService: context.read<ApiService>(),
             authProvider: context.read<AuthProvider>(),
           ),
-          update: (context, auth, previous) => previous ?? ProfileProvider(
-            apiService: context.read<ApiService>(),
-            authProvider: auth,
-          ),
+          update: (context, auth, previous) =>
+              previous ??
+              ProfileProvider(
+                apiService: context.read<ApiService>(),
+                authProvider: auth,
+              ),
         ),
+        // Doctor provider
         ChangeNotifierProxyProvider<AuthProvider, DoctorProvider>(
           create: (context) => DoctorProvider(
             apiService: context.read<ApiService>(),
           ),
-          update: (context, auth, previous) => previous ?? DoctorProvider(
-            apiService: context.read<ApiService>(),
-          ),
+          update: (context, auth, previous) =>
+              previous ??
+              DoctorProvider(
+                apiService: context.read<ApiService>(),
+              ),
         ),
+        // Patient provider
         ChangeNotifierProxyProvider<AuthProvider, PatientProvider>(
           create: (context) => PatientProvider(
             apiService: context.read<ApiService>(),
           ),
-          update: (context, auth, previous) => previous ?? PatientProvider(
-            apiService: context.read<ApiService>(),
-          ),
+          update: (context, auth, previous) =>
+              previous ??
+              PatientProvider(
+                apiService: context.read<ApiService>(),
+              ),
         ),
+        // Doctor list provider
         ChangeNotifierProvider(
           create: (context) => DoctorListProvider(
             apiService: context.read<ApiService>(),
           ),
         ),
-        // Add AppointmentProvider - THIS WAS MISSING
+        // Appointment provider
         ChangeNotifierProvider(
           create: (context) => AppointmentProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        // Add NotificationProvider
+        ChangeNotifierProvider(
+          create: (context) => NotificationProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        // Add MedicalRecordsProvider
+        ChangeNotifierProvider(
+          create: (context) => MedicalRecordsProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        // Add PaymentProvider
+        ChangeNotifierProvider(
+          create: (context) => PaymentProvider(
             apiService: context.read<ApiService>(),
           ),
         ),
@@ -156,7 +212,28 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: const SplashScreen(),
+      routes: {
+        // Auth routes
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+
+        // Dashboard routes
+        '/patient/dashboard': (context) => const PatientDashboard(),
+        '/doctor/dashboard': (context) => const DoctorDashboard(),
+
+        // Shared routes
+        '/profile': (context) => const ProfileScreen(),
+        '/notifications': (context) => const NotificationScreen(),
+
+        // Patient routes
+        '/patient/doctors': (context) => const DoctorsListScreen(),
+        '/patient/appointments': (context) => const PatientAppointmentsScreen(),
+
+        // Doctor routes
+        '/doctor/appointments': (context) => const DoctorAppointmentsScreen(),
+      },
       onGenerateRoute: (settings) {
+        // Handle doctor profile
         if (settings.name == '/doctor/profile') {
           final args = settings.arguments;
           if (args is User) {
@@ -177,19 +254,50 @@ class MyApp extends StatelessWidget {
             ),
           );
         }
+
+        // Handle payment screen
+        if (settings.name == '/payment') {
+          final args = settings.arguments;
+          if (args is Appointment) {
+            return MaterialPageRoute(
+              builder: (context) => PaymentScreen(appointment: args),
+              settings: settings,
+            );
+          }
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Error'),
+              ),
+              body: const Center(
+                child: Text('Invalid payment data'),
+              ),
+            ),
+          );
+        }
+
+        // Handle medical record detail
+        if (settings.name == '/medical-record/detail') {
+          final args = settings.arguments;
+          if (args is MedicalRecord) {
+            return MaterialPageRoute(
+              builder: (context) => MedicalRecordDetailScreen(record: args),
+              settings: settings,
+            );
+          }
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Error'),
+              ),
+              body: const Center(
+                child: Text('Invalid medical record data'),
+              ),
+            ),
+          );
+        }
+
         return null;
-      },
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/patient/dashboard': (context) => const PatientDashboard(),
-        '/doctor/dashboard': (context) => const DoctorDashboard(),
-        '/profile': (context) => const ProfileScreen(),
-        '/patient/doctors': (context) => const DoctorsListScreen(),
-        // Added missing routes
-        '/patient/appointments': (context) => const PatientAppointmentsScreen(),
-        '/doctor/appointments': (context) => const DoctorAppointmentsScreen(),
-        // Add other routes as needed
       },
       builder: (context, child) {
         return GestureDetector(
@@ -197,7 +305,8 @@ class MyApp extends StatelessWidget {
             FocusScope.of(context).requestFocus(FocusNode());
           },
           child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(1.0)),
             child: child!,
           ),
         );
@@ -279,6 +388,8 @@ class MyApp extends StatelessWidget {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        insetPadding:
+            const EdgeInsets.fromLTRB(16, 0, 16, 100), // Added bottom margin
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

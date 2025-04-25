@@ -8,7 +8,6 @@ import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../appointment/providers/appointment_provider.dart';
 import '../../appointment/widgets/appointment_card.dart';
-import '../widgets/medical_record_form.dart';
 
 class DoctorAppointmentsScreen extends StatefulWidget {
   const DoctorAppointmentsScreen({super.key});
