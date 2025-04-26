@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/payment/screens/payment_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/user_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -24,8 +25,8 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
   DateTime? selectedDate;
   String? selectedTimeSlot;
   final reasonController = TextEditingController();
-  // Add the missing _isLoading variable
   bool _isLoading = false;
+  final FocusNode reasonFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -37,14 +38,10 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
     });
   }
 
-  // Add this to your state class variables at the top
-  final FocusNode reasonFocusNode = FocusNode();
-
-// Then in your dispose method:
   @override
   void dispose() {
     reasonController.dispose();
-    reasonFocusNode.dispose(); // Don't forget to dispose the focus node
+    reasonFocusNode.dispose();
     super.dispose();
   }
 
@@ -97,8 +94,7 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
                 if (date != null) {
                   setState(() {
                     selectedDate = date;
-                    selectedTimeSlot =
-                        null; // Reset time slot when date changes
+                    selectedTimeSlot = null; // Reset time slot when date changes
                   });
                 }
               },
@@ -178,82 +174,7 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
 
           // Book Button
           ElevatedButton(
-            onPressed: _canBook()
-                ? () async {
-                    // Validate inputs first
-                    if (selectedDate == null ||
-                        selectedTimeSlot == null ||
-                        reasonController.text.trim().isEmpty) {
-                      _safeShowSnackBar(
-                          context, 'Please fill in all required fields');
-                      return;
-                    }
-
-                    // Show loading indicator
-                    setState(() {
-                      _isLoading = true;
-                    });
-
-                    try {
-                      final appointmentProvider =
-                          context.read<AppointmentProvider>();
-
-                      // Extract the time from the timeSlot (e.g., "09:00 - 12:00" -> "09:00")
-                      final startTime =
-                          selectedTimeSlot!.split(' - ').first.trim();
-
-                      // Format the appointment date with time as required by the backend
-                      final dateComponents = selectedDate
-                          .toString()
-                          .split(' ')[0]; // Get YYYY-MM-DD
-                      final fullDateTime =
-                          '$dateComponents $startTime:00'; // Format: YYYY-MM-DD HH:MM:00
-
-                      print("Booking appointment with datetime: $fullDateTime");
-
-                      // Get the appointment details
-                      final result = await appointmentProvider.bookAppointment(
-                        doctorId: widget.doctor.id,
-                        appointmentDate: selectedDate!,
-                        timeSlot: selectedTimeSlot!,
-                        reason: reasonController.text.trim(),
-                        amount:
-                            widget.doctor.doctorProfile?.consultationFees ?? 0,
-                      );
-
-                      // Hide loading indicator
-                      setState(() {
-                        _isLoading = false;
-                      });
-
-                      if (result) {
-                        // Success
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          _safeShowSnackBar(
-                              context, 'Appointment requested successfully!');
-                        }
-                      } else {
-                        // Error
-                        if (context.mounted) {
-                          _safeShowSnackBar(
-                              context,
-                              appointmentProvider.error ??
-                                  'Failed to book appointment');
-                        }
-                      }
-                    } catch (e) {
-                      // Handle any unexpected errors
-                      setState(() {
-                        _isLoading = false;
-                      });
-
-                      if (context.mounted) {
-                        _safeShowSnackBar(context, 'An error occurred: $e');
-                      }
-                    }
-                  }
-                : null,
+            onPressed: _canBook() ? () => _handleBookAppointment(context) : null,
             child: _isLoading
                 ? const SizedBox(
                     height: 20,
@@ -263,6 +184,117 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
                 : const Text('Book Appointment'),
           ),
           const SizedBox(height: 16), // Bottom padding for safe area
+        ],
+      ),
+    );
+  }
+  
+  // NEW: Handler method for booking appointment
+  Future<void> _handleBookAppointment(BuildContext context) async {
+    // Validate inputs
+    if (selectedDate == null ||
+        selectedTimeSlot == null ||
+        reasonController.text.trim().isEmpty) {
+      _safeShowSnackBar(context, 'Please fill in all required fields');
+      return;
+    }
+
+    // Show loading indicator
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final appointmentProvider = context.read<AppointmentProvider>();
+
+      final result = await appointmentProvider.bookAppointment(
+        doctorId: widget.doctor.id,
+        appointmentDate: selectedDate!,
+        timeSlot: selectedTimeSlot!,
+        reason: reasonController.text.trim(),
+        amount: widget.doctor.doctorProfile?.consultationFees ?? 0,
+      );
+
+      // Hide loading indicator
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (result) {
+        // Close the bottom sheet
+        if (context.mounted) {
+          Navigator.pop(context);
+          
+          // Show options dialog
+          _showAppointmentBookedDialog(context, appointmentProvider.latestAppointment);
+        }
+      } else {
+        // Error
+        if (context.mounted) {
+          _safeShowSnackBar(
+              context,
+              appointmentProvider.error ?? 'Failed to book appointment');
+        }
+      }
+    } catch (e) {
+      // Handle any unexpected errors
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (context.mounted) {
+        _safeShowSnackBar(context, 'An error occurred: $e');
+      }
+    }
+  }
+  
+  // NEW: Show options dialog after booking
+  void _showAppointmentBookedDialog(BuildContext context, appointment) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Appointment Booked!'),
+        content: const Text(
+          'Your appointment has been booked successfully. What would you like to do next?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pushNamed(context, '/patient/appointments');
+            },
+            child: const Text('View My Appointments'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              
+              // If we have the appointment, navigate to payment
+              if (appointment != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentScreen(
+                      appointment: appointment,
+                    ),
+                  ),
+                ).then((_) {
+                  // After payment flow completes, go to appointments
+                  Navigator.pushReplacementNamed(context, '/patient/appointments');
+                });
+              } else {
+                // Fallback if appointment isn't available
+                _safeShowSnackBar(context, 'Could not find appointment details. Please go to your appointments to make the payment.');
+                Navigator.pushNamed(context, '/patient/appointments');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Pay Now'),
+          ),
         ],
       ),
     );

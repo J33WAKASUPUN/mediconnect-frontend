@@ -13,6 +13,9 @@ class AppointmentProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   final Map<String, Map<String, List<String>>> _doctorAvailability = {};
+  
+  // NEW: Store the latest created appointment
+  Appointment? _latestAppointment;
 
   // Getters
   List<Appointment> get appointments => _appointments;
@@ -39,6 +42,9 @@ class AppointmentProvider with ChangeNotifier {
   String? get error => _error;
   Map<String, Map<String, List<String>>> get doctorAvailability =>
       _doctorAvailability;
+      
+  // NEW: Getter for the latest appointment
+  Appointment? get latestAppointment => _latestAppointment;
 
   // Load all appointments
   Future<void> loadAppointments() async {
@@ -110,7 +116,7 @@ class AppointmentProvider with ChangeNotifier {
     }
   }
 
-// Helper method to extract appointment data from API response
+  // Helper method to extract appointment data from API response
   Appointment? _extractAppointmentFromJson(dynamic json) {
     if (json == null || json is! Map<String, dynamic>) {
       print("Invalid appointment data: $json");
@@ -217,7 +223,7 @@ class AppointmentProvider with ChangeNotifier {
     );
   }
 
-  // Book a new appointment
+  // UPDATED: Book a new appointment with latestAppointment storage
   Future<bool> bookAppointment({
     required String doctorId,
     required DateTime appointmentDate,
@@ -228,6 +234,8 @@ class AppointmentProvider with ChangeNotifier {
     try {
       _isLoading = true;
       _error = null;
+      // Reset the latest appointment
+      _latestAppointment = null;
       notifyListeners();
 
       // Extract the time from the timeSlot (e.g., "09:00 - 12:00" -> "09:00")
@@ -251,6 +259,16 @@ class AppointmentProvider with ChangeNotifier {
       );
 
       if (response['success'] == true) {
+        // NEW: Store the latest appointment for direct payment flow
+        if (response['data'] != null) {
+          try {
+            _latestAppointment = _extractAppointmentFromJson(response['data']);
+            print("Stored latest appointment: ${_latestAppointment?.id}");
+          } catch (e) {
+            print("Error extracting appointment from response: $e");
+          }
+        }
+        
         // Create notification for doctor
         final appointmentData = response['data'];
         if (appointmentData != null && appointmentData['doctorId'] != null) {
@@ -398,8 +416,6 @@ class AppointmentProvider with ChangeNotifier {
   }
 
   // Create medical record for an appointment (doctor only)
-  // Replace the createMedicalRecord method (lines 162-193) with this:
-// Create medical record for an appointment (doctor only)
   Future<bool> createMedicalRecord(
       String appointmentId, Map<String, dynamic> medicalData) async {
     try {
@@ -517,5 +533,19 @@ class AppointmentProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+  
+  // NEW: Method to find a specific appointment by ID
+  Appointment? findAppointmentById(String appointmentId) {
+    return _appointments.firstWhere(
+      (apt) => apt.id == appointmentId,
+      orElse: () => null as Appointment,  // Will return null if not found
+    );
+  }
+  
+  // NEW: Method to clear the latest appointment reference
+  void clearLatestAppointment() {
+    _latestAppointment = null;
+    notifyListeners();
   }
 }

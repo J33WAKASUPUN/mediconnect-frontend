@@ -1,8 +1,14 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/features/patient/screens/doctor_list_screen.dart';
 import 'package:mediconnect/features/patient/screens/doctor_profile_screen.dart';
+import 'package:mediconnect/features/payment/screens/payment_details_screen.dart';
+import 'package:mediconnect/features/payment/screens/payment_history_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -51,33 +57,23 @@ import 'features/notification/screens/notification_screen.dart';
 // Shared imports
 import 'shared/constants/colors.dart';
 import 'shared/constants/styles.dart';
+import 'core/utils/session_helper.dart';
 
-class SessionInfo {
-  static String getCurrentUTC() {
-    final now = DateTime.now().toUtc();
-    return '${now.year}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')} '
-        '${now.hour.toString().padLeft(2, '0')}:'
-        '${now.minute.toString().padLeft(2, '0')}:'
-        '${now.second.toString().padLeft(2, '0')}';
-  }
-
-  static String getUserLogin() {
-    return 'J33WAKASUPUN';
-  }
-
-  static String getFormattedCurrentTime() {
-    return 'Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): ${getCurrentUTC()}';
-  }
-
-  static String getFormattedUserLogin() {
-    return 'Current User\'s Login: ${getUserLogin()}';
-  }
-}
+// Helper getters for platform detection
+bool get isAndroid => defaultTargetPlatform == TargetPlatform.android;
+bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize WebView platform if we're on mobile
+  if (!kIsWeb) {
+    if (isAndroid) {
+      WebViewPlatform.instance = AndroidWebViewPlatform();
+    } else if (isIOS) {
+      WebViewPlatform.instance = WebKitWebViewPlatform();
+    }
+  }
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
@@ -87,12 +83,12 @@ void main() async {
   final apiService = ApiService();
 
   // Log session information
-  print(SessionInfo.getFormattedCurrentTime());
-  print(SessionInfo.getFormattedUserLogin());
+  print(SessionHelper.getCurrentUTC());
+  print(SessionHelper.getUserLogin());
 
   // Store session info in SharedPreferences
-  await prefs.setString('last_login_time', SessionInfo.getCurrentUTC());
-  await prefs.setString('last_user_login', SessionInfo.getUserLogin());
+  await prefs.setString('last_login_time', SessionHelper.getCurrentUTC());
+  await prefs.setString('last_user_login', SessionHelper.getUserLogin());
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -119,10 +115,6 @@ void main() async {
         ),
         Provider<ApiService>(
           create: (_) => apiService,
-        ),
-        // Add SessionInfo as a provider to make it accessible throughout the app
-        Provider<SessionInfo>(
-          create: (_) => SessionInfo(),
         ),
         // Auth provider
         ChangeNotifierProvider(
@@ -231,6 +223,9 @@ class MyApp extends StatelessWidget {
 
         // Doctor routes
         '/doctor/appointments': (context) => const DoctorAppointmentsScreen(),
+
+        // Payment routes (that don't need arguments)
+        '/payment/history': (context) => const PaymentHistoryScreen(),
       },
       onGenerateRoute: (settings) {
         // Handle doctor profile
@@ -271,6 +266,27 @@ class MyApp extends StatelessWidget {
               ),
               body: const Center(
                 child: Text('Invalid payment data'),
+              ),
+            ),
+          );
+        }
+
+        // For payment details screen
+        if (settings.name == '/payment/details') {
+          final args = settings.arguments;
+          if (args is String) {
+            return MaterialPageRoute(
+              builder: (context) => PaymentDetailsScreen(paymentId: args),
+              settings: settings,
+            );
+          }
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Error'),
+              ),
+              body: const Center(
+                child: Text('Invalid payment ID'),
               ),
             ),
           );

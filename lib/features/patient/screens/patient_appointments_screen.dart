@@ -1,3 +1,5 @@
+// lib/features/patient/screens/patient_appointments_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
@@ -110,6 +112,12 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
         ));
   }
 
+  // Helper method to check if payment is needed
+  bool _isPaymentNeeded(Appointment appointment) {
+    return appointment.status.toLowerCase() == 'pending_payment' ||
+        (appointment.status.toLowerCase() == 'pending' && appointment.paymentId == null);
+  }
+
   Widget _buildAppointmentsList(
     BuildContext context,
     List<Appointment> appointments,
@@ -156,11 +164,11 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
             appointment: appointment,
             isPatientView: true,
             onTap: () {
-              // View appointment details
-              // This could navigate to a detailed screen
+              // Show appointment details or action sheet
+              _showAppointmentActions(context, appointment, isUpcoming);
             },
-            onCancelPressed: isUpcoming && appointment.status == 'pending' ||
-                    appointment.status == 'confirmed'
+            onCancelPressed: isUpcoming && (appointment.status == 'pending' ||
+                    appointment.status == 'confirmed')
                 ? () => _showCancelConfirmation(context, appointment.id)
                 : null,
             onReviewPressed: !isUpcoming &&
@@ -173,14 +181,93 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
                     appointment.medicalRecord != null
                 ? () => _navigateToMedicalRecord(context, appointment)
                 : null,
-            onPaymentPressed: isUpcoming &&
-                    appointment.status == 'confirmed' &&
-                    appointment.paymentId == null
+            onPaymentPressed: isUpcoming && _isPaymentNeeded(appointment)
                 ? () => _navigateToPayment(context, appointment)
                 : null,
           );
         },
       ),
+    );
+  }
+
+  void _showAppointmentActions(BuildContext context, Appointment appointment, bool isUpcoming) {
+    // Show bottom sheet with appointment actions
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Appointment Options',
+                style: AppStyles.heading2,
+              ),
+              const SizedBox(height: 24),
+              
+              // Payment button
+              if (isUpcoming && _isPaymentNeeded(appointment))
+                ListTile(
+                  leading: const Icon(Icons.payment, color: Colors.orange),
+                  title: const Text('Make Payment'),
+                  subtitle: Text('Rs. ${appointment.amount.toStringAsFixed(2)}'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToPayment(context, appointment);
+                  },
+                ),
+              
+              // Cancel button
+              if (isUpcoming && (appointment.status == 'pending' || appointment.status == 'confirmed'))
+                ListTile(
+                  leading: const Icon(Icons.cancel, color: AppColors.error),
+                  title: const Text('Cancel Appointment'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showCancelConfirmation(context, appointment.id);
+                  },
+                ),
+                
+              // Review button
+              if (!isUpcoming && appointment.status == 'completed' && appointment.review == null)
+                ListTile(
+                  leading: const Icon(Icons.star, color: AppColors.warning),
+                  title: const Text('Leave a Review'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showReviewDialog(context, appointment);
+                  },
+                ),
+                
+              // View medical record
+              if (!isUpcoming && appointment.status == 'completed' && appointment.medicalRecord != null)
+                ListTile(
+                  leading: const Icon(Icons.medical_information, color: AppColors.info),
+                  title: const Text('View Medical Record'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToMedicalRecord(context, appointment);
+                  },
+                ),
+                
+              const SizedBox(height: 8),
+              
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -256,6 +343,11 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
           appointment: appointment,
         ),
       ),
-    );
+    ).then((_) {
+      // Refresh appointments after returning from payment screen
+      if (mounted) {
+        context.read<AppointmentProvider>().loadAppointments();
+      }
+    });
   }
 }

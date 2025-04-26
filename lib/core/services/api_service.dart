@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../config/api_endpoints.dart';
 import '../utils/datetime_helper.dart';
@@ -773,6 +774,122 @@ class ApiService {
       return response.data;
     } catch (e) {
       print("API error getting appointments: $e");
+      throw _handleError(e);
+    }
+  }
+
+  // Create a payment order (uses PayPal)
+  Future<Map<String, dynamic>> createPaymentOrder({
+    required String appointmentId,
+    required double amount,
+  }) async {
+    try {
+      print(
+          "Creating payment order for appointment: $appointmentId with amount: $amount");
+
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/create-order'),
+        data: {
+          'appointmentId': appointmentId,
+          'amount': amount,
+        },
+      );
+
+      print("Payment order creation response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error creating payment order: $e");
+      throw _handleError(e);
+    }
+  }
+
+// Capture a payment (confirms the PayPal payment)
+  Future<Map<String, dynamic>> capturePayment(String orderId) async {
+    try {
+      print("Capturing payment for order: $orderId");
+
+      final response = await _dio.post(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/capture/$orderId'),
+      );
+
+      print("Payment capture response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error capturing payment: $e");
+      throw _handleError(e);
+    }
+  }
+
+// Get payment history
+  Future<Map<String, dynamic>> getPaymentHistory({
+    String? startDate,
+    String? endDate,
+    String? status,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      print("Fetching payment history");
+
+      final queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+        if (startDate != null) 'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+        if (status != null) 'status': status,
+      };
+
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/history'),
+        queryParameters: queryParams,
+      );
+
+      print("Payment history response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error fetching payment history: $e");
+      throw _handleError(e);
+    }
+  }
+
+// Get payment receipt
+  Future<String> getPaymentReceipt(String paymentId) async {
+    try {
+      print("Fetching receipt for payment: $paymentId");
+
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/$paymentId/receipt'),
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      // Save the PDF file locally and return the path
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/receipt_$paymentId.pdf';
+
+      File file = File(filePath);
+      await file.writeAsBytes(response.data);
+
+      print("Receipt saved to: $filePath");
+      return filePath;
+    } catch (e) {
+      print("Error fetching payment receipt: $e");
+      throw _handleError(e);
+    }
+  }
+
+// Get payment details
+  Future<Map<String, dynamic>> getPaymentDetails(String paymentId) async {
+    try {
+      print("Fetching payment details for: $paymentId");
+
+      final response = await _dio.get(
+        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/$paymentId'),
+      );
+
+      print("Payment details response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error fetching payment details: $e");
       throw _handleError(e);
     }
   }

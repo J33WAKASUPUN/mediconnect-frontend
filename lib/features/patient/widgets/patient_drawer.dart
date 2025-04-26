@@ -182,7 +182,7 @@ class _PatientDrawerState extends State<PatientDrawer> {
                   title: const Text('Billing & Payments'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Navigate to billing
+                    Navigator.pushNamed(context, '/payment/history');
                   },
                 ),
                 ListTile(

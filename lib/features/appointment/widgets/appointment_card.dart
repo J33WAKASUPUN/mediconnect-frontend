@@ -1,3 +1,5 @@
+// lib/features/appointment/widgets/appointment_card.dart
+
 import 'package:flutter/material.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -159,6 +161,11 @@ class AppointmentCard extends StatelessWidget {
         onPaymentPressed != null;
   }
 
+  bool _isPaymentNeeded() {
+    return appointment.status.toLowerCase() == 'pending_payment' ||
+        (appointment.status.toLowerCase() == 'pending' && appointment.paymentId == null);
+  }
+
   Widget _buildActionButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -240,17 +247,18 @@ class AppointmentCard extends StatelessWidget {
             ),
           ),
 
-        // Payment button
-        if (appointment.status.toLowerCase() == 'pending_payment')
+        // Payment button - Show for pending_payment status or pending without payment
+        if (_isPaymentNeeded() && onPaymentPressed != null)
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.payment, size: 16),
+              label: const Text('Pay Now'),
               onPressed: onPaymentPressed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Pay Now'),
             ),
           ),
       ],
