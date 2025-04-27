@@ -1,6 +1,9 @@
 // auth_provider.dart
 import 'dart:io';
+import 'dart:js_interop';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as js;
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -12,6 +15,18 @@ enum AuthStatus {
   unauthenticated,
   error
 }
+
+@JS('getAuthToken')
+external String? _jsGetAuthToken();
+
+@JS('localStorage.removeItem')
+external void _jsRemoveItem(String key);
+
+@JS('localStorage.removeItem')
+external void _jsRemoveLocalStorageItem(String key);
+
+@JS('saveAuthToken')
+external void _jsSaveAuthToken(String token);
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService;
@@ -41,17 +56,70 @@ class AuthProvider with ChangeNotifier {
 
   // Initialize auth state
   Future<void> _init() async {
+    // Check secure storage first
     _token = _storageService.getToken();
     _user = _storageService.getUser();
 
+    // For web, also check localStorage if secure storage is empty
+    if (kIsWeb && (_token == null || _user == null)) {
+      try {
+        final webToken = _jsGetAuthToken();
+        if (webToken != null && webToken.isNotEmpty) {
+          print("Found token in localStorage");
+
+          // Try to verify the token
+          _apiService.setAuthToken(webToken);
+          try {
+            final profileResponse = await _apiService.getProfile();
+            if (profileResponse != null && profileResponse['user'] != null) {
+              // Token is valid, set up the user
+              _token = webToken;
+              _user = User.fromJson(profileResponse['user']);
+
+              // Also save to secure storage
+              await _storageService.saveToken(_token!);
+              await _storageService.saveUser(_user!);
+            }
+          } catch (e) {
+            print("Error verifying web token: $e");
+            // Failed to verify token, clear it
+            _jsRemoveItem('auth_token');
+          }
+        }
+      } catch (e) {
+        print("Error checking localStorage: $e");
+      }
+    }
+
+    // Set final auth status
     if (_token != null && _user != null) {
       _apiService.setAuthToken(_token!);
       _status = AuthStatus.authenticated;
     } else {
       _status = AuthStatus.unauthenticated;
     }
+
     notifyListeners();
   }
+
+// LOGOUT
+  Future<void> logout() async {
+  await _storageService.clearAll();
+
+  if (kIsWeb) {
+    // Clear localStorage in web
+    try {
+      _jsRemoveLocalStorageItem('auth_token');
+    } catch (e) {
+      print("Error clearing localStorage: $e");
+    }
+  }
+
+  _token = null;
+  _user = null;
+  _status = AuthStatus.unauthenticated;
+  notifyListeners();
+}
 
   // Register
   Future<void> register({
@@ -100,7 +168,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Login
-  Future<void> login({
+  Future<Map<String, dynamic>> login({
     required String email,
     required String password,
     required String role,
@@ -110,36 +178,41 @@ class AuthProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      // Call the API
       final response = await _apiService.login(
         email: email,
         password: password,
         role: role,
       );
 
+      // Extract token and user
       _token = response['token'];
       _user = User.fromJson(response['user']);
 
+      // Save to storage service
       await _storageService.saveToken(_token!);
       await _storageService.saveUser(_user!);
+
+      // For web platforms, also save to localStorage
+      if (kIsWeb) {
+        try {
+          _jsSaveAuthToken(_token!);
+        } catch (e) {
+          print("Error saving to localStorage: $e");
+        }
+      }
 
       _apiService.setAuthToken(_token!);
       _status = AuthStatus.authenticated;
       notifyListeners();
+
+      return response; // Return the response for web credential saving
     } catch (e) {
       _status = AuthStatus.error;
       _error = e.toString();
       notifyListeners();
       rethrow;
     }
-  }
-
-  // Logout
-  Future<void> logout() async {
-    await _storageService.clearAll();
-    _token = null;
-    _user = null;
-    _status = AuthStatus.unauthenticated;
-    notifyListeners();
   }
 
   // Get initial route based on auth status and role
@@ -161,10 +234,12 @@ class AuthProvider with ChangeNotifier {
           firstName: userData['firstName']?.toString() ?? _user!.firstName,
           lastName: userData['lastName']?.toString() ?? _user!.lastName,
           email: userData['email']?.toString() ?? _user!.email,
-          phoneNumber: userData['phoneNumber']?.toString() ?? _user!.phoneNumber,
+          phoneNumber:
+              userData['phoneNumber']?.toString() ?? _user!.phoneNumber,
           gender: userData['gender']?.toString() ?? _user!.gender,
           address: userData['address']?.toString() ?? _user!.address,
-          profilePicture: userData['profilePicture']?.toString() ?? _user!.profilePicture,
+          profilePicture:
+              userData['profilePicture']?.toString() ?? _user!.profilePicture,
           createdAt: userData['createdAt']?.toString() ?? _user!.createdAt,
         );
 

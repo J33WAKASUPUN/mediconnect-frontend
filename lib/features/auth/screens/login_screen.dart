@@ -1,4 +1,8 @@
+import 'dart:js_interop';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as js;
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/styles.dart';
@@ -6,6 +10,12 @@ import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../../../shared/widgets/loading_overlay.dart';
 import '../widgets/role_toggle.dart';
+
+@JS('saveCredentials')
+external void _jsSaveCredentials(String username, String password);
+
+@JS('saveAuthToken')
+external void _jsSaveAuthToken(String token);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,21 +44,44 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await context.read<AuthProvider>().login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        role: _selectedRole,
-      );
-      
+      // For web, try to save credentials for browser
+      if (kIsWeb) {
+        try {
+          _jsSaveCredentials(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+        } catch (e) {
+          print("Error saving credentials: $e");
+          // Continue with login even if credential saving fails
+        }
+      }
+
+      // Login using AuthProvider
+      final response = await context.read<AuthProvider>().login(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+            role: _selectedRole,
+          );
+
+      // For web, save auth token in localStorage
+      if (kIsWeb && response['token'] != null) {
+        try {
+          _jsSaveAuthToken(response['token']);
+        } catch (e) {
+          print("Error saving auth token: $e");
+        }
+      }
+
       if (!mounted) return;
-      
+
       // Navigate based on role
       Navigator.of(context).pushReplacementNamed(
         _selectedRole == 'patient' ? '/patient/dashboard' : '/doctor/dashboard',
       );
     } catch (e) {
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
@@ -86,7 +119,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 48),
                   RoleToggle(
                     selectedRole: _selectedRole,
-                    onRoleChanged: (role) => setState(() => _selectedRole = role),
+                    onRoleChanged: (role) =>
+                        setState(() => _selectedRole = role),
                   ),
                   const SizedBox(height: 24),
                   CustomTextField(

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:provider/provider.dart';
@@ -274,6 +276,29 @@ class PaymentProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return null;
+    }
+  }
+
+  Future<Uint8List> getReceiptPdfData(String paymentId) async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      print("Fetching receipt PDF data for payment: $paymentId");
+      final Uint8List pdfData =
+          await _apiService.getPaymentReceiptPdfData(paymentId);
+
+      _isLoading = false;
+      notifyListeners();
+
+      return pdfData;
+    } catch (e) {
+      print("Error downloading receipt data: $e");
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      throw e;
     }
   }
 

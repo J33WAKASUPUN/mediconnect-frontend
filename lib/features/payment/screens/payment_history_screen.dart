@@ -1,10 +1,12 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+import 'dart:html' as html;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:mediconnect/core/services/api_service.dart';
 import 'package:mediconnect/features/payment/screens/payment_details_screen.dart';
 import 'package:mediconnect/shared/widgets/empty_state_view.dart';
-import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/loading_indicator.dart';
@@ -267,26 +269,14 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   void _downloadReceipt(BuildContext context, String paymentId) async {
-    final provider = Provider.of<PaymentProvider>(context, listen: false);
-
-    // Find the payment to get the reference
-    Payment? foundPayment;
-    try {
-      foundPayment = provider.payments.firstWhere(
-        (p) => p.id == paymentId,
-      );
-    } catch (e) {
-      foundPayment = null;
-    }
-
-    final paymentReference = foundPayment?.paypalOrderId ?? 'N/A';
+    final apiService = Provider.of<ApiService>(context, listen: false);
 
     // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Downloading Receipt'),
+        title: const Text('Processing Receipt'),
         content: Row(
           children: [
             const CircularProgressIndicator(),
@@ -298,104 +288,72 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
 
     try {
-      final result = await provider.downloadReceipt(paymentId);
+      if (kIsWeb) {
+        print('Getting receipt token for payment: $paymentId');
 
-      // Close the loading dialog
-      Navigator.of(context, rootNavigator: true).pop();
+        // Step 1: Get a receipt token from the backend
+        final tokenResponse = await apiService.getReceiptToken(paymentId);
 
-      if (result != null) {
-        // Check if the result is a URL (starts with http)
-        final bool isUrl = result.startsWith('http');
+        // Close the loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
 
-        // Show options dialog
-        showDialog(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Receipt Ready'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isUrl ? Icons.language : Icons.description,
-                  color: Colors.green,
-                  size: 48,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isUrl
-                      ? 'Your receipt is ready to view online.'
-                      : 'Your receipt has been downloaded successfully.',
-                  textAlign: TextAlign.center,
-                ),
-                if (paymentReference != 'N/A') ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Reference: $paymentReference',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  )
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                },
-                child: const Text('Close'),
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.remove_red_eye),
-                label: Text(isUrl ? 'View Online' : 'Open File'),
-                onPressed: () {
-                  Navigator.pop(dialogContext);
+        if (tokenResponse != null && tokenResponse['success'] == true) {
+          final receiptToken = tokenResponse['data']['receiptToken'];
 
-                  if (isUrl) {
-                    // Launch URL - you might need url_launcher package
-                    launchUrl(Uri.parse(result));
-                  } else {
-                    // Open the PDF file
-                    OpenFile.open(result).then((openResult) {
-                      if (openResult.type != ResultType.done) {
-                        // If opening fails, show an error
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Could not open file: ${openResult.message}'),
-                          ),
-                        );
-                      }
-                    });
-                  }
-                },
-              ),
-            ],
-          ),
-        );
+          // Step 2: Create URL to view the receipt with this token
+          final baseUrl =
+              'http://192.168.1.159:3000'; // Your backend URL without /api
+          final pdfUrl =
+              '$baseUrl/api/payments/$paymentId/view-receipt?receiptToken=$receiptToken';
+
+          print('Opening PDF URL: $pdfUrl');
+
+          // Step 3: Open in a new browser tab
+          html.window.open(pdfUrl, '_blank');
+        } else {
+          print('Failed to get receipt token: $tokenResponse');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to generate receipt token')),
+          );
+        }
       } else {
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.error ?? 'Failed to download receipt'),
-            action: SnackBarAction(
-              label: 'Retry',
-              onPressed: () => _downloadReceipt(context, paymentId),
-            ),
-          ),
-        );
+        print('Getting receipt token for payment: $paymentId');
+
+        // Step 1: Get a receipt token from the backend
+        final tokenResponse = await apiService.getReceiptToken(paymentId);
+
+        // Close the loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        if (tokenResponse != null && tokenResponse['success'] == true) {
+          final receiptToken = tokenResponse['data']['receiptToken'];
+
+          // Step 2: Create URL to view the receipt with this token
+          final baseUrl =
+              'http://192.168.1.159:3000'; // Your backend URL without /api
+          final pdfUrl =
+              '$baseUrl/api/payments/$paymentId/view-receipt?receiptToken=$receiptToken';
+
+          print('Opening PDF URL: $pdfUrl');
+
+          // Step 3: Open in a new browser tab
+          html.window.open(pdfUrl, '_blank');
+        } else {
+          print('Failed to get receipt token: $tokenResponse');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to generate receipt token')),
+          );
+        }
       }
     } catch (e) {
-      // Close the loading dialog
-      Navigator.of(context, rootNavigator: true).pop();
+      // Close the loading dialog if not already closed
+      if (Navigator.canPop(context)) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
 
-      // Show error message
+      print('Error accessing receipt: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => _downloadReceipt(context, paymentId),
-          ),
-        ),
+        SnackBar(content: Text('Error accessing receipt: $e')),
       );
     }
   }

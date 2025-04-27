@@ -48,6 +48,49 @@ class ApiService {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
 
+  String getReceiptViewerUrl(String paymentId) {
+    // Get the current token
+    final token = _authToken ?? '';
+
+    // Use the base URL of your web app
+    final appUrl = Uri.base.origin;
+
+    // For debugging
+    print('Creating receipt URL with token length: ${token.length}');
+
+    // Encode the token for URL safety
+    final encodedToken = Uri.encodeComponent(token);
+
+    // Return the URL to the PDF viewer bridge with token and paymentId
+    return '$appUrl/pdf_viewer.html?token=$encodedToken&id=$paymentId';
+  }
+
+  String getReceiptPdfUrl(String paymentId) {
+    // Get the base URL - adjust this to your actual backend URL in production
+    // For development, you might need to hardcode this to your backend URL
+    final baseUrl = 'http://localhost:3000'; // Change to your backend URL
+
+    // Get the auth token
+    final token = Uri.encodeComponent(_authToken ?? '');
+
+    // Return the URL to the PDF with token
+    return '$baseUrl/api/payments/$paymentId/receipt-with-token?token=$token';
+  }
+
+  String getAuthToken() {
+    // Get the token from your storage mechanism
+    final token = _authToken;
+
+    // Check if the token exists and is not expired
+    if (token == null || token.isEmpty) {
+      print('Warning: Auth token is missing or empty');
+      return '';
+    }
+
+    // Return the token
+    return token;
+  }
+
   Future<Map<String, String>> _getAuthHeaders() async {
     if (_authToken == null || _authToken!.isEmpty) {
       throw 'No authentication token available';
@@ -853,69 +896,15 @@ class ApiService {
     }
   }
 
-// Get payment receipt
+  // Get payment receipt
   Future<String> getPaymentReceipt(String paymentId) async {
     try {
       print("Fetching receipt for payment: $paymentId");
 
-      // Check if we're on web
-      if (kIsWeb) {
-        // For web, just return a URL that can be opened in a new tab
-        final receiptUrl =
-            '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
-        print("Web platform detected, returning URL: $receiptUrl");
-        return receiptUrl;
-      }
-
-      // For mobile platforms
-      try {
-        // Use a descriptive filename
-        final fileName = 'receipt_$paymentId.pdf';
-
-        // Get temp directory instead of app documents (more reliable)
-        final Directory tempDir = await getTemporaryDirectory();
-        final String filePath = '${tempDir.path}/$fileName';
-
-        print("Will save receipt to: $filePath");
-
-        // Check if file already exists to avoid unnecessary downloads
-        final File file = File(filePath);
-        if (await file.exists()) {
-          print("Receipt already downloaded, using cached version");
-          return filePath;
-        }
-
-        // Request the receipt from the server
-        final response = await _dio.get(
-          '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt',
-          options: Options(
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            validateStatus: (status) {
-              return status != null && status < 500;
-            },
-          ),
-        );
-
-        // Check response status
-        if (response.statusCode == 200) {
-          // Write the PDF data to file
-          await file.writeAsBytes(response.data);
-          print("Receipt downloaded and saved to: $filePath");
-          return filePath;
-        } else {
-          print("Error downloading receipt: Status ${response.statusCode}");
-          throw Exception(
-              'Failed to download receipt: Status ${response.statusCode}');
-        }
-      } catch (e) {
-        print("Error saving receipt file: $e");
-        // If file operations fail, return a direct URL instead
-        final receiptUrl =
-            '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
-        print("Falling back to URL: $receiptUrl");
-        return receiptUrl;
-      }
+      // For web or mobile, just return the URL
+      final receiptUrl =
+          '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
+      return receiptUrl;
     } catch (e) {
       print("Error fetching payment receipt: $e");
       throw _handleError(e);
@@ -1032,6 +1021,85 @@ class ApiService {
     } catch (e) {
       print("Error updating appointment with payment: $e");
       throw _handleError(e);
+    }
+  }
+
+  Future<String?> getToken() async {
+    return _authToken;
+  }
+
+  Future<Uint8List> getPaymentReceiptPdfData(String paymentId) async {
+    try {
+      print("Directly fetching receipt PDF data for payment: $paymentId");
+
+      final response = await _dio.get(
+        '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {
+            'Authorization': 'Bearer $_authToken',
+            'Accept': 'application/pdf',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return Uint8List.fromList(response.data);
+      } else {
+        throw Exception(
+            'Failed to download receipt: Status ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Error fetching receipt data: $e");
+      throw _handleError(e);
+    }
+  }
+
+  Future<String?> getAuthenticatedReceiptUrl(String paymentId) async {
+    try {
+      // Get the auth token
+      final token = await getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Authentication token not available');
+      }
+
+      // Create the basic URL
+      final receiptUrl =
+          '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
+
+      // Return a URL with the auth token as query parameter
+      return '$receiptUrl?auth_token=$token';
+    } catch (e) {
+      print("Error generating authenticated receipt URL: $e");
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>?> getReceiptToken(String paymentId) async {
+    try {
+      print('Getting receipt token for payment: $paymentId');
+
+      final response = await _dio.get(
+        '/payments/$paymentId/receipt-token',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $_authToken',
+          },
+        ),
+      );
+
+      print('Receipt token response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        print('Receipt token obtained successfully');
+        return response.data;
+      }
+
+      print('Failed to get receipt token: ${response.data}');
+      return null;
+    } catch (e) {
+      print('Error getting receipt token: $e');
+      return null;
     }
   }
 }
