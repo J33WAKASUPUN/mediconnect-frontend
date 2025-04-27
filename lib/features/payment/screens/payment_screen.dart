@@ -1,5 +1,3 @@
-// lib/features/payment/screens/payment_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/payment/providers/payment_provider.dart';
@@ -44,10 +42,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String get appointmentReason {
     return widget.appointment.reason;
   }
-  
+
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<PaymentProvider>(context, listen: false).setContext(context);
+    });
     // Check if WebView is supported
     try {
       // This will throw an exception if WebView is not supported
@@ -86,10 +88,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     _isWebViewSupported = false;
                   }
                 }
-                
+
                 // Show browser option if WebView is not supported but we have PayPal URL
-                if (provider.paypalApprovalUrl != null && !_isWebViewSupported) {
-                  return _buildBrowserPaymentOption(provider.paypalApprovalUrl!, provider.currentOrderId);
+                if (provider.paypalApprovalUrl != null &&
+                    !_isWebViewSupported) {
+                  return _buildBrowserPaymentOption(
+                      provider.paypalApprovalUrl!, provider.currentOrderId);
                 }
 
                 // Otherwise show payment info
@@ -139,8 +143,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: CustomButton(
-                          text: _isWebViewSupported 
-                              ? 'Pay with PayPal' 
+                          text: _isWebViewSupported
+                              ? 'Pay with PayPal'
                               : 'Pay with PayPal in Browser',
                           onPressed: _initiatePayment,
                         ),
@@ -165,7 +169,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
     );
   }
-  
+
   // New method to build browser payment option
   Widget _buildBrowserPaymentOption(String paypalUrl, String? orderId) {
     return Center(
@@ -193,7 +197,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               onPressed: () => _openBrowser(paypalUrl),
             ),
@@ -209,9 +214,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-              onPressed: orderId != null 
+              onPressed: orderId != null
                   ? () => _handlePaymentComplete(orderId)
                   : null,
             ),
@@ -225,7 +231,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
     );
   }
-  
+
   // Method to open PayPal in browser
   Future<void> _openBrowser(String url) async {
     try {
@@ -401,62 +407,69 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _handlePaymentComplete(String orderId) async {
-    setState(() {
-      _isProcessing = true;
-    });
+  setState(() {
+    _isProcessing = true;
+  });
 
-    try {
-      final paymentProvider =
-          Provider.of<PaymentProvider>(context, listen: false);
-      final success = await paymentProvider.capturePayment();
+  try {
+    final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
+    final success = await paymentProvider.capturePayment();
 
-      if (success) {
-        // Reload appointments to reflect the payment
-        await Provider.of<AppointmentProvider>(context, listen: false)
-            .loadAppointments();
-
-        // Show success dialog
-        if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: const Text('Payment Successful'),
-              content: const Text(
-                  'Your payment was processed successfully. You will receive a confirmation email shortly.'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Return to previous screen
-                  },
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(paymentProvider.error ?? 'Payment verification failed')),
+    if (success) {
+      // Register the payment locally if not already done
+      final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+      if (!appointmentProvider.hasLocalPayment(widget.appointment.id)) {
+        appointmentProvider.registerPaymentForAppointment(
+          widget.appointment.id, 
+          orderId
         );
-
-        setState(() {
-          _isProcessing = false;
-        });
       }
-    } catch (e) {
+      
+      // Force refresh the appointment list
+      await appointmentProvider.loadAppointments();
+
+      // Show success dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Payment Successful'),
+            content: const Text(
+                'Your payment was processed successfully. You will receive a confirmation email shortly.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Return to previous screen
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(
+            content:
+                Text(paymentProvider.error ?? 'Payment verification failed')),
       );
 
       setState(() {
         _isProcessing = false;
       });
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $e')),
+    );
+
+    setState(() {
+      _isProcessing = false;
+    });
   }
+}
 
   void _handlePaymentCancelled() {
     final paymentProvider =

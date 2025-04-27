@@ -4,6 +4,7 @@ import 'package:mediconnect/features/payment/screens/payment_details_screen.dart
 import 'package:mediconnect/shared/widgets/empty_state_view.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/loading_indicator.dart';
@@ -36,7 +37,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   void _scrollListener() {
-    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
       _loadMoreData();
     }
   }
@@ -92,7 +94,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16),
-                    itemCount: provider.payments.length + (provider.isLoadingMore ? 1 : 0),
+                    itemCount: provider.payments.length +
+                        (provider.isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == provider.payments.length) {
                         return const Center(
@@ -122,7 +125,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       child: InkWell(
         onTap: () {
           Navigator.push(
-            context, 
+            context,
             MaterialPageRoute(
               builder: (context) => PaymentDetailsScreen(paymentId: payment.id),
             ),
@@ -172,7 +175,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     onPressed: payment.isSuccessful
                         ? () => _downloadReceipt(context, payment.id)
                         : null,
-                    color: payment.isSuccessful ? AppColors.primary : AppColors.textSecondary,
+                    color: payment.isSuccessful
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
                     tooltip: 'Download Receipt',
                   ),
                 ],
@@ -187,7 +192,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   Widget _buildStatusChip(String status) {
     Color color;
     String label;
-    
+
     switch (status) {
       case 'COMPLETED':
         color = Colors.green;
@@ -263,32 +268,134 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
   void _downloadReceipt(BuildContext context, String paymentId) async {
     final provider = Provider.of<PaymentProvider>(context, listen: false);
-    
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Downloading receipt...')),
-    );
-    
-    final filePath = await provider.downloadReceipt(paymentId);
-    
-    if (filePath != null) {
-      // Show success message with option to open the file
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Receipt downloaded successfully'),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () {
-              // Open the PDF file
-              OpenFile.open(filePath);
-            },
-          ),
-        ),
+
+    // Find the payment to get the reference
+    Payment? foundPayment;
+    try {
+      foundPayment = provider.payments.firstWhere(
+        (p) => p.id == paymentId,
       );
-    } else {
+    } catch (e) {
+      foundPayment = null;
+    }
+
+    final paymentReference = foundPayment?.paypalOrderId ?? 'N/A';
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Downloading Receipt'),
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            const Text('Please wait...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await provider.downloadReceipt(paymentId);
+
+      // Close the loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (result != null) {
+        // Check if the result is a URL (starts with http)
+        final bool isUrl = result.startsWith('http');
+
+        // Show options dialog
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Receipt Ready'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isUrl ? Icons.language : Icons.description,
+                  color: Colors.green,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isUrl
+                      ? 'Your receipt is ready to view online.'
+                      : 'Your receipt has been downloaded successfully.',
+                  textAlign: TextAlign.center,
+                ),
+                if (paymentReference != 'N/A') ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Reference: $paymentReference',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  )
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('Close'),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.remove_red_eye),
+                label: Text(isUrl ? 'View Online' : 'Open File'),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+
+                  if (isUrl) {
+                    // Launch URL - you might need url_launcher package
+                    launchUrl(Uri.parse(result));
+                  } else {
+                    // Open the PDF file
+                    OpenFile.open(result).then((openResult) {
+                      if (openResult.type != ResultType.done) {
+                        // If opening fails, show an error
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Could not open file: ${openResult.message}'),
+                          ),
+                        );
+                      }
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(provider.error ?? 'Failed to download receipt'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => _downloadReceipt(context, paymentId),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close the loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.error ?? 'Failed to download receipt')),
+        SnackBar(
+          content: Text('Error: $e'),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => _downloadReceipt(context, paymentId),
+          ),
+        ),
       );
     }
   }

@@ -15,7 +15,6 @@ class Payment {
   final Map<String, dynamic>? refundDetails;
   final DateTime createdAt;
   final DateTime updatedAt;
-  // Added fields to store related appointment data
   final Map<String, dynamic>? appointmentData;
   final Map<String, dynamic>? patientData;
   final Map<String, dynamic>? doctorData;
@@ -24,7 +23,7 @@ class Payment {
     required this.id,
     required this.appointmentId,
     required this.amount,
-    this.currency = 'USD',
+    this.currency = 'RS.',
     required this.status,
     this.paypalOrderId,
     this.payerId,
@@ -61,7 +60,7 @@ class Payment {
           ? json['appointmentId']['_id'] 
           : json['appointmentId'] ?? '',
       amount: (json['amount'] ?? 0).toDouble(),
-      currency: json['currency'] ?? 'USD',
+      currency: json['currency'] ?? 'RS.',
       status: json['status'] ?? 'PENDING',
       paypalOrderId: json['paypalOrderId'],
       payerId: json['payerId'],

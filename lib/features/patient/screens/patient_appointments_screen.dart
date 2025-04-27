@@ -28,6 +28,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  Future<void> _loadAppointments() async {
+    final appointmentProvider =
+        Provider.of<AppointmentProvider>(context, listen: false);
+    await appointmentProvider.loadAppointments();
+    await appointmentProvider.syncPaymentStatus(); // Sync payment status
+  }
+  Future<void> _refreshData() async {
+    final appointmentProvider =
+        Provider.of<AppointmentProvider>(context, listen: false);
+    await appointmentProvider.syncPaymentStatus();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +53,8 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
       final user = context.read<AuthProvider>().user;
       print("Current user: ${user?.id}, ${user?.role}");
 
-      context.read<AppointmentProvider>().loadAppointments();
+      _loadAppointments();
+      _refreshData();
     });
   }
 
@@ -115,7 +128,8 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
   // Helper method to check if payment is needed
   bool _isPaymentNeeded(Appointment appointment) {
     return appointment.status.toLowerCase() == 'pending_payment' ||
-        (appointment.status.toLowerCase() == 'pending' && appointment.paymentId == null);
+        (appointment.status.toLowerCase() == 'pending' &&
+            appointment.paymentId == null);
   }
 
   Widget _buildAppointmentsList(
@@ -167,8 +181,9 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
               // Show appointment details or action sheet
               _showAppointmentActions(context, appointment, isUpcoming);
             },
-            onCancelPressed: isUpcoming && (appointment.status == 'pending' ||
-                    appointment.status == 'confirmed')
+            onCancelPressed: isUpcoming &&
+                    (appointment.status == 'pending' ||
+                        appointment.status == 'confirmed')
                 ? () => _showCancelConfirmation(context, appointment.id)
                 : null,
             onReviewPressed: !isUpcoming &&
@@ -190,7 +205,8 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     );
   }
 
-  void _showAppointmentActions(BuildContext context, Appointment appointment, bool isUpcoming) {
+  void _showAppointmentActions(
+      BuildContext context, Appointment appointment, bool isUpcoming) {
     // Show bottom sheet with appointment actions
     showModalBottomSheet(
       context: context,
@@ -208,21 +224,24 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
                 style: AppStyles.heading2,
               ),
               const SizedBox(height: 24),
-              
+
               // Payment button
               if (isUpcoming && _isPaymentNeeded(appointment))
                 ListTile(
                   leading: const Icon(Icons.payment, color: Colors.orange),
                   title: const Text('Make Payment'),
-                  subtitle: Text('Rs. ${appointment.amount.toStringAsFixed(2)}'),
+                  subtitle:
+                      Text('Rs. ${appointment.amount.toStringAsFixed(2)}'),
                   onTap: () {
                     Navigator.pop(context);
                     _navigateToPayment(context, appointment);
                   },
                 ),
-              
+
               // Cancel button
-              if (isUpcoming && (appointment.status == 'pending' || appointment.status == 'confirmed'))
+              if (isUpcoming &&
+                  (appointment.status == 'pending' ||
+                      appointment.status == 'confirmed'))
                 ListTile(
                   leading: const Icon(Icons.cancel, color: AppColors.error),
                   title: const Text('Cancel Appointment'),
@@ -231,9 +250,11 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
                     _showCancelConfirmation(context, appointment.id);
                   },
                 ),
-                
+
               // Review button
-              if (!isUpcoming && appointment.status == 'completed' && appointment.review == null)
+              if (!isUpcoming &&
+                  appointment.status == 'completed' &&
+                  appointment.review == null)
                 ListTile(
                   leading: const Icon(Icons.star, color: AppColors.warning),
                   title: const Text('Leave a Review'),
@@ -242,20 +263,23 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
                     _showReviewDialog(context, appointment);
                   },
                 ),
-                
+
               // View medical record
-              if (!isUpcoming && appointment.status == 'completed' && appointment.medicalRecord != null)
+              if (!isUpcoming &&
+                  appointment.status == 'completed' &&
+                  appointment.medicalRecord != null)
                 ListTile(
-                  leading: const Icon(Icons.medical_information, color: AppColors.info),
+                  leading: const Icon(Icons.medical_information,
+                      color: AppColors.info),
                   title: const Text('View Medical Record'),
                   onTap: () {
                     Navigator.pop(context);
                     _navigateToMedicalRecord(context, appointment);
                   },
                 ),
-                
+
               const SizedBox(height: 8),
-              
+
               // Close button
               SizedBox(
                 width: double.infinity,

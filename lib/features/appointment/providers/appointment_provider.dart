@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mediconnect/features/payment/providers/payment_provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../core/services/api_service.dart';
 
@@ -13,12 +14,41 @@ class AppointmentProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   final Map<String, Map<String, List<String>>> _doctorAvailability = {};
-  
+  final Map<String, String> _localPaymentMapping = {};
+
   // NEW: Store the latest created appointment
   Appointment? _latestAppointment;
 
   // Getters
-  List<Appointment> get appointments => _appointments;
+  List<Appointment> get appointments {
+    return _appointments.map((apt) {
+      if (_paidAppointments.contains(apt.id)) {
+        // Create a new appointment with payment info
+        return Appointment(
+          id: apt.id,
+          doctorId: apt.doctorId,
+          patientId: apt.patientId,
+          appointmentDate: apt.appointmentDate,
+          timeSlot: apt.timeSlot,
+          reason: apt.reason,
+          amount: apt.amount,
+          status: apt.status,
+          createdAt: apt.createdAt,
+          updatedAt: apt.updatedAt,
+          doctorDetails: apt.doctorDetails,
+          patientDetails: apt.patientDetails,
+          review: apt.review,
+          medicalRecord: apt.medicalRecord,
+          paymentId: "payment-completed", // Mark as paid
+          isNotified: apt.isNotified,
+          cancelledBy: apt.cancelledBy,
+          cancellationReason: apt.cancellationReason,
+        );
+      }
+      return apt;
+    }).toList();
+  }
+
   List<Appointment> get pendingAppointments =>
       _appointments.where((apt) => apt.status == 'pending').toList();
   List<Appointment> get confirmedAppointments =>
@@ -42,9 +72,27 @@ class AppointmentProvider with ChangeNotifier {
   String? get error => _error;
   Map<String, Map<String, List<String>>> get doctorAvailability =>
       _doctorAvailability;
-      
+
   // NEW: Getter for the latest appointment
   Appointment? get latestAppointment => _latestAppointment;
+
+  // Add this method to register payment locally
+  void registerPaymentForAppointment(String appointmentId, String paymentId) {
+    _localPaymentMapping[appointmentId] = paymentId;
+    print(
+        "Locally registered payment $paymentId for appointment $appointmentId");
+    notifyListeners();
+  }
+
+// Add this method to check if an appointment has a payment locally
+  bool hasLocalPayment(String appointmentId) {
+    return _localPaymentMapping.containsKey(appointmentId);
+  }
+
+// Add this method to get the local payment ID
+  String? getLocalPaymentId(String appointmentId) {
+    return _localPaymentMapping[appointmentId];
+  }
 
   // Load all appointments
   Future<void> loadAppointments() async {
@@ -268,7 +316,7 @@ class AppointmentProvider with ChangeNotifier {
             print("Error extracting appointment from response: $e");
           }
         }
-        
+
         // Create notification for doctor
         final appointmentData = response['data'];
         if (appointmentData != null && appointmentData['doctorId'] != null) {
@@ -307,6 +355,55 @@ class AppointmentProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  final Set<String> _paidAppointments = {};
+
+// Method to load and check payment status for appointments
+  Future<void> syncPaymentStatus() async {
+    try {
+      print("Syncing appointment payment status...");
+
+      // First, get the payment history to find paid appointments
+      try {
+        final response =
+            await _apiService.getPaymentHistory(page: 1, limit: 100);
+
+        if (response['status'] == 'success' &&
+            response['data'] != null &&
+            response['data']['payments'] != null) {
+          final payments = response['data']['payments'] as List<dynamic>;
+
+          // Clear existing paid appointments
+          _paidAppointments.clear();
+
+          // Go through all payments to find completed payments
+          for (var payment in payments) {
+            final status = payment['status']?.toString().toUpperCase();
+            final appointmentId = payment['appointmentId'] is Map
+                ? payment['appointmentId']['_id']?.toString()
+                : payment['appointmentId']?.toString();
+
+            if (status == 'COMPLETED' && appointmentId != null) {
+              _paidAppointments.add(appointmentId);
+              print("Found completed payment for appointment: $appointmentId");
+            }
+          }
+
+          notifyListeners(); // Refresh UI with payment information
+        }
+      } catch (e) {
+        print("Error loading payment history: $e");
+      }
+    } catch (e) {
+      print("Error syncing payment status: $e");
+      _error = e.toString();
+    }
+  }
+
+  // Check if an appointment is paid
+  bool isAppointmentPaid(String appointmentId) {
+    return _paidAppointments.contains(appointmentId);
   }
 
   // Update appointment status (for both patients and doctors)
@@ -534,15 +631,46 @@ class AppointmentProvider with ChangeNotifier {
       return false;
     }
   }
-  
-  // NEW: Method to find a specific appointment by ID
+
+  // Method to find a specific appointment by ID
   Appointment? findAppointmentById(String appointmentId) {
-    return _appointments.firstWhere(
-      (apt) => apt.id == appointmentId,
-      orElse: () => null as Appointment,  // Will return null if not found
-    );
+    try {
+      final appointment = _appointments.firstWhere(
+        (apt) => apt.id == appointmentId,
+      );
+
+      // If we have a local payment record for this appointment, create a modified version
+      if (_localPaymentMapping.containsKey(appointmentId)) {
+        return Appointment(
+          id: appointment.id,
+          doctorId: appointment.doctorId,
+          patientId: appointment.patientId,
+          appointmentDate: appointment.appointmentDate,
+          timeSlot: appointment.timeSlot,
+          reason: appointment.reason,
+          amount: appointment.amount,
+          status: appointment.status,
+          createdAt: appointment.createdAt,
+          updatedAt: appointment.updatedAt,
+          doctorDetails: appointment.doctorDetails,
+          patientDetails: appointment.patientDetails,
+          review: appointment.review,
+          medicalRecord: appointment.medicalRecord,
+          paymentId:
+              _localPaymentMapping[appointmentId], // Use local payment ID
+          isNotified: appointment.isNotified,
+          cancelledBy: appointment.cancelledBy,
+          cancellationReason: appointment.cancellationReason,
+        );
+      }
+
+      return appointment;
+    } catch (e) {
+      print("Error finding appointment: $e");
+      return null;
+    }
   }
-  
+
   // NEW: Method to clear the latest appointment reference
   void clearLatestAppointment() {
     _latestAppointment = null;

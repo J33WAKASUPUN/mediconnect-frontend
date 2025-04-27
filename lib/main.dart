@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -289,6 +290,18 @@ class MyApp extends StatelessWidget {
                 child: Text('Invalid payment ID'),
               ),
             ),
+          );
+        }
+
+        // Handle payment receipt
+        if (settings.name == '/payment/receipt') {
+          final args = settings.arguments as Map<String, String>;
+          return MaterialPageRoute(
+            builder: (context) => PaymentReceiptScreen(
+              paymentId: args['paymentId']!,
+              paymentReference: args['paymentReference']!,
+            ),
+            settings: settings,
           );
         }
 

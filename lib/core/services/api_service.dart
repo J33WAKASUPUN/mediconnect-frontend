@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
@@ -857,20 +858,64 @@ class ApiService {
     try {
       print("Fetching receipt for payment: $paymentId");
 
-      final response = await _dio.get(
-        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/$paymentId/receipt'),
-        options: Options(responseType: ResponseType.bytes),
-      );
+      // Check if we're on web
+      if (kIsWeb) {
+        // For web, just return a URL that can be opened in a new tab
+        final receiptUrl =
+            '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
+        print("Web platform detected, returning URL: $receiptUrl");
+        return receiptUrl;
+      }
 
-      // Save the PDF file locally and return the path
-      final Directory tempDir = await getTemporaryDirectory();
-      final String filePath = '${tempDir.path}/receipt_$paymentId.pdf';
+      // For mobile platforms
+      try {
+        // Use a descriptive filename
+        final fileName = 'receipt_$paymentId.pdf';
 
-      File file = File(filePath);
-      await file.writeAsBytes(response.data);
+        // Get temp directory instead of app documents (more reliable)
+        final Directory tempDir = await getTemporaryDirectory();
+        final String filePath = '${tempDir.path}/$fileName';
 
-      print("Receipt saved to: $filePath");
-      return filePath;
+        print("Will save receipt to: $filePath");
+
+        // Check if file already exists to avoid unnecessary downloads
+        final File file = File(filePath);
+        if (await file.exists()) {
+          print("Receipt already downloaded, using cached version");
+          return filePath;
+        }
+
+        // Request the receipt from the server
+        final response = await _dio.get(
+          '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt',
+          options: Options(
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+            validateStatus: (status) {
+              return status != null && status < 500;
+            },
+          ),
+        );
+
+        // Check response status
+        if (response.statusCode == 200) {
+          // Write the PDF data to file
+          await file.writeAsBytes(response.data);
+          print("Receipt downloaded and saved to: $filePath");
+          return filePath;
+        } else {
+          print("Error downloading receipt: Status ${response.statusCode}");
+          throw Exception(
+              'Failed to download receipt: Status ${response.statusCode}');
+        }
+      } catch (e) {
+        print("Error saving receipt file: $e");
+        // If file operations fail, return a direct URL instead
+        final receiptUrl =
+            '${ApiEndpoints.baseUrl}${ApiEndpoints.payments}/$paymentId/receipt';
+        print("Falling back to URL: $receiptUrl");
+        return receiptUrl;
+      }
     } catch (e) {
       print("Error fetching payment receipt: $e");
       throw _handleError(e);
@@ -890,6 +935,102 @@ class ApiService {
       return response.data;
     } catch (e) {
       print("Error fetching payment details: $e");
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> updateAppointmentPayment(
+      String appointmentId, String paymentId) async {
+    try {
+      print("Updating appointment $appointmentId with payment $paymentId");
+
+      final response = await _dio.patch(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.appointments}/$appointmentId'),
+        data: {
+          'paymentId': paymentId,
+        },
+      );
+
+      print("Update appointment payment response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error updating appointment payment: $e");
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> linkPaymentToAppointment(
+      String appointmentId, String paymentId) async {
+    try {
+      print("Linking payment $paymentId to appointment $appointmentId");
+
+      // Try a direct PATCH to update the appointment
+      final response = await _dio.patch(
+        ApiEndpoints.getFullUrl('${ApiEndpoints.appointments}/$appointmentId'),
+        data: {
+          'paymentId': paymentId,
+        },
+      );
+
+      print("Link payment response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error linking payment to appointment: $e");
+      try {
+        // If PATCH fails, try PUT instead (some APIs prefer PUT for updates)
+        final response = await _dio.put(
+          ApiEndpoints.getFullUrl(
+              '${ApiEndpoints.appointments}/$appointmentId'),
+          data: {
+            'paymentId': paymentId,
+          },
+        );
+
+        print("Link payment (PUT) response: ${response.data}");
+        return response.data;
+      } catch (e2) {
+        print("Error with PUT method too: $e2");
+
+        // As a final fallback, try a custom endpoint if available
+        try {
+          final response = await _dio.post(
+            ApiEndpoints.getFullUrl(
+                '${ApiEndpoints.appointments}/$appointmentId/payment'),
+            data: {
+              'paymentId': paymentId,
+            },
+          );
+
+          print("Link payment (custom endpoint) response: ${response.data}");
+          return response.data;
+        } catch (e3) {
+          print("All methods failed to link payment: $e3");
+          throw _handleError(e3);
+        }
+      }
+    }
+  }
+
+  // In your ApiService class:
+  Future<Map<String, dynamic>> updateAppointmentWithPayment(
+      String appointmentId, String paymentId) async {
+    try {
+      print("Updating appointment $appointmentId with payment $paymentId");
+
+      // Directly update the appointment with the payment ID
+      final response = await _dio.patch(
+        '${ApiEndpoints.baseUrl}/api/appointments/$appointmentId',
+        data: {
+          'paymentId': paymentId,
+          // Optionally update status if your API supports it
+          // 'status': 'payment_complete',
+        },
+      );
+
+      print("Update appointment response: ${response.data}");
+      return response.data;
+    } catch (e) {
+      print("Error updating appointment with payment: $e");
       throw _handleError(e);
     }
   }

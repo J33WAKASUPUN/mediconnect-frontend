@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/payment_model.dart';
 import '../../../core/services/api_service.dart';
@@ -143,6 +145,13 @@ class PaymentProvider with ChangeNotifier {
     }
   }
 
+  BuildContext? _context;
+
+// Add this method
+  void setContext(BuildContext context) {
+    _context = context;
+  }
+
   // Capture payment after PayPal approval
   Future<bool> capturePayment() async {
     if (_currentOrderId == null) {
@@ -160,6 +169,40 @@ class PaymentProvider with ChangeNotifier {
       _isProcessingPayment = false;
 
       if (response['status'] == 'success') {
+        // Extract payment ID and appointment ID from the response
+        String? paymentId;
+        String? appointmentId;
+
+        if (response['data'] != null) {
+          if (response['data']['paymentId'] != null) {
+            paymentId = response['data']['paymentId'].toString();
+          }
+          if (response['data']['appointmentId'] != null) {
+            appointmentId = response['data']['appointmentId'].toString();
+          }
+        }
+
+        // DEBUG: Print the response data
+        print("Payment success! Response data: ${response['data']}");
+        print("Payment ID: $paymentId, Appointment ID: $appointmentId");
+
+        // Register the payment locally
+        if (appointmentId != null) {
+          // Access the AppointmentProvider from the context
+          if (_context != null) {
+            try {
+              final appointmentProvider =
+                  Provider.of<AppointmentProvider>(_context!, listen: false);
+              appointmentProvider.registerPaymentForAppointment(
+                  appointmentId, paymentId ?? _currentOrderId!);
+              print(
+                  "Payment registered locally for appointment: $appointmentId");
+            } catch (e) {
+              print("Error registering payment locally: $e");
+            }
+          }
+        }
+
         // Refresh payment list
         await loadPaymentHistory(refresh: true);
 
@@ -218,13 +261,15 @@ class PaymentProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      final filePath = await _apiService.getPaymentReceipt(paymentId);
+      print("Starting receipt download for payment: $paymentId");
+      final String filePath = await _apiService.getPaymentReceipt(paymentId);
 
       _isLoading = false;
       notifyListeners();
 
       return filePath;
     } catch (e) {
+      print("Error downloading receipt: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();

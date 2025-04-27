@@ -1,6 +1,9 @@
 // lib/features/appointment/widgets/appointment_card.dart
 
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:path/path.dart';
+import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
@@ -122,7 +125,7 @@ class AppointmentCard extends StatelessWidget {
               // Action buttons
               if (!isCompact && _shouldShowActions()) ...[
                 const SizedBox(height: 16),
-                _buildActionButtons(),
+                _buildActionButtons(context), // Pass context here
               ],
             ],
           ),
@@ -161,12 +164,36 @@ class AppointmentCard extends StatelessWidget {
         onPaymentPressed != null;
   }
 
-  bool _isPaymentNeeded() {
-    return appointment.status.toLowerCase() == 'pending_payment' ||
-        (appointment.status.toLowerCase() == 'pending' && appointment.paymentId == null);
+  bool _isPaymentNeeded(BuildContext context) {
+    // Get appointment provider
+    final appointmentProvider =
+        Provider.of<AppointmentProvider>(context, listen: false);
+
+    // First, check if the appointment has a payment ID directly
+    if (appointment.paymentId != null) {
+      return false;
+    }
+
+    // Next, check if it's in our paid appointments list
+    if (appointmentProvider.isAppointmentPaid(appointment.id)) {
+      return false;
+    }
+
+    // Only show payment button for pending appointments without payment
+    return (appointment.status.toLowerCase() == 'pending_payment' ||
+        appointment.status.toLowerCase() == 'pending');
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context) {
+    final appointmentProvider =
+        Provider.of<AppointmentProvider>(context, listen: false);
+
+    print("Appointment ID: ${appointment.id}");
+    print("Payment ID: ${appointment.paymentId}");
+    print("Status: ${appointment.status}");
+    print("Is Payment Needed: ${_isPaymentNeeded(context)}");
+    print(
+        "Is payment completed: ${appointmentProvider.isAppointmentPaid(appointment.id)}");
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -247,8 +274,8 @@ class AppointmentCard extends StatelessWidget {
             ),
           ),
 
-        // Payment button - Show for pending_payment status or pending without payment
-        if (_isPaymentNeeded() && onPaymentPressed != null)
+        // Payment button - Show different states based on payment status
+        if (_isPaymentNeeded(context) && onPaymentPressed != null)
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ElevatedButton.icon(
@@ -256,8 +283,26 @@ class AppointmentCard extends StatelessWidget {
               label: const Text('Pay Now'),
               onPressed: onPaymentPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: AppColors.info,
                 foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+
+        // Show PAID button if payment is completed
+        if ((appointment.paymentId != null ||
+            appointmentProvider.isAppointmentPaid(appointment.id)))
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.check_circle, size: 16),
+              label: const Text('Paid'),
+              onPressed: null, // Disabled button
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.green,
+                disabledForegroundColor: Colors.white,
               ),
             ),
           ),
