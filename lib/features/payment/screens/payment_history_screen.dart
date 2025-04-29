@@ -1,21 +1,17 @@
-import 'dart:math';
-import 'dart:ui' as ui;
-import 'dart:html' as html;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:mediconnect/core/services/api_service.dart';
+import 'package:mediconnect/features/payment/providers/payment_provider.dart';
 import 'package:mediconnect/features/payment/screens/payment_details_screen.dart';
+import 'package:mediconnect/features/payment/widgets/receipt_details_dialog.dart';
 import 'package:mediconnect/shared/widgets/empty_state_view.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/error_view.dart';
-import '../providers/payment_provider.dart';
 import '../../../core/models/payment_model.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
-  const PaymentHistoryScreen({Key? key}) : super(key: key);
+  const PaymentHistoryScreen({super.key});
 
   @override
   _PaymentHistoryScreenState createState() => _PaymentHistoryScreenState();
@@ -121,6 +117,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
+  // Update the _buildPaymentCard method in PaymentHistoryScreen
   Widget _buildPaymentCard(BuildContext context, Payment payment) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -162,6 +159,60 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   style: AppStyles.bodyText2,
                 ),
               ],
+
+              // Show refund details if refunded
+              if (payment.isRefunded && payment.refundDetails != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.purple.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.replay, color: Colors.purple, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Refund Details',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Amount: ${payment.currency} ${payment.refundDetails!['amount']}',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          if (payment.refundDetails!['refundedAt'] != null)
+                            Text(
+                              'Date: ${_formatDate(DateTime.parse(payment.refundDetails!['refundedAt']))}',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                        ],
+                      ),
+                      if (payment.refundDetails!['reason'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Reason: ${payment.refundDetails!['reason']}',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -169,18 +220,22 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   Text(
                     payment.formattedAmount,
                     style: AppStyles.heading2.copyWith(
-                      color: AppColors.primary,
+                      color:
+                          payment.isRefunded ? Colors.grey : AppColors.primary,
+                      decoration: payment.isRefunded
+                          ? TextDecoration.lineThrough
+                          : null,
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.receipt_long),
-                    onPressed: payment.isSuccessful
-                        ? () => _downloadReceipt(context, payment.id)
+                    onPressed: payment.isSuccessful || payment.isRefunded
+                        ? () => _viewReceiptDetails(context, payment.id)
                         : null,
-                    color: payment.isSuccessful
+                    color: (payment.isSuccessful || payment.isRefunded)
                         ? AppColors.primary
                         : AppColors.textSecondary,
-                    tooltip: 'Download Receipt',
+                    tooltip: 'View Receipt',
                   ),
                 ],
               ),
@@ -189,6 +244,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         ),
       ),
     );
+  }
+
+// Add a helper method for date formatting
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildStatusChip(String status) {
@@ -268,15 +328,16 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  void _downloadReceipt(BuildContext context, String paymentId) async {
-    final apiService = Provider.of<ApiService>(context, listen: false);
+  void _viewReceiptDetails(BuildContext context, String paymentId) async {
+    final paymentProvider =
+        Provider.of<PaymentProvider>(context, listen: false);
 
     // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Processing Receipt'),
+        title: const Text('Loading Receipt'),
         content: Row(
           children: [
             const CircularProgressIndicator(),
@@ -288,62 +349,27 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
 
     try {
-      if (kIsWeb) {
-        print('Getting receipt token for payment: $paymentId');
+      // Get receipt details
+      final detailsResponse =
+          await paymentProvider.getReceiptDetails(paymentId);
 
-        // Step 1: Get a receipt token from the backend
-        final tokenResponse = await apiService.getReceiptToken(paymentId);
+      // Close the loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
 
-        // Close the loading dialog
-        Navigator.of(context, rootNavigator: true).pop();
-
-        if (tokenResponse != null && tokenResponse['success'] == true) {
-          final receiptToken = tokenResponse['data']['receiptToken'];
-
-          // Step 2: Create URL to view the receipt with this token
-          final baseUrl =
-              'http://192.168.1.159:3000'; // Your backend URL without /api
-          final pdfUrl =
-              '$baseUrl/api/payments/$paymentId/view-receipt?receiptToken=$receiptToken';
-
-          print('Opening PDF URL: $pdfUrl');
-
-          // Step 3: Open in a new browser tab
-          html.window.open(pdfUrl, '_blank');
-        } else {
-          print('Failed to get receipt token: $tokenResponse');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate receipt token')),
-          );
-        }
+      if (detailsResponse != null) {
+        // Show receipt details dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) => ReceiptDetailsDialog(
+            receiptData: detailsResponse['data'],
+          ),
+        );
       } else {
-        print('Getting receipt token for payment: $paymentId');
-
-        // Step 1: Get a receipt token from the backend
-        final tokenResponse = await apiService.getReceiptToken(paymentId);
-
-        // Close the loading dialog
-        Navigator.of(context, rootNavigator: true).pop();
-
-        if (tokenResponse != null && tokenResponse['success'] == true) {
-          final receiptToken = tokenResponse['data']['receiptToken'];
-
-          // Step 2: Create URL to view the receipt with this token
-          final baseUrl =
-              'http://192.168.1.159:3000'; // Your backend URL without /api
-          final pdfUrl =
-              '$baseUrl/api/payments/$paymentId/view-receipt?receiptToken=$receiptToken';
-
-          print('Opening PDF URL: $pdfUrl');
-
-          // Step 3: Open in a new browser tab
-          html.window.open(pdfUrl, '_blank');
-        } else {
-          print('Failed to get receipt token: $tokenResponse');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate receipt token')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  paymentProvider.error ?? 'Failed to load receipt details')),
+        );
       }
     } catch (e) {
       // Close the loading dialog if not already closed
@@ -351,9 +377,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         Navigator.of(context, rootNavigator: true).pop();
       }
 
-      print('Error accessing receipt: $e');
+      print('Error viewing receipt: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error accessing receipt: $e')),
+        SnackBar(content: Text('Error viewing receipt: $e')),
       );
     }
   }

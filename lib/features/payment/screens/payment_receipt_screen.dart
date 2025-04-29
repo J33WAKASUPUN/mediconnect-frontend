@@ -14,10 +14,10 @@ class PaymentReceiptScreen extends StatefulWidget {
   final String paymentReference;
 
   const PaymentReceiptScreen({
-    Key? key,
+    super.key,
     required this.paymentId,
     required this.paymentReference,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentReceiptScreenState createState() => _PaymentReceiptScreenState();

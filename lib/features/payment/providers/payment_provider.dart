@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/payment/providers/payment_provider.dart'
+    as _apiService;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/payment_model.dart';
@@ -43,11 +45,12 @@ class PaymentProvider with ChangeNotifier {
 
   // Load payments history
   Future<void> loadPaymentHistory({bool refresh = false}) async {
+    // Check if we're already loading to prevent duplicate calls
+    if (_isLoading || _isLoadingMore) return;
+
     if (refresh) {
       _currentPage = 1;
       _isLoading = true;
-    } else if (_isLoadingMore) {
-      return;
     } else if (!hasMore && !refresh) {
       return;
     } else {
@@ -55,7 +58,10 @@ class PaymentProvider with ChangeNotifier {
     }
 
     _error = null;
-    notifyListeners();
+
+    // IMPORTANT: Schedule this notification for the next frame to avoid build-phase issues
+    // Instead of calling notifyListeners() directly, use this:
+    Future.microtask(() => notifyListeners());
 
     try {
       final response = await _apiService.getPaymentHistory(
@@ -84,6 +90,17 @@ class PaymentProvider with ChangeNotifier {
       _isLoading = false;
       _isLoadingMore = false;
       notifyListeners();
+    }
+  }
+
+  String? getPaymentStatusForAppointment(String appointmentId) {
+    try {
+      final payment = _payments.firstWhere(
+        (p) => p.appointmentId == appointmentId,
+      );
+      return payment.status;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -298,7 +315,7 @@ class PaymentProvider with ChangeNotifier {
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
-      throw e;
+      rethrow;
     }
   }
 
@@ -341,5 +358,27 @@ class PaymentProvider with ChangeNotifier {
     _paypalApprovalUrl = null;
     _error = null;
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>?> getReceiptDetails(String paymentId) async {
+    try {
+      print('Getting receipt details for payment: $paymentId');
+
+      final response = await _apiService.getReceiptDetails(paymentId);
+
+      if (response != null && response['success'] == true) {
+        print('Receipt details obtained successfully');
+        return response;
+      }
+
+      _error = response?['message'] ?? 'Failed to get receipt details';
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      print('Error getting receipt details: $e');
+      return null;
+    }
   }
 }

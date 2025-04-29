@@ -1,8 +1,6 @@
-// lib/features/appointment/widgets/appointment_card.dart
-
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
-import 'package:path/path.dart';
+import 'package:mediconnect/features/appointment/widgets/appointment_cancellation_dialog.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -184,6 +182,35 @@ class AppointmentCard extends StatelessWidget {
         appointment.status.toLowerCase() == 'pending');
   }
 
+  void _showCancellationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AppointmentCancellationDialog(
+        appointmentId: appointment.id,
+        doctorName: appointment.doctorDetails != null
+            ? 'Dr. ${appointment.doctorDetails!['firstName']} ${appointment.doctorDetails!['lastName']}'
+            : 'Doctor',
+        appointmentDate: appointment.appointmentDate,
+        hasPaidPayment: appointment.paymentId != null ||
+            Provider.of<AppointmentProvider>(context, listen: false)
+                .isAppointmentPaid(appointment.id),
+      ),
+    ).then((result) {
+      // Handle result from dialog if needed
+      if (result != null &&
+          result is Map<String, dynamic> &&
+          result['success'] == true) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    });
+  }
+
   Widget _buildActionButtons(BuildContext context) {
     final appointmentProvider =
         Provider.of<AppointmentProvider>(context, listen: false);
@@ -202,7 +229,7 @@ class AppointmentCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: OutlinedButton(
-              onPressed: onCancelPressed,
+              onPressed: () => _showCancellationDialog(context),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
               ),
@@ -296,7 +323,7 @@ class AppointmentCard extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: ElevatedButton.icon(
               icon: const Icon(Icons.check_circle, size: 16),
-              label: const Text('Paid'),
+              label: const Text('Payment Completed'),
               onPressed: null, // Disabled button
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,

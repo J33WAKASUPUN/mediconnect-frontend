@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:mediconnect/features/payment/providers/payment_provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../core/services/api_service.dart';
 
@@ -675,5 +673,84 @@ class AppointmentProvider with ChangeNotifier {
   void clearLatestAppointment() {
     _latestAppointment = null;
     notifyListeners();
+  }
+
+  // APPOINTMENT CANCELLATION
+  bool _isCancelling = false;
+  bool get isCancelling => _isCancelling;
+
+  Future<Map<String, dynamic>> cancelAppointmentWithRefund(
+      String appointmentId, String reason) async {
+    try {
+      _isCancelling = true;
+      _error = null;
+      notifyListeners();
+
+      // Call the correct endpoint with the right parameters
+      final response = await _apiService.updateAppointmentStatus(
+          appointmentId, 'cancelled',
+          cancellationReason: reason);
+
+      _isCancelling = false;
+
+      if (response['success'] == true) {
+        // Find the appointment to update in the local list
+        int index = _appointments.indexWhere((apt) => apt.id == appointmentId);
+
+        if (index >= 0) {
+          // Get the existing appointment
+          Appointment oldAppointment = _appointments[index];
+
+          // Create a new appointment with updated properties
+          Appointment updatedAppointment = Appointment(
+            id: oldAppointment.id,
+            doctorId: oldAppointment.doctorId,
+            patientId: oldAppointment.patientId,
+            appointmentDate: oldAppointment.appointmentDate,
+            timeSlot: oldAppointment.timeSlot,
+            reason: oldAppointment.reason,
+            amount: oldAppointment.amount,
+            status: 'cancelled', // Updated status
+            createdAt: oldAppointment.createdAt,
+            updatedAt: DateTime.now(), // Update the time
+            doctorDetails: oldAppointment.doctorDetails,
+            patientDetails: oldAppointment.patientDetails,
+            review: oldAppointment.review,
+            medicalRecord: oldAppointment.medicalRecord,
+            paymentId: oldAppointment.paymentId,
+            isNotified: oldAppointment.isNotified,
+            cancelledBy: 'patient', // Set as cancelled by patient
+            cancellationReason: reason, // Set the cancellation reason
+          );
+
+          // Replace the old appointment with the updated one
+          _appointments[index] = updatedAppointment;
+        }
+
+        notifyListeners();
+
+        // Refresh appointments to get updated data from the server
+        await loadAppointments();
+
+        // Also refresh payment status data
+        await syncPaymentStatus();
+
+        return {
+          'success': true,
+          'message': response['message']?.toString() ??
+              'Appointment cancelled successfully and refund initiated'
+        };
+      } else {
+        _error =
+            response['message']?.toString() ?? 'Failed to cancel appointment';
+        notifyListeners();
+        return {'success': false, 'message': _error!};
+      }
+    } catch (e) {
+      _error = e.toString();
+      _isCancelling = false;
+      notifyListeners();
+      return {'success': false, 'message': _error!};
+    }
   }
 }

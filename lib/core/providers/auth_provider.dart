@@ -71,7 +71,7 @@ class AuthProvider with ChangeNotifier {
           _apiService.setAuthToken(webToken);
           try {
             final profileResponse = await _apiService.getProfile();
-            if (profileResponse != null && profileResponse['user'] != null) {
+            if (profileResponse['user'] != null) {
               // Token is valid, set up the user
               _token = webToken;
               _user = User.fromJson(profileResponse['user']);

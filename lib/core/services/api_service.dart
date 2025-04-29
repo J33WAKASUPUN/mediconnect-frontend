@@ -477,24 +477,33 @@ class ApiService {
 
       // If cancellation reason is provided, add it
       if (cancellationReason != null && cancellationReason.isNotEmpty) {
-        data['cancellationReason'] = cancellationReason;
-        data['cancelledBy'] = 'patient'; // or 'doctor' based on context
+        data['reason'] =
+            cancellationReason; // Backend expects 'reason', not 'cancellationReason'
       }
 
       print("Updating appointment $appointmentId to status: $status");
       print("Using data: $data");
 
-      // Use the correct endpoint format
-      final response = await _dio.patch(
-        '${ApiEndpoints.baseUrl}/api/appointments/$appointmentId',
+      // Use the correct endpoint and HTTP method
+      final response = await _dio.put(
+        '/appointments/$appointmentId/status', // This is the correct endpoint
         data: data,
       );
 
       print("Update response: ${response.data}");
-      return response.data;
+
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        return {
+          'success': false,
+          'message':
+              response.data['message'] ?? 'Failed to update appointment status'
+        };
+      }
     } catch (e) {
       print("Error updating appointment status: $e");
-      throw _handleError(e);
+      return {'success': false, 'message': 'Error: ${e.toString()}'};
     }
   }
 
@@ -585,16 +594,48 @@ class ApiService {
   }
 
 // Get payment by appointment ID
+// Get payment for a specific appointment
   Future<Map<String, dynamic>> getPaymentForAppointment(
       String appointmentId) async {
     try {
-      final response = await _dio.get(
-        ApiEndpoints.getFullUrl(
-            '${ApiEndpoints.payments}/appointment/$appointmentId'),
-      );
-      return response.data;
+      final response =
+          await _dio.get('/payments/by-appointment/$appointmentId');
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': response.data['data']};
+      } else {
+        return {
+          'success': false,
+          'message':
+              response.data['message'] ?? 'Failed to get payment information'
+        };
+      }
     } catch (e) {
-      throw _handleError(e);
+      print('Error getting payment for appointment: $e');
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+// Request a refund
+  Future<Map<String, dynamic>> requestRefund(
+      {required String paymentId, required String reason}) async {
+    try {
+      final response = await _dio.post(
+        '/payments/$paymentId/refund',
+        data: {'reason': reason},
+      );
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': response.data['data']};
+      } else {
+        return {
+          'success': false,
+          'message': response.data['message'] ?? 'Failed to process refund'
+        };
+      }
+    } catch (e) {
+      print('Error processing refund: $e');
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -832,7 +873,7 @@ class ApiService {
           "Creating payment order for appointment: $appointmentId with amount: $amount");
 
       final response = await _dio.post(
-        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/create-order'),
+        ApiEndpoints.getFullUrl('${ApiEndpoints.payments}/create-order'),
         data: {
           'appointmentId': appointmentId,
           'amount': amount,
@@ -853,7 +894,7 @@ class ApiService {
       print("Capturing payment for order: $orderId");
 
       final response = await _dio.post(
-        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/capture/$orderId'),
+        ApiEndpoints.getFullUrl('${ApiEndpoints.payments}/capture/$orderId'),
       );
 
       print("Payment capture response: ${response.data}");
@@ -884,7 +925,7 @@ class ApiService {
       };
 
       final response = await _dio.get(
-        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/history'),
+        ApiEndpoints.getFullUrl('${ApiEndpoints.payments}/history'),
         queryParameters: queryParams,
       );
 
@@ -917,7 +958,7 @@ class ApiService {
       print("Fetching payment details for: $paymentId");
 
       final response = await _dio.get(
-        ApiEndpoints.getFullUrl(ApiEndpoints.payments + '/$paymentId'),
+        ApiEndpoints.getFullUrl('${ApiEndpoints.payments}/$paymentId'),
       );
 
       print("Payment details response: ${response.data}");
@@ -1000,19 +1041,16 @@ class ApiService {
     }
   }
 
-  // In your ApiService class:
   Future<Map<String, dynamic>> updateAppointmentWithPayment(
       String appointmentId, String paymentId) async {
     try {
       print("Updating appointment $appointmentId with payment $paymentId");
 
-      // Directly update the appointment with the payment ID
+      // CRITICAL FIX: Remove the baseUrl from the path
       final response = await _dio.patch(
-        '${ApiEndpoints.baseUrl}/api/appointments/$appointmentId',
+        '/appointments/$appointmentId', // Remove ${ApiEndpoints.baseUrl}/api
         data: {
           'paymentId': paymentId,
-          // Optionally update status if your API supports it
-          // 'status': 'payment_complete',
         },
       );
 
@@ -1100,6 +1138,97 @@ class ApiService {
     } catch (e) {
       print('Error getting receipt token: $e');
       return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getReceiptDetails(String paymentId) async {
+    try {
+      print('Getting receipt details for payment: $paymentId');
+
+      final response = await _dio.get('/payments/$paymentId/receipt-details');
+
+      if (response.statusCode == 200) {
+        print('Receipt details obtained successfully');
+        return response.data;
+      }
+
+      print('Failed to get receipt details: ${response.data}');
+      return null;
+    } catch (e) {
+      print('Error getting receipt details: $e');
+      return null;
+    }
+  }
+
+  // Modify in ApiService class
+  Future<Map<String, dynamic>> cancelAppointmentWithRefund({
+    required String appointmentId,
+    required String reason,
+  }) async {
+    try {
+      print('Cancelling appointment with refund: $appointmentId');
+
+      // First update the appointment status - CRITICAL FIX: use the correct path without prepending '/api'
+      final appointmentResponse = await _dio.put(
+        '/appointments/$appointmentId', // NOT '/api/appointments/$appointmentId'
+        data: {
+          'status': 'cancelled',
+          'cancelledBy': 'patient',
+          'cancellationReason': reason
+        },
+      );
+
+      if (appointmentResponse.statusCode == 200) {
+        print('Appointment status updated to cancelled');
+
+        // Now request the refund if there was a payment
+        final payment = appointmentResponse.data['data']?['payment'];
+
+        if (payment != null && payment['_id'] != null) {
+          final paymentId = payment['_id'];
+
+          // Process refund through the refund endpoint - CRITICAL FIX: use the correct path
+          final refundResponse = await _dio.post(
+            '/payments/$paymentId/refund', // NOT '/api/payments/$paymentId/refund'
+            data: {
+              'reason': reason,
+            },
+          );
+
+          if (refundResponse.statusCode == 200) {
+            print('Refund processed successfully');
+            return {
+              'success': true,
+              'message':
+                  'Appointment cancelled and refund initiated successfully',
+              'data': refundResponse.data['data']
+            };
+          } else {
+            print('Failed to process refund: ${refundResponse.data}');
+            return {
+              'success': false,
+              'message': refundResponse.data['message']?.toString() ??
+                  'Failed to process refund'
+            };
+          }
+        }
+
+        // If no payment found, just return success for the cancellation
+        return {
+          'success': true,
+          'message': 'Appointment cancelled successfully'
+        };
+      } else {
+        print('Failed to update appointment: ${appointmentResponse.data}');
+        return {
+          'success': false,
+          'message': appointmentResponse.data['message']?.toString() ??
+              'Failed to cancel appointment'
+        };
+      }
+    } catch (e) {
+      print('Error cancelling appointment: $e');
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 }

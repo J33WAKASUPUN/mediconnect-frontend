@@ -15,9 +15,9 @@ class PaymentScreen extends StatefulWidget {
   final Appointment appointment;
 
   const PaymentScreen({
-    Key? key,
+    super.key,
     required this.appointment,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentScreenState createState() => _PaymentScreenState();

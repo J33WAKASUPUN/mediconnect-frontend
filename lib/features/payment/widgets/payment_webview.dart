@@ -11,11 +11,11 @@ class PaymentWebView extends StatefulWidget {
   final VoidCallback onPaymentCancelled;
 
   const PaymentWebView({
-    Key? key,
+    super.key,
     required this.initialUrl,
     required this.onPaymentComplete,
     required this.onPaymentCancelled,
-  }) : super(key: key);
+  });
 
   @override
   _PaymentWebViewState createState() => _PaymentWebViewState();
