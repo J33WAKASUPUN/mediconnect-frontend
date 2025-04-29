@@ -34,6 +34,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
     await appointmentProvider.loadAppointments();
     await appointmentProvider.syncPaymentStatus(); // Sync payment status
   }
+
   Future<void> _refreshData() async {
     final appointmentProvider =
         Provider.of<AppointmentProvider>(context, listen: false);
@@ -55,6 +56,12 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
 
       _loadAppointments();
       _refreshData();
+    });
+
+    Future.microtask(() async {
+      final provider = context.read<AppointmentProvider>();
+      await provider.loadAppointments();
+      await provider.syncPaymentStatus();
     });
   }
 

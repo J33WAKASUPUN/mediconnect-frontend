@@ -50,6 +50,12 @@ class PatientDashboardState extends State<PatientDashboard> {
       // Load other data as needed
       context.read<MedicalRecordsProvider>().loadMedicalRecords();
     });
+
+    Future.microtask(() async {
+      final provider = context.read<AppointmentProvider>();
+      await provider.loadAppointments();
+      await provider.syncPaymentStatus();
+    });
   }
 
   @override

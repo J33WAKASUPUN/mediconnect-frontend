@@ -103,7 +103,7 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                   title: const Text('My Patients'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Navigate to patients list
+                    Navigator.pushNamed(context, '/doctor/patients');
                   },
                 ),
                 ListTile(

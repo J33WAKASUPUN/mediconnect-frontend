@@ -469,9 +469,10 @@ class ApiService {
     }
   }
 
+  // Updated version with notes parameter
   Future<Map<String, dynamic>> updateAppointmentStatus(
       String appointmentId, String status,
-      {String? cancellationReason}) async {
+      {String? cancellationReason, String? notes}) async {
     try {
       Map<String, dynamic> data = {'status': status};
 
@@ -479,6 +480,11 @@ class ApiService {
       if (cancellationReason != null && cancellationReason.isNotEmpty) {
         data['reason'] =
             cancellationReason; // Backend expects 'reason', not 'cancellationReason'
+      }
+
+      // If notes are provided, add them
+      if (notes != null && notes.isNotEmpty) {
+        data['notes'] = notes;
       }
 
       print("Updating appointment $appointmentId to status: $status");
@@ -1229,6 +1235,34 @@ class ApiService {
     } catch (e) {
       print('Error cancelling appointment: $e');
       return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> getUserById(String userId) async {
+    try {
+      print('Fetching user details for user: $userId');
+
+      final response = await _dio.get(
+        '/users/$userId',
+        options: Options(
+          headers: await _getAuthHeaders(),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        return {
+          'success': false,
+          'message': response.data['message'] ?? 'Failed to get user details'
+        };
+      }
+    } catch (e) {
+      print('Error fetching user details: $e');
+      return {
+        'success': false,
+        'message': 'Error fetching user details: ${e.toString()}'
+      };
     }
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mediconnect/features/doctor/screens/patient_details_screen.dart';
+import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -210,10 +212,6 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
 
-        // Dashboard routes
-        '/patient/dashboard': (context) => const PatientDashboard(),
-        '/doctor/dashboard': (context) => const DoctorDashboard(),
-
         // Shared routes
         '/profile': (context) => const ProfileScreen(),
         '/notifications': (context) => const NotificationScreen(),
@@ -221,10 +219,18 @@ class MyApp extends StatelessWidget {
         // Patient routes
         '/patient/doctors': (context) => const DoctorsListScreen(),
         '/patient/appointments': (context) => const PatientAppointmentsScreen(),
+        '/patient/dashboard': (context) => const PatientDashboard(),
 
         // Doctor routes
+        '/doctor/dashboard': (context) => const DoctorDashboard(),
         '/doctor/appointments': (context) => const DoctorAppointmentsScreen(),
-
+        '/doctor/patients': (context) => const PatientListScreen(),
+        '/doctor/patient-details': (context) {
+          final patientId =
+              ModalRoute.of(context)!.settings.arguments as String;
+          return PatientDetailsScreen(patientId: patientId);
+        },
+        
         // Payment routes (that don't need arguments)
         '/payment/history': (context) => const PaymentHistoryScreen(),
       },
@@ -246,6 +252,27 @@ class MyApp extends StatelessWidget {
               ),
               body: const Center(
                 child: Text('Invalid doctor profile data'),
+              ),
+            ),
+          );
+        }
+
+        // Handle patient details
+        if (settings.name == '/doctor/patient-details') {
+          final args = settings.arguments;
+          if (args is String) {
+            return MaterialPageRoute(
+              builder: (context) => PatientDetailsScreen(patientId: args),
+              settings: settings,
+            );
+          }
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Error'),
+              ),
+              body: const Center(
+                child: Text('Invalid patient ID'),
               ),
             ),
           );

@@ -17,10 +17,14 @@ class AppointmentProvider with ChangeNotifier {
   // NEW: Store the latest created appointment
   Appointment? _latestAppointment;
 
+  // Add set for tracking refunded appointments
+  final Set<String> _refundedAppointments = {};
+
   // Getters
   List<Appointment> get appointments {
     return _appointments.map((apt) {
-      if (_paidAppointments.contains(apt.id)) {
+      if (_paidAppointments.contains(apt.id) &&
+          !_refundedAppointments.contains(apt.id)) {
         // Create a new appointment with payment info
         return Appointment(
           id: apt.id,
@@ -38,6 +42,28 @@ class AppointmentProvider with ChangeNotifier {
           review: apt.review,
           medicalRecord: apt.medicalRecord,
           paymentId: "payment-completed", // Mark as paid
+          isNotified: apt.isNotified,
+          cancelledBy: apt.cancelledBy,
+          cancellationReason: apt.cancellationReason,
+        );
+      } else if (_refundedAppointments.contains(apt.id)) {
+        // Create a new appointment with refunded payment info
+        return Appointment(
+          id: apt.id,
+          doctorId: apt.doctorId,
+          patientId: apt.patientId,
+          appointmentDate: apt.appointmentDate,
+          timeSlot: apt.timeSlot,
+          reason: apt.reason,
+          amount: apt.amount,
+          status: apt.status,
+          createdAt: apt.createdAt,
+          updatedAt: apt.updatedAt,
+          doctorDetails: apt.doctorDetails,
+          patientDetails: apt.patientDetails,
+          review: apt.review,
+          medicalRecord: apt.medicalRecord,
+          paymentId: "payment-refunded", // Mark as refunded
           isNotified: apt.isNotified,
           cancelledBy: apt.cancelledBy,
           cancellationReason: apt.cancellationReason,
@@ -82,14 +108,32 @@ class AppointmentProvider with ChangeNotifier {
     notifyListeners();
   }
 
-// Add this method to check if an appointment has a payment locally
+  // Add this method to check if an appointment has a payment locally
   bool hasLocalPayment(String appointmentId) {
     return _localPaymentMapping.containsKey(appointmentId);
   }
 
-// Add this method to get the local payment ID
+  // Add this method to get the local payment ID
   String? getLocalPaymentId(String appointmentId) {
     return _localPaymentMapping[appointmentId];
+  }
+
+  // Method to check if an appointment is refunded
+  bool isAppointmentRefunded(String appointmentId) {
+    // First check in our tracked refunded appointments
+    if (_refundedAppointments.contains(appointmentId)) {
+      return true;
+    }
+
+    // Then check if it's a cancelled appointment with a payment
+    final appointment = findAppointmentById(appointmentId);
+    if (appointment != null &&
+        appointment.status.toLowerCase() == 'cancelled' &&
+        appointment.paymentId != null) {
+      return true;
+    }
+
+    return false;
   }
 
   // Load all appointments
@@ -151,6 +195,8 @@ class AppointmentProvider with ChangeNotifier {
       // Print debug info
       print("Upcoming appointments: ${upcomingAppointments.length}");
       print("Past appointments: ${pastAppointments.length}");
+
+      await syncPaymentStatus();
 
       _isLoading = false;
       notifyListeners();
@@ -357,12 +403,21 @@ class AppointmentProvider with ChangeNotifier {
 
   final Set<String> _paidAppointments = {};
 
-// Method to load and check payment status for appointments
+  // Method to load and check payment status for appointments
   Future<void> syncPaymentStatus() async {
     try {
       print("Syncing appointment payment status...");
 
-      // First, get the payment history to find paid appointments
+      // Now identify refunded appointments:
+      // Any cancelled appointment that previously had a payment ID
+      for (var apt in _appointments) {
+        if (apt.status.toLowerCase() == 'cancelled' && apt.paymentId != null) {
+          _refundedAppointments.add(apt.id);
+          print("Marked refunded appointment from cancellation: ${apt.id}");
+        }
+      }
+
+      // Also check payment history for explicit refund records
       try {
         final response =
             await _apiService.getPaymentHistory(page: 1, limit: 100);
@@ -372,36 +427,41 @@ class AppointmentProvider with ChangeNotifier {
             response['data']['payments'] != null) {
           final payments = response['data']['payments'] as List<dynamic>;
 
-          // Clear existing paid appointments
-          _paidAppointments.clear();
-
-          // Go through all payments to find completed payments
+          // Go through all payments to find refunds and completed payments
           for (var payment in payments) {
             final status = payment['status']?.toString().toUpperCase();
             final appointmentId = payment['appointmentId'] is Map
                 ? payment['appointmentId']['_id']?.toString()
                 : payment['appointmentId']?.toString();
 
-            if (status == 'COMPLETED' && appointmentId != null) {
-              _paidAppointments.add(appointmentId);
-              print("Found completed payment for appointment: $appointmentId");
+            if (appointmentId != null) {
+              if (status == 'COMPLETED') {
+                _paidAppointments.add(appointmentId);
+                print(
+                    "Found completed payment for appointment: $appointmentId");
+              } else if (status == 'REFUNDED') {
+                _refundedAppointments.add(appointmentId);
+                print("Found refunded payment for appointment: $appointmentId");
+              }
             }
           }
-
-          notifyListeners(); // Refresh UI with payment information
         }
       } catch (e) {
         print("Error loading payment history: $e");
       }
+
+      print(
+          "Payment status sync complete. Paid: ${_paidAppointments.length}, Refunded: ${_refundedAppointments.length}");
+      notifyListeners();
     } catch (e) {
       print("Error syncing payment status: $e");
-      _error = e.toString();
     }
   }
 
-  // Check if an appointment is paid
+  // Check if an appointment is paid (and not refunded)
   bool isAppointmentPaid(String appointmentId) {
-    return _paidAppointments.contains(appointmentId);
+    return _paidAppointments.contains(appointmentId) &&
+        !_refundedAppointments.contains(appointmentId);
   }
 
   // Update appointment status (for both patients and doctors)
@@ -417,7 +477,7 @@ class AppointmentProvider with ChangeNotifier {
 
       if (response['success']) {
         // Create notification about status change
-        final appointmentData = response['appointment'];
+        final appointmentData = response['appointment'] ?? response['data'];
         if (appointmentData != null) {
           String notificationUserId;
           String notificationTitle;
@@ -454,6 +514,8 @@ class AppointmentProvider with ChangeNotifier {
         }
 
         await loadAppointments(); // Refresh the list
+        _isLoading = false;
+        notifyListeners();
         return true;
       } else {
         _error = response['message'] ?? 'Failed to update appointment status';
@@ -495,6 +557,8 @@ class AppointmentProvider with ChangeNotifier {
 
       if (response['success']) {
         await loadAppointments(); // Refresh the list
+        _isLoading = false;
+        notifyListeners();
         return true;
       } else {
         _error = response['message'] ?? 'Failed to add review';
@@ -529,6 +593,8 @@ class AppointmentProvider with ChangeNotifier {
       );
       if (response['success']) {
         await loadAppointments(); // Refresh the list
+        _isLoading = false;
+        notifyListeners();
         return true;
       } else {
         _error = response['message'] ?? 'Failed to create medical record';
@@ -694,6 +760,11 @@ class AppointmentProvider with ChangeNotifier {
       _isCancelling = false;
 
       if (response['success'] == true) {
+        // If this appointment had a payment, mark it as refunded locally too
+        if (_paidAppointments.contains(appointmentId)) {
+          _refundedAppointments.add(appointmentId);
+        }
+
         // Find the appointment to update in the local list
         int index = _appointments.indexWhere((apt) => apt.id == appointmentId);
 
@@ -751,6 +822,95 @@ class AppointmentProvider with ChangeNotifier {
       _isCancelling = false;
       notifyListeners();
       return {'success': false, 'message': _error!};
+    }
+  }
+
+  Future<bool> confirmAppointmentWithNotes(
+      String appointmentId, String notes) async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      // Use the existing updateAppointmentStatus method but add notes
+      final response = await _apiService
+          .updateAppointmentStatus(appointmentId, 'confirmed', notes: notes);
+
+      if (response['success']) {
+        // Create notification about confirmation with notes
+        final appointmentData = response['data'] ?? response['appointment'];
+        if (appointmentData != null) {
+          String message = 'Your appointment has been confirmed';
+          if (notes.isNotEmpty) {
+            message += ' with a note from the doctor';
+          }
+
+          await _apiService.createNotification(
+            userId: appointmentData['patientId'],
+            title: 'Appointment Confirmed',
+            message: message,
+            type: 'appointment_confirmed',
+            relatedId: appointmentId,
+          );
+        }
+
+        await loadAppointments(); // Refresh the list
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = response['message'] ?? 'Failed to confirm appointment';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> cancelAppointmentWithReason(
+      String appointmentId, String reason) async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      final response = await _apiService.updateAppointmentStatus(
+          appointmentId, 'cancelled',
+          cancellationReason: reason);
+
+      if (response['success']) {
+        // Create notification about cancellation with reason
+        final appointmentData = response['data'] ?? response['appointment'];
+        if (appointmentData != null) {
+          await _apiService.createNotification(
+            userId: appointmentData['patientId'],
+            title: 'Appointment Cancelled by Doctor',
+            message: 'Your appointment has been cancelled. Reason: $reason',
+            type: 'appointment_cancelled',
+            relatedId: appointmentId,
+          );
+        }
+
+        await loadAppointments(); // Refresh the list
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = response['message'] ?? 'Failed to cancel appointment';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 }

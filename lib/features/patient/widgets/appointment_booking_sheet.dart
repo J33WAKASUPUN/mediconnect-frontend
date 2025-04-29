@@ -164,7 +164,7 @@ class _AppointmentBookingSheetState extends State<AppointmentBookingSheet> {
                   style: AppStyles.bodyText1,
                 ),
                 Text(
-                  'Rs. ${widget.doctor.doctorProfile?.consultationFees ?? 0}',
+                  'USD ${widget.doctor.doctorProfile?.consultationFees ?? 0}',
                   style: AppStyles.heading2.copyWith(color: AppColors.primary),
                 ),
               ],
