@@ -7,17 +7,17 @@ import '../providers/profile_provider.dart';
 
 class PatientProfileSection extends StatefulWidget {
   final PatientProfile? profile;
+  final bool readOnly;
 
   const PatientProfileSection({
     super.key,
     required this.profile,
+    this.readOnly = false,
   });
 
   @override
   State<PatientProfileSection> createState() => _PatientProfileSectionState();
 }
-
-
 
 class _PatientProfileSectionState extends State<PatientProfileSection> {
   bool _isEditing = false;
@@ -29,7 +29,7 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
     _initializeProfile();
     print("PatientProfileSection initialized with: ${widget.profile}");
   }
-  
+
   @override
   void didUpdateWidget(PatientProfileSection oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -46,11 +46,14 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
 
   Future<void> _saveChanges() async {
     try {
-      await context.read<ProfileProvider>().updatePatientProfile(_editingProfile);
+      await context
+          .read<ProfileProvider>()
+          .updatePatientProfile(_editingProfile);
       if (mounted) {
         setState(() => _isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Medical information updated successfully')),
+          const SnackBar(
+              content: Text('Medical information updated successfully')),
         );
       }
     } catch (e) {
@@ -64,11 +67,17 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
 
   @override
   Widget build(BuildContext context) {
+    // Never allow editing in readOnly mode
+    if (widget.readOnly && _isEditing) {
+      _isEditing = false;
+    }
+
     // Print details about the patient profile
-    print("Building PatientProfileSection with bloodType: ${_editingProfile.bloodType}");
+    print(
+        "Building PatientProfileSection with bloodType: ${_editingProfile.bloodType}");
     print("Medical History: ${_editingProfile.medicalHistory}");
     print("Allergies: ${_editingProfile.allergies}");
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -82,40 +91,42 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
             const SizedBox(height: 16),
 
             // Blood Type Section
-            _isEditing ? 
-            // Editing mode - dropdown
-            DropdownButtonFormField<String>(
-              value: _editingProfile.bloodType,
-              decoration: const InputDecoration(
-                labelText: 'Blood Type',
-                border: OutlineInputBorder(),
-              ),
-              items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() => _editingProfile.bloodType = value);
-              },
-            ) :
-            // View mode - regular text
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Row(
-                children: [
-                  const SizedBox(
-                    width: 120,
-                    child: Text(
-                      'Blood Type:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+            _isEditing
+                ?
+                // Editing mode - dropdown
+                DropdownButtonFormField<String>(
+                    value: _editingProfile.bloodType,
+                    decoration: const InputDecoration(
+                      labelText: 'Blood Type',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+                        .map((type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(type),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() => _editingProfile.bloodType = value);
+                    },
+                  )
+                :
+                // View mode - regular text
+                Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 120,
+                          child: Text(
+                            'Blood Type:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(_editingProfile.bloodType ?? 'Not specified'),
+                      ],
                     ),
                   ),
-                  Text(_editingProfile.bloodType ?? 'Not specified'),
-                ],
-              ),
-            ),
             const SizedBox(height: 24),
 
             // Medical History Section
@@ -130,9 +141,11 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 if (_editingProfile.medicalHistory.isEmpty)
                   const Text(
                     "No medical history information available",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
-                ...List.generate(_editingProfile.medicalHistory.length, (index) {
+                ...List.generate(_editingProfile.medicalHistory.length,
+                    (index) {
                   final history = _editingProfile.medicalHistory[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -178,7 +191,8 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 if (_editingProfile.allergies.isEmpty)
                   const Text(
                     "No allergies listed",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
                 ...List.generate(_editingProfile.allergies.length, (index) {
                   final allergy = _editingProfile.allergies[index];
@@ -226,9 +240,11 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 if (_editingProfile.currentMedications.isEmpty)
                   const Text(
                     "No current medications",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
-                ...List.generate(_editingProfile.currentMedications.length, (index) {
+                ...List.generate(_editingProfile.currentMedications.length,
+                    (index) {
                   final medication = _editingProfile.currentMedications[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -242,7 +258,8 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                             icon: const Icon(Icons.delete),
                             onPressed: () {
                               setState(() {
-                                _editingProfile.currentMedications.removeAt(index);
+                                _editingProfile.currentMedications
+                                    .removeAt(index);
                               });
                             },
                           ),
@@ -254,14 +271,15 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                   CustomButton(
                     text: 'Add Medication',
                     onPressed: () => _addItem('Medication', (value) {
-                      setState(() => _editingProfile.currentMedications.add(value));
+                      setState(
+                          () => _editingProfile.currentMedications.add(value));
                     }),
                     isSecondary: true,
                   ),
               ],
             ),
             const SizedBox(height: 24),
-                        // Emergency Contacts Section
+            // Emergency Contacts Section
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -273,21 +291,25 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 if (_editingProfile.emergencyContacts.isEmpty)
                   const Text(
                     "No emergency contacts listed",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
-                ...List.generate(_editingProfile.emergencyContacts.length, (index) {
+                ...List.generate(_editingProfile.emergencyContacts.length,
+                    (index) {
                   final contact = _editingProfile.emergencyContacts[index];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       title: Text(contact.name),
-                      subtitle: Text('${contact.relationship} - ${contact.phone}'),
+                      subtitle:
+                          Text('${contact.relationship} - ${contact.phone}'),
                       trailing: _isEditing
                           ? IconButton(
                               icon: const Icon(Icons.delete),
                               onPressed: () {
                                 setState(() {
-                                  _editingProfile.emergencyContacts.removeAt(index);
+                                  _editingProfile.emergencyContacts
+                                      .removeAt(index);
                                 });
                               },
                             )
@@ -317,108 +339,134 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: _isEditing ? 
-                    // Editing mode - show input fields
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CustomTextField(
-                          label: 'Insurance Provider',
-                          initialValue: _editingProfile.insuranceInfo?.provider,
-                          enabled: true,
-                          onChanged: (value) {
-                            setState(() {
-                              _editingProfile.insuranceInfo ??= InsuranceInfo();
-                              _editingProfile.insuranceInfo!.provider = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        CustomTextField(
-                          label: 'Policy Number',
-                          initialValue: _editingProfile.insuranceInfo?.policyNumber,
-                          enabled: true,
-                          onChanged: (value) {
-                            setState(() {
-                              _editingProfile.insuranceInfo ??= InsuranceInfo();
-                              _editingProfile.insuranceInfo!.policyNumber = value;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        CustomButton(
-                          text: 'Set Expiry Date',
-                          onPressed: _selectExpiryDate,
-                          isSecondary: true,
-                        ),
-                      ],
-                    ) : 
-                    // View mode - show as regular text
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_editingProfile.insuranceInfo?.provider != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(
-                                  width: 120,
-                                  child: Text(
-                                    'Provider:',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(_editingProfile.insuranceInfo!.provider!),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (_editingProfile.insuranceInfo?.policyNumber != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(
-                                  width: 120,
-                                  child: Text(
-                                    'Policy Number:',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(_editingProfile.insuranceInfo!.policyNumber!),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (_editingProfile.insuranceInfo?.expiryDate != null)
-                          Row(
+                    child: _isEditing
+                        ?
+                        // Editing mode - show input fields
+                        Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(
-                                width: 120,
-                                child: Text(
-                                  'Expiry Date:',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
+                              CustomTextField(
+                                label: 'Insurance Provider',
+                                initialValue:
+                                    _editingProfile.insuranceInfo?.provider,
+                                enabled: true,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _editingProfile.insuranceInfo ??=
+                                        InsuranceInfo();
+                                    _editingProfile.insuranceInfo!.provider =
+                                        value;
+                                  });
+                                },
                               ),
-                              Text(_formatDate(_editingProfile.insuranceInfo!.expiryDate!)),
+                              const SizedBox(height: 8),
+                              CustomTextField(
+                                label: 'Policy Number',
+                                initialValue:
+                                    _editingProfile.insuranceInfo?.policyNumber,
+                                enabled: true,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _editingProfile.insuranceInfo ??=
+                                        InsuranceInfo();
+                                    _editingProfile
+                                        .insuranceInfo!.policyNumber = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              CustomButton(
+                                text: 'Set Expiry Date',
+                                onPressed: _selectExpiryDate,
+                                isSecondary: true,
+                              ),
+                            ],
+                          )
+                        :
+                        // View mode - show as regular text
+                        Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_editingProfile.insuranceInfo?.provider !=
+                                  null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(
+                                        width: 120,
+                                        child: Text(
+                                          'Provider:',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(_editingProfile
+                                            .insuranceInfo!.provider!),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (_editingProfile.insuranceInfo?.policyNumber !=
+                                  null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(
+                                        width: 120,
+                                        child: Text(
+                                          'Policy Number:',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(_editingProfile
+                                            .insuranceInfo!.policyNumber!),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (_editingProfile.insuranceInfo?.expiryDate !=
+                                  null)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Expiry Date:',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    Text(_formatDate(_editingProfile
+                                        .insuranceInfo!.expiryDate!)),
+                                  ],
+                                ),
+                              if (_editingProfile.insuranceInfo == null ||
+                                  (_editingProfile.insuranceInfo?.provider ==
+                                          null &&
+                                      _editingProfile
+                                              .insuranceInfo?.policyNumber ==
+                                          null &&
+                                      _editingProfile
+                                              .insuranceInfo?.expiryDate ==
+                                          null))
+                                const Text(
+                                  "No insurance information available",
+                                  style: TextStyle(
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey),
+                                ),
                             ],
                           ),
-                        if (_editingProfile.insuranceInfo == null || 
-                            (_editingProfile.insuranceInfo?.provider == null && 
-                             _editingProfile.insuranceInfo?.policyNumber == null && 
-                             _editingProfile.insuranceInfo?.expiryDate == null))
-                          const Text(
-                            "No insurance information available",
-                            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-                          ),
-                      ],
-                    ),
                   ),
                 ),
               ],
@@ -437,9 +485,11 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 if (_editingProfile.chronicConditions.isEmpty)
                   const Text(
                     "No chronic conditions listed",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
-                ...List.generate(_editingProfile.chronicConditions.length, (index) {
+                ...List.generate(_editingProfile.chronicConditions.length,
+                    (index) {
                   final condition = _editingProfile.chronicConditions[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -453,7 +503,8 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                             icon: const Icon(Icons.delete),
                             onPressed: () {
                               setState(() {
-                                _editingProfile.chronicConditions.removeAt(index);
+                                _editingProfile.chronicConditions
+                                    .removeAt(index);
                               });
                             },
                           ),
@@ -465,14 +516,15 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                   CustomButton(
                     text: 'Add Chronic Condition',
                     onPressed: () => _addItem('Chronic Condition', (value) {
-                      setState(() => _editingProfile.chronicConditions.add(value));
+                      setState(
+                          () => _editingProfile.chronicConditions.add(value));
                     }),
                     isSecondary: true,
                   ),
               ],
             ),
             const SizedBox(height: 24),
-            
+
             // Last Checkup Date
             if (_editingProfile.lastCheckupDate != null)
               Padding(
@@ -493,39 +545,40 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
                 ),
               ),
 
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: _isEditing ? 'Save Changes' : 'Edit Information',
-                    onPressed: () {
-                      if (_isEditing) {
-                        _saveChanges();
-                      } else {
-                        setState(() => _isEditing = true);
-                      }
-                    },
-                    icon: _isEditing ? Icons.save : Icons.edit,
-                  ),
-                ),
-                if (_isEditing) ...[
-                  const SizedBox(width: 16),
+            // Action Buttons - Only show if not in readOnly mode
+            if (!widget.readOnly)
+              Row(
+                children: [
                   Expanded(
                     child: CustomButton(
-                      text: 'Cancel',
+                      text: _isEditing ? 'Save Changes' : 'Edit Information',
                       onPressed: () {
-                        setState(() {
-                          _isEditing = false;
-                          _initializeProfile();
-                        });
+                        if (_isEditing) {
+                          _saveChanges();
+                        } else {
+                          setState(() => _isEditing = true);
+                        }
                       },
-                      isSecondary: true,
+                      icon: _isEditing ? Icons.save : Icons.edit,
                     ),
                   ),
+                  if (_isEditing) ...[
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CustomButton(
+                        text: 'Cancel',
+                        onPressed: () {
+                          setState(() {
+                            _isEditing = false;
+                            _initializeProfile();
+                          });
+                        },
+                        isSecondary: true,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
+              ),
           ],
         ),
       ),
@@ -629,7 +682,8 @@ class _AddEmergencyContactDialog extends StatefulWidget {
       _AddEmergencyContactDialogState();
 }
 
-class _AddEmergencyContactDialogState extends State<_AddEmergencyContactDialog> {
+class _AddEmergencyContactDialogState
+    extends State<_AddEmergencyContactDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _relationshipController = TextEditingController();

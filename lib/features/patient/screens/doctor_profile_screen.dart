@@ -1,4 +1,3 @@
-// lib/features/patient/screens/doctor_profile_screen.dart
 import 'package:flutter/material.dart';
 import '../../../core/models/user_model.dart';
 import '../../../shared/constants/colors.dart';

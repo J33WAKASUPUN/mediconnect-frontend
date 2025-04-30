@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/doctor/widgets/doctor_appointment_action_dialog.dart';
+import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
@@ -228,15 +228,21 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen>
   }
 
   void _showPatientDetails(BuildContext context, Appointment appointment) {
-    if (appointment.patientDetails == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Patient details not available')),
+    if (appointment.patientId.isNotEmpty &&
+        appointment.patientDetails != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PatientProfileScreen(
+            patientId: appointment.patientId,
+          ),
+        ),
       );
-      return;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Patient information not available')),
+      );
     }
-
-    Navigator.pushNamed(context, '/doctor/patient-details',
-        arguments: appointment.patientId);
   }
 
   Future<void> _completeAppointment(

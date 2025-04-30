@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../config/api_endpoints.dart';
 import '../utils/datetime_helper.dart';
@@ -1238,31 +1237,67 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getUserById(String userId) async {
+  bool hasValidToken() {
+    return _authToken != null && _authToken!.isNotEmpty;
+  }
+
+  void refreshToken(String token) {
+    print('Refreshing auth token: ${token.substring(0, 10)}...');
+    setAuthToken(token);
+  }
+
+  Future<Map<String, dynamic>?> getProfileById(String userId) async {
+  try {
+    // We'll use your API token to authenticate
+    // Then call one of your API endpoints that might help us
+    
+    // First, try the auth/users endpoint with a query filter
+    final response = await _dio.get(
+      '${ApiEndpoints.baseUrl}/auth/users?id=${userId}',
+      options: Options(headers: await _getAuthHeaders()),
+    );
+    
+    if (response.data['success'] == true && 
+        response.data['data'] != null &&
+        response.data['data'].isNotEmpty) {
+      // Found the user by id query filter
+      return {'success': true, 'data': response.data['data'][0]};
+    }
+    
+    // If that fails, try directly calling the profile API with admin privileges
+    // NOTE: This might not work depending on your backend security
+    throw Exception('User not found');
+  } catch (e) {
+    print('Error in getProfileById: $e');
+    
+    // Fallback - if we can't get the profile directly, try to get partial info from an appointment
     try {
-      print('Fetching user details for user: $userId');
-
-      final response = await _dio.get(
-        '/users/$userId',
-        options: Options(
-          headers: await _getAuthHeaders(),
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        return response.data;
-      } else {
-        return {
-          'success': false,
-          'message': response.data['message'] ?? 'Failed to get user details'
-        };
+      final appointments = await getUserAppointments();
+      if (appointments['success'] == true && appointments['data'] != null) {
+        final List<dynamic> appointmentsData = appointments['data'];
+        final targetAppointment = appointmentsData.firstWhere(
+          (apt) => apt['patientId'] is Map && apt['patientId']['_id'] == userId,
+          orElse: () => null,
+        );
+        
+        if (targetAppointment != null && targetAppointment['patientId'] is Map) {
+          return {'success': true, 'data': targetAppointment['patientId']};
+        }
       }
+    } catch (e2) {
+      print('Fallback error: $e2');
+    }
+    return null;
+  }
+}
+
+  Future<Map<String, dynamic>> get(String endpoint) async {
+    try {
+      final response = await _dio.get(endpoint);
+      return response.data;
     } catch (e) {
-      print('Error fetching user details: $e');
-      return {
-        'success': false,
-        'message': 'Error fetching user details: ${e.toString()}'
-      };
+      print('Error making GET request to $endpoint: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 }

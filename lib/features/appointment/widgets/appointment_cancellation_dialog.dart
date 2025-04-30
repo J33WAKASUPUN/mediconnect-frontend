@@ -11,12 +11,12 @@ class AppointmentCancellationDialog extends StatefulWidget {
   final bool hasPaidPayment;
 
   const AppointmentCancellationDialog({
-    Key? key,
+    super.key,
     required this.appointmentId,
     required this.doctorName,
     required this.appointmentDate,
     required this.hasPaidPayment,
-  }) : super(key: key);
+  });
 
   @override
   _AppointmentCancellationDialogState createState() =>
@@ -238,91 +238,119 @@ class _AppointmentCancellationDialogState
     final appointmentProvider =
         Provider.of<AppointmentProvider>(context, listen: false);
 
-    // Process cancellation
-    final result = await appointmentProvider.cancelAppointmentWithRefund(
-      widget.appointmentId,
-      reason,
-    );
+    try {
+      // Process cancellation - passing reason as a String
+      final result = await appointmentProvider.cancelAppointmentWithRefund(
+        widget.appointmentId,
+        reason, // This should be a String, not a Map
+      );
 
-    // Close current dialog
-    Navigator.of(context).pop();
+      // Close current dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
-    // Show result dialog with refund information
-    if (result['success'] == true) {
-      // Extract any refund-specific message
-      final String message =
-          result['message'] ?? 'Appointment cancelled successfully';
-      bool hasRefundInfo = message.contains('Refund');
+      // Check if result is a Map and contains the necessary keys
+      if (result is Map && result.containsKey('success')) {
+        final bool success = result['success'] == true;
+        final String message = result['message'] ?? 'Appointment cancelled successfully';
+        final bool hasRefundInfo = message.contains('Refund');
 
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(
-                Icons.check_circle,
-                color: Colors.green,
-              ),
-              SizedBox(width: 10),
-              Text('Appointment Cancelled')
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Your appointment has been successfully cancelled.'),
-              SizedBox(height: 16),
-              if (hasRefundInfo) ...[
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+        if (success && mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                  SizedBox(width: 10),
+                  Text('Appointment Cancelled')
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Your appointment has been successfully cancelled.'),
+                  SizedBox(height: 16),
+                  if (hasRefundInfo) ...[
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.payments, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text(
-                            'Refund Status',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            children: [
+                              Icon(Icons.payments, color: Colors.blue),
+                              SizedBox(width: 8),
+                              Text(
+                                'Refund Status',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
+                          SizedBox(height: 8),
+                          Text(message.replaceAll(
+                              'Appointment cancelled successfully.', '')),
                         ],
                       ),
-                      SizedBox(height: 8),
-                      Text(message.replaceAll(
-                          'Appointment cancelled successfully.', '')),
-                    ],
-                  ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text('OK'),
                 ),
               ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-              },
-              child: Text('OK'),
             ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Failed to cancel appointment'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 5),
-        ),
-      );
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      } else {
+        // Handle unexpected result type
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unexpected response format. Please try again.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error cancelling appointment: $e');
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 }

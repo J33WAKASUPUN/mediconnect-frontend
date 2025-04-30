@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/payment/providers/payment_provider.dart'
-    as _apiService;
+    as apiService;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/payment_model.dart';

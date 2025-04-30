@@ -11,9 +11,9 @@ class ReceiptDetailsDialog extends StatelessWidget {
   final Map<String, dynamic> receiptData;
   
   const ReceiptDetailsDialog({
-    Key? key, 
+    super.key, 
     required this.receiptData,
-  }) : super(key: key);
+  });
   
   @override
   Widget build(BuildContext context) {
@@ -102,7 +102,7 @@ class ReceiptDetailsDialog extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Receipt #${receiptNumber}',
+                              'Receipt #$receiptNumber',
                               style: AppStyles.subtitle1,
                             ),
                             const SizedBox(height: 4),
@@ -355,16 +355,10 @@ class ReceiptDetailsDialog extends StatelessWidget {
           // For mobile, use getPaymentReceipt instead if available
           final filePath = await apiService.getPaymentReceipt(paymentId);
           
-          if (filePath != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Receipt saved to: $filePath')),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to download receipt')),
-            );
-          }
-        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Receipt saved to: $filePath')),
+          );
+                } else {
           print('Failed to get receipt token: $tokenResponse');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to generate receipt token')),

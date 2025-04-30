@@ -13,6 +13,7 @@ class User {
   final String address;
   final String createdAt;
   final DoctorProfile? doctorProfile;
+  final PatientProfile? patientProfile; 
 
   User({
     required this.id,
@@ -27,6 +28,7 @@ class User {
     required this.address,
     required this.createdAt,
     this.doctorProfile,
+    this.patientProfile, 
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -45,6 +47,9 @@ class User {
       doctorProfile: json['doctorProfile'] != null 
           ? DoctorProfile.fromJson(json['doctorProfile'])
           : null,
+      patientProfile: json['patientProfile'] != null
+          ? PatientProfile.fromJson(json['patientProfile'])
+          : null,
     );
   }
 
@@ -62,11 +67,13 @@ class User {
       'address': address,
       'createdAt': createdAt,
       'doctorProfile': doctorProfile?.toJson(),
+      'patientProfile': patientProfile?.toJson(),
     };
   }
 
   String? get specialization => doctorProfile?.specialization;
   int? get yearsOfExperience => doctorProfile?.yearsOfExperience;
+  String? get bloodType => patientProfile?.bloodType;
 
   User copyWith({
     String? id,
@@ -80,6 +87,8 @@ class User {
     String? gender,
     String? address,
     String? createdAt,
+    DoctorProfile? doctorProfile,
+    PatientProfile? patientProfile,
   }) {
     return User(
       id: id ?? this.id,
@@ -93,6 +102,8 @@ class User {
       gender: gender ?? this.gender,
       address: address ?? this.address,
       createdAt: createdAt ?? this.createdAt,
+      doctorProfile: doctorProfile ?? this.doctorProfile,
+      patientProfile: patientProfile ?? this.patientProfile,
     );
   }
 }

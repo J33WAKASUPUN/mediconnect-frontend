@@ -14,7 +14,14 @@ import '../../../shared/widgets/loading_overlay.dart';
 import '../../../shared/widgets/profile_image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool hideAppBar;
+  final bool readOnly;
+
+  const ProfileScreen({
+    super.key,
+    this.hideAppBar = false,
+    this.readOnly = false,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -24,10 +31,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Load profile data when screen initializes
-    Future.microtask(() {
-      context.read<ProfileProvider>().getProfile();
-    });
+    // Load profile data when screen initializes (only if not readOnly)
+    if (!widget.readOnly) {
+      Future.microtask(() {
+        context.read<ProfileProvider>().getProfile();
+      });
+    }
   }
 
   @override
@@ -44,15 +53,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return LoadingOverlay(
       isLoading: profileProvider.isLoading,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Profile'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => profileProvider.getProfile(),
-            ),
-          ],
-        ),
+        appBar: widget.hideAppBar
+            ? null
+            : AppBar(
+                title: const Text('Profile'),
+                actions: [
+                  if (!widget.readOnly)
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () => profileProvider.getProfile(),
+                    ),
+                ],
+              ),
         body: profileProvider.error != null
             ? Center(
                 child: Column(

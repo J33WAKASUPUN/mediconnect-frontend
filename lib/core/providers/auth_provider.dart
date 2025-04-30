@@ -2,8 +2,6 @@
 import 'dart:io';
 import 'dart:js_interop';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:path/path.dart' as js;
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';

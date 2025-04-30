@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mediconnect/features/doctor/screens/patient_details_screen.dart';
+import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -228,7 +228,7 @@ class MyApp extends StatelessWidget {
         '/doctor/patient-details': (context) {
           final patientId =
               ModalRoute.of(context)!.settings.arguments as String;
-          return PatientDetailsScreen(patientId: patientId);
+          return PatientProfileScreen(patientId: patientId);
         },
         
         // Payment routes (that don't need arguments)
@@ -262,7 +262,7 @@ class MyApp extends StatelessWidget {
           final args = settings.arguments;
           if (args is String) {
             return MaterialPageRoute(
-              builder: (context) => PatientDetailsScreen(patientId: args),
+              builder: (context) => PatientProfileScreen(patientId: args),
               settings: settings,
             );
           }

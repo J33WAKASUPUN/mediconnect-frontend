@@ -11,12 +11,12 @@ class DoctorAppointmentActionDialog extends StatefulWidget {
   final AppointmentAction actionType;
   
   const DoctorAppointmentActionDialog({
-    Key? key,
+    super.key,
     required this.appointmentId,
     required this.patientName,
     required this.appointmentDate,
     required this.actionType,
-  }) : super(key: key);
+  });
 
   @override
   _DoctorAppointmentActionDialogState createState() => _DoctorAppointmentActionDialogState();

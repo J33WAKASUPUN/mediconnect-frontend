@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -16,7 +17,7 @@ class PatientListScreen extends StatefulWidget {
 
 class _PatientListScreenState extends State<PatientListScreen> {
   String _searchQuery = '';
-  
+
   @override
   void initState() {
     super.initState();
@@ -74,14 +75,17 @@ class _PatientListScreenState extends State<PatientListScreen> {
 
           // Get unique patients from appointments
           final Map<String, Map<String, dynamic>> uniquePatients = {};
-          
+
           for (var appointment in provider.appointments) {
             if (appointment.patientDetails != null) {
               final patientId = appointment.patientId;
-              final patientFirstName = appointment.patientDetails!['firstName'] ?? '';
-              final patientLastName = appointment.patientDetails!['lastName'] ?? '';
-              final fullName = '$patientFirstName $patientLastName'.toLowerCase();
-              
+              final patientFirstName =
+                  appointment.patientDetails!['firstName'] ?? '';
+              final patientLastName =
+                  appointment.patientDetails!['lastName'] ?? '';
+              final fullName =
+                  '$patientFirstName $patientLastName'.toLowerCase();
+
               // Add to unique patients if matches search query
               if (_searchQuery.isEmpty || fullName.contains(_searchQuery)) {
                 uniquePatients[patientId] = {
@@ -94,9 +98,9 @@ class _PatientListScreenState extends State<PatientListScreen> {
               }
             }
           }
-          
+
           final patients = uniquePatients.values.toList();
-          
+
           if (patients.isEmpty) {
             return Center(
               child: Column(
@@ -109,7 +113,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _searchQuery.isEmpty 
+                    _searchQuery.isEmpty
                         ? 'No patients found'
                         : 'No patients match your search',
                     style: AppStyles.heading2,
@@ -126,7 +130,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
             itemBuilder: (context, index) {
               final patient = patients[index];
               final appointment = patient['appointment'] as Appointment;
-              
+
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: AppColors.primary,
@@ -136,13 +140,18 @@ class _PatientListScreenState extends State<PatientListScreen> {
                   ),
                 ),
                 title: Text('${patient['firstName']} ${patient['lastName']}'),
-                subtitle: Text('Last appointment: ${_formatDate(appointment.appointmentDate)}'),
+                subtitle: Text(
+                    'Last appointment: ${_formatDate(appointment.appointmentDate)}'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  Navigator.pushNamed(
-                    context, 
-                    '/doctor/patient-details',
-                    arguments: patient['id'],
+                  // Navigate to patient details screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PatientProfileScreen(
+                        patientId: patient['id'],
+                      ),
+                    ),
                   );
                 },
               );
@@ -152,7 +161,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
       ),
     );
   }
-  
+
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
