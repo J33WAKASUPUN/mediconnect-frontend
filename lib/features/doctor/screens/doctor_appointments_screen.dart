@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
+import 'package:mediconnect/features/doctor/widgets/doctor_appointment_action_dialog.dart';
 import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
@@ -202,9 +203,23 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen>
                     (appointment.status == 'pending' ||
                         appointment.status == 'confirmed')
                 ? () async {
-                    await context
-                        .read<AppointmentProvider>()
-                        .cancelAppointment(appointment.id);
+                    // Show dialog to get cancellation reason
+                    final result = await showDialog<Map<String, dynamic>>(
+                      context: context,
+                      builder: (context) => DoctorAppointmentActionDialog(
+                        appointmentId: appointment.id,
+                        patientName: patientName,
+                        appointmentDate: appointment.appointmentDate,
+                        actionType: AppointmentAction.cancel,
+                      ),
+                    );
+
+                    if (result != null && result['confirmed'] == true) {
+                      final reason = result['reason'] ?? '';
+                      await context
+                          .read<AppointmentProvider>()
+                          .cancelAppointmentWithReason(appointment.id, reason);
+                    }
                   }
                 : null,
             onCompletePressed: isUpcoming && appointment.status == 'confirmed'

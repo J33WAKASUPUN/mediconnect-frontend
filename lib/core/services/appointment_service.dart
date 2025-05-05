@@ -60,20 +60,22 @@ class AppointmentService extends BaseApiService {
     }
   }
 
-  // Updated version with notes parameter
   Future<Map<String, dynamic>> updateAppointmentStatus(
       String appointmentId, String status,
       {String? cancellationReason, String? notes}) async {
     try {
       Map<String, dynamic> data = {'status': status};
 
-      // If cancellation reason is provided, add it
-      if (cancellationReason != null && cancellationReason.isNotEmpty) {
-        data['reason'] =
-            cancellationReason; // Backend expects 'reason', not 'cancellationReason'
+      // For cancellations, also set who cancelled it
+      if (status == 'cancelled') {
+        // Send cancellation reason if provided
+        if (cancellationReason != null && cancellationReason.isNotEmpty) {
+          data['cancellationReason'] = cancellationReason;
+        }
+
+        data['cancelledBy'] = 'doctor';
       }
 
-      // If notes are provided, add them
       if (notes != null && notes.isNotEmpty) {
         data['notes'] = notes;
       }

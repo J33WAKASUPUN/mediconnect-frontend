@@ -150,7 +150,7 @@ class AppointmentCard extends StatelessWidget {
               if (appointment.cancelledBy != null &&
                   appointment.cancelledBy!.isNotEmpty)
                 _buildInfoRow(Icons.cancel,
-                    'Cancelled by: ${appointment.cancelledBy == 'patient' ? 'You' : 'Doctor'}'),
+                    getCancelledByText(appointment, isPatientView)),
 
               if (appointment.cancellationReason != null &&
                   appointment.cancellationReason!.isNotEmpty)
@@ -169,6 +169,31 @@ class AppointmentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String getCancelledByText(Appointment appointment, bool isPatientView) {
+    if (appointment.cancelledBy == null) {
+      return '';
+    }
+
+    // When viewed by a patient
+    if (isPatientView) {
+      if (appointment.cancelledBy == 'patient') {
+        return 'Cancelled by: You';
+      } else if (appointment.cancelledBy == 'doctor') {
+        return 'Cancelled by: Doctor';
+      }
+    }
+    // When viewed by a doctor
+    else {
+      if (appointment.cancelledBy == 'patient') {
+        return 'Cancelled by: Patient';
+      } else if (appointment.cancelledBy == 'doctor') {
+        return 'Cancelled by: You';
+      }
+    }
+
+    return 'Cancelled by: ${appointment.cancelledBy}';
   }
 
   String _getAmountText(BuildContext context) {
@@ -352,8 +377,13 @@ class AppointmentCard extends StatelessWidget {
       if (result != null &&
           result is Map<String, dynamic> &&
           result['confirmed'] == true) {
-        // Call the cancel callback
-        onCancelPressed?.call();
+        // Use cancelAppointmentWithReason instead of direct onCancelPressed
+        // This ensures the reason is properly passed to the backend
+        final appointmentProvider =
+            Provider.of<AppointmentProvider>(context, listen: false);
+
+        appointmentProvider.cancelAppointmentWithReason(
+            appointment.id, result['reason'] ?? '');
       }
     });
   }

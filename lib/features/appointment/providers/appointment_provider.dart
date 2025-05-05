@@ -364,13 +364,16 @@ class AppointmentProvider with ChangeNotifier {
         // Create notification for doctor
         final appointmentData = response['data'];
         if (appointmentData != null && appointmentData['doctorId'] != null) {
-          await _apiService.createNotification(
-            userId: appointmentData['doctorId'],
-            title: 'New Appointment Request',
-            message: 'You have a new appointment request from a patient',
-            type: 'appointment_created',
-            relatedId: appointmentData['_id'],
-          );
+          String? doctorId = _extractUserId(appointmentData['doctorId']);
+          if (doctorId != null && doctorId.isNotEmpty) {
+            await _apiService.createNotification(
+              userId: doctorId,
+              title: 'New Appointment Request',
+              message: 'You have a new appointment request from a patient',
+              type: 'appointment_created',
+              relatedId: appointmentData['_id'],
+            );
+          }
         }
 
         await loadAppointments(); // Refresh the list
@@ -484,33 +487,38 @@ class AppointmentProvider with ChangeNotifier {
           String notificationMessage;
 
           if (status == 'confirmed') {
-            notificationUserId = appointmentData['patientId'];
+            notificationUserId = _extractUserId(appointmentData['patientId']) ??
+                appointmentData['patientId'].toString();
             notificationTitle = 'Appointment Confirmed';
             notificationMessage = 'Your appointment has been confirmed';
           } else if (status == 'cancelled') {
-            // Assuming cancellation by doctor
-            notificationUserId = appointmentData['patientId'];
+            notificationUserId = _extractUserId(appointmentData['patientId']) ??
+                appointmentData['patientId'].toString();
             notificationTitle = 'Appointment Cancelled';
             notificationMessage = 'Your appointment has been cancelled';
           } else if (status == 'completed') {
-            notificationUserId = appointmentData['patientId'];
+            notificationUserId = _extractUserId(appointmentData['patientId']) ??
+                appointmentData['patientId'].toString();
             notificationTitle = 'Appointment Completed';
             notificationMessage =
                 'Your appointment has been marked as completed';
           } else {
-            notificationUserId = appointmentData['patientId'];
+            notificationUserId = _extractUserId(appointmentData['patientId']) ??
+                appointmentData['patientId'].toString();
             notificationTitle = 'Appointment Status Updated';
             notificationMessage =
                 'Your appointment status has been updated to $status';
           }
 
-          await _apiService.createNotification(
-            userId: notificationUserId,
-            title: notificationTitle,
-            message: notificationMessage,
-            type: 'appointment',
-            relatedId: appointmentId,
-          );
+          if (notificationUserId.isNotEmpty) {
+            await _apiService.createNotification(
+              userId: notificationUserId,
+              title: notificationTitle,
+              message: notificationMessage,
+              type: 'appointment',
+              relatedId: appointmentId,
+            );
+          }
         }
 
         await loadAppointments(); // Refresh the list
@@ -839,14 +847,17 @@ class AppointmentProvider with ChangeNotifier {
       if (response['success']) {
         // Create notification about confirmation with notes
         final appointmentData = response['data'] ?? response['appointment'];
-        if (appointmentData != null) {
+        String? patientId = appointmentData != null
+            ? _extractUserId(appointmentData['patientId'])
+            : null;
+        if (patientId != null && patientId.isNotEmpty) {
           String message = 'Your appointment has been confirmed';
           if (notes.isNotEmpty) {
             message += ' with a note from the doctor';
           }
 
           await _apiService.createNotification(
-            userId: appointmentData['patientId'],
+            userId: patientId,
             title: 'Appointment Confirmed',
             message: message,
             type: 'appointment_confirmed',
@@ -872,6 +883,19 @@ class AppointmentProvider with ChangeNotifier {
     }
   }
 
+  String? _extractUserId(dynamic userData) {
+    if (userData == null) return null;
+
+    if (userData is Map && userData['_id'] != null) {
+      return userData['_id'].toString();
+    } else if (userData is String) {
+      return userData;
+    } else {
+      print("Warning: Unable to extract user ID from $userData");
+      return null;
+    }
+  }
+
   Future<bool> cancelAppointmentWithReason(
       String appointmentId, String reason) async {
     try {
@@ -879,21 +903,31 @@ class AppointmentProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      print("DEBUG: Cancelling with reason: $reason");
+
+      // Create data object with all fields correctly set
       final response = await _apiService.updateAppointmentStatus(
-          appointmentId, 'cancelled',
-          cancellationReason: reason);
+        appointmentId,
+        'cancelled',
+        cancellationReason: reason, // Make sure this is passed correctly
+      );
+
+      print("DEBUG: Response from cancellation: $response");
 
       if (response['success']) {
         // Create notification about cancellation with reason
         final appointmentData = response['data'] ?? response['appointment'];
         if (appointmentData != null) {
-          await _apiService.createNotification(
-            userId: appointmentData['patientId'],
-            title: 'Appointment Cancelled by Doctor',
-            message: 'Your appointment has been cancelled. Reason: $reason',
-            type: 'appointment_cancelled',
-            relatedId: appointmentId,
-          );
+          String? patientId = _extractUserId(appointmentData['patientId']);
+          if (patientId != null && patientId.isNotEmpty) {
+            await _apiService.createNotification(
+              userId: patientId,
+              title: 'Appointment Cancelled by Doctor',
+              message: 'Your appointment has been cancelled. Reason: $reason',
+              type: 'appointment_cancelled',
+              relatedId: appointmentId,
+            );
+          }
         }
 
         await loadAppointments(); // Refresh the list
@@ -907,6 +941,7 @@ class AppointmentProvider with ChangeNotifier {
         return false;
       }
     } catch (e) {
+      print("ERROR in cancelAppointmentWithReason: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
