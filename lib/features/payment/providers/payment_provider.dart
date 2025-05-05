@@ -2,13 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
-import 'package:mediconnect/features/payment/providers/payment_provider.dart'
-    as apiService;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/payment_model.dart';
 import '../../../core/services/api_service.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 class PaymentProvider with ChangeNotifier {
   final ApiService _apiService;

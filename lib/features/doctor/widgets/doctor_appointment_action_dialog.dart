@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../shared/constants/styles.dart';
 import '../../../shared/constants/colors.dart';
 
 enum AppointmentAction { confirm, cancel }

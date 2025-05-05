@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/loading_indicator.dart';
-import '../../../shared/constants/colors.dart';
 import '../../appointment/providers/appointment_provider.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   final String patientId;
   
   const PatientProfileScreen({
-    Key? key,
+    super.key,
     required this.patientId,
-  }) : super(key: key);
+  });
 
   @override
   _PatientProfileScreenState createState() => _PatientProfileScreenState();
@@ -339,11 +338,13 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
   List<Widget> _buildContactInfoFields() {
     List<Widget> fields = [];
     
-    if (_patientData!.containsKey('gender') && _patientData!['gender'] != null)
+    if (_patientData!.containsKey('gender') && _patientData!['gender'] != null) {
       fields.add(_buildInfoRow('Gender', _patientData!['gender']));
+    }
       
-    if (_patientData!.containsKey('address') && _patientData!['address'] != null)
+    if (_patientData!.containsKey('address') && _patientData!['address'] != null) {
       fields.add(_buildInfoRow('Address', _patientData!['address']));
+    }
       
     return fields;
   }

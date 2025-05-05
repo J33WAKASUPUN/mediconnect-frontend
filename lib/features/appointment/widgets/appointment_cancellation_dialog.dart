@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 import '../providers/appointment_provider.dart';
 
 class AppointmentCancellationDialog extends StatefulWidget {
@@ -251,7 +249,7 @@ class _AppointmentCancellationDialogState
       }
 
       // Check if result is a Map and contains the necessary keys
-      if (result is Map && result.containsKey('success')) {
+      if (result.containsKey('success')) {
         final bool success = result['success'] == true;
         final String message = result['message'] ?? 'Appointment cancelled successfully';
         final bool hasRefundInfo = message.contains('Refund');
