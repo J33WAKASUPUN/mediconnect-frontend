@@ -11,7 +11,14 @@ import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/error_view.dart';
 
 class PatientMedicalRecordsScreen extends StatefulWidget {
-  const PatientMedicalRecordsScreen({super.key});
+  final String? patientId;
+  final String? patientName;
+
+  const PatientMedicalRecordsScreen({
+    super.key,
+    this.patientId,
+    this.patientName,
+  });
 
   @override
   _PatientMedicalRecordsScreenState createState() =>
@@ -36,8 +43,16 @@ class _PatientMedicalRecordsScreenState
     });
 
     try {
-      await Provider.of<MedicalRecordsProvider>(context, listen: false)
-          .loadPatientMedicalRecords();
+      final provider =
+          Provider.of<MedicalRecordsProvider>(context, listen: false);
+
+      // Use specific patient ID if provided
+      if (widget.patientId != null) {
+        await provider.loadPatientMedicalRecordsById(widget.patientId!);
+      } else {
+        // Otherwise load current user's records
+        await provider.loadPatientMedicalRecords();
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -51,7 +66,9 @@ class _PatientMedicalRecordsScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Medical Records'),
+        title: Text(widget.patientName != null
+            ? 'Medical Records - ${widget.patientName}'
+            : 'Medical Records'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -80,16 +97,23 @@ class _PatientMedicalRecordsScreenState
                         ElevatedButton(
                           onPressed: () async {
                             try {
-                              final apiService = Provider.of<ApiService>(context, listen: false);
-                              final profileResponse = await apiService.get('/profile');
+                              final apiService = Provider.of<ApiService>(
+                                  context,
+                                  listen: false);
+                              final profileResponse =
+                                  await apiService.get('/profile');
                               print("Profile response: $profileResponse");
-                              
-                              if (profileResponse['success'] && profileResponse['data'] != null) {
-                                final patientId = profileResponse['data']['_id'];
+
+                              if (profileResponse['success'] &&
+                                  profileResponse['data'] != null) {
+                                final patientId =
+                                    profileResponse['data']['_id'];
                                 print("Patient ID: $patientId");
-                                
-                                final recordsResponse = await apiService.get('/medical-records/patient/$patientId');
-                                print("Medical records response: $recordsResponse");
+
+                                final recordsResponse = await apiService
+                                    .get('/medical-records/patient/$patientId');
+                                print(
+                                    "Medical records response: $recordsResponse");
                               }
                             } catch (e) {
                               print("Debug API error: $e");

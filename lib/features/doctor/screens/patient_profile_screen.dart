@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
+import 'package:mediconnect/core/services/api_service.dart';
+import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/loading_indicator.dart';
+import '../../../shared/constants/colors.dart';
 import '../../appointment/providers/appointment_provider.dart';
 import '../../medical_records/screens/medical_record_detail_screen.dart';
-import '../../medical_records/providers/medical_records_provider.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   final String patientId;
@@ -23,6 +24,8 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
   String? _error;
   Map<String, dynamic>? _patientData;
   List _appointments = [];
+  bool _loadingRecords = false;
+  List<dynamic> _patientRecords = [];
   
   @override
   void initState() {
@@ -60,6 +63,10 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
         _patientData = basicPatientData;
         _isLoading = false;
       });
+
+      // Load patient medical records
+      _loadPatientRecords();
+      
     } catch (e) {
       print('Error loading patient data: $e');
       setState(() {
@@ -67,6 +74,59 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadPatientRecords() async {
+    if (mounted) {
+      setState(() {
+        _loadingRecords = true;
+      });
+    }
+
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final response = await apiService.get('/medical-records/patient/${widget.patientId}');
+      
+      if (response['success'] && response['data'] != null) {
+        List<dynamic> records = [];
+        
+        // Handle different response structures
+        if (response['data'] is List) {
+          records = response['data'];
+        } else if (response['data']['records'] != null) {
+          records = response['data']['records'];
+        } else if (response['data']['medicalRecords'] != null) {
+          records = response['data']['medicalRecords'];
+        }
+        
+        // Update the state
+        if (mounted) {
+          setState(() {
+            _patientRecords = records;
+            _loadingRecords = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading patient records: $e');
+      if (mounted) {
+        setState(() {
+          _loadingRecords = false;
+        });
+      }
+    }
+  }
+
+  void _showAllMedicalRecords() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PatientMedicalRecordsScreen(
+          patientId: widget.patientId,
+          patientName: "${_patientData!['firstName'] ?? ''} ${_patientData!['lastName'] ?? ''}",
+        ),
+      ),
+    );
   }
 
   @override
@@ -208,6 +268,95 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                 ),
               ),
               
+            // Medical Records Summary Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Medical Records',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _showAllMedicalRecords,
+                        child: const Text('View All'),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_loadingRecords)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_patientRecords.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'No medical records found',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _patientRecords.length > 3 ? 3 : _patientRecords.length,
+                      itemBuilder: (context, index) {
+                        final record = _patientRecords[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const Icon(Icons.medical_services, color: AppColors.primary),
+                            title: Text(record['diagnosis'] ?? 'Medical Record'),
+                            subtitle: Text(
+                              'Dr. ${record['doctorId']?['firstName'] ?? ''} ${record['doctorId']?['lastName'] ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MedicalRecordDetailScreen(
+                                    recordId: record['_id'],
+                                    isDoctorView: true,
+                                    patientName: patientName,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  if (_patientRecords.length > 3)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Center(
+                        child: OutlinedButton(
+                          onPressed: _showAllMedicalRecords,
+                          child: const Text('Show All Records'),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+              
             // Appointment history
             Container(
               padding: const EdgeInsets.all(16),
@@ -316,7 +465,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
-                                      const Icon(Icons.medical_services_outlined, 
+                                      const Icon(Icons.medical_information_outlined, 
                                         size: 16, 
                                         color: Colors.grey),
                                       const SizedBox(width: 4),
@@ -325,49 +474,6 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                                         style: TextStyle(
                                           color: Colors.grey,
                                         ),
-                                      ),
-                                      const Spacer(),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => MedicalRecordForm(
-                                                appointmentId: appointment.id,
-                                                patientName: "${_patientData!['firstName'] ?? ''} ${_patientData!['lastName'] ?? ''}",
-                                                onSubmit: (data) async {
-                                                  // Call your provider to create the medical record
-                                                  final success = await context.read<MedicalRecordsProvider>().createMedicalRecord(
-                                                    appointmentId: appointment.id,
-                                                    diagnosis: data['diagnosis'],
-                                                    notes: data['notes'],
-                                                    prescriptions: data['prescriptions'],
-                                                    testResults: data['testResults'],
-                                                    nextVisitDate: data['nextVisitDate'],
-                                                  );
-                                                  
-                                                  if (success && context.mounted) {
-                                                    Navigator.pop(context);
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Medical record created successfully'),
-                                                        backgroundColor: Colors.green,
-                                                      ),
-                                                    );
-                                                    // Refresh the patient profile
-                                                    await Future.delayed(const Duration(milliseconds: 500));
-                                                    if (context.mounted) {
-                                                      // Refresh appointments to show new medical record
-                                                      Provider.of<AppointmentProvider>(context, listen: false).loadAppointments();
-                                                      _loadPatientData();
-                                                    }
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: const Text('Create Record', style: TextStyle(color: Colors.blue)),
                                       ),
                                     ],
                                   ),
