@@ -593,12 +593,11 @@ class AppointmentProvider with ChangeNotifier {
       final response = await _apiService.createMedicalRecord(
         appointmentId: appointmentId,
         diagnosis: medicalData['diagnosis'] ?? '',
-        symptoms: medicalData['symptoms'] ?? '',
-        treatment: medicalData['treatment'] ?? '',
-        prescription: medicalData['prescription'] ?? '',
-        tests: medicalData['tests'] ?? '',
         notes: medicalData['notes'] ?? '',
+        prescriptions: medicalData['prescriptions'] ?? [],
+        testResults: medicalData['testResults'] ?? [],
       );
+
       if (response['success']) {
         await loadAppointments(); // Refresh the list
         _isLoading = false;

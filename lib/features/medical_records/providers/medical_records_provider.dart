@@ -15,76 +15,149 @@ class MedicalRecordsProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Load all medical records for the patient
-  Future<void> loadMedicalRecords() async {
+  // Load all medical records for the current patient (patient view)
+  Future<void> loadPatientMedicalRecords() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final jsonList = await _apiService.getPatientMedicalRecords();
-      _records = jsonList.map((json) => MedicalRecord.fromJson(json)).toList();
+      print("Loading patient medical records...");
+      final response = await _apiService.get('/api/medical-records/patient/me');
+      
+      if (response['success'] && response['data'] != null) {
+        final recordsData = response['data']['records'] as List<dynamic>;
+        _records = recordsData.map((json) => MedicalRecord.fromJson(json)).toList();
+        print("Loaded ${_records.length} medical records");
+      } else {
+        print("Failed to load records: ${response['message']}");
+        _records = [];
+      }
+      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      print("Error loading patient medical records: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Create a new medical record (for doctors)
+  // Load medical records for a specific patient (doctor view)
+  Future<void> loadPatientMedicalRecordsById(String patientId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      print("Loading medical records for patient $patientId...");
+      final response = await _apiService.get('/api/medical-records/patient/$patientId');
+      
+      if (response['success'] && response['data'] != null) {
+        final recordsData = response['data']['records'] as List<dynamic>;
+        _records = recordsData.map((json) => MedicalRecord.fromJson(json)).toList();
+        print("Loaded ${_records.length} medical records for patient $patientId");
+      } else {
+        print("Failed to load records: ${response['message']}");
+        _records = [];
+      }
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print("Error loading patient medical records: $e");
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Get a specific medical record
+  Future<MedicalRecord?> getMedicalRecord(String recordId) async {
+    try {
+      print("Fetching medical record $recordId...");
+      final response = await _apiService.get('/api/medical-records/record/$recordId');
+      
+      if (response['success'] && response['data'] != null) {
+        return MedicalRecord.fromJson(response['data']);
+      }
+      
+      return null;
+    } catch (e) {
+      print("Error fetching medical record: $e");
+      return null;
+    }
+  }
+
+  // Create a new medical record
   Future<bool> createMedicalRecord({
     required String appointmentId,
     required String diagnosis,
-    required String symptoms,
-    required String treatment,
-    required String prescription,
-    required List<String> tests,
     required String notes,
+    List<Map<String, dynamic>>? prescriptions,
+    List<Map<String, dynamic>>? testResults,
+    DateTime? nextVisitDate,
   }) async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
 
-      final response = await _apiService.createMedicalRecord(
-        appointmentId: appointmentId,
-        diagnosis: diagnosis,
-        symptoms: symptoms,
-        treatment: treatment,
-        prescription: prescription,
-        tests: tests,
-        notes: notes,
-      );
-
-      _isLoading = false;
-
+      final Map<String, dynamic> data = {
+        'diagnosis': diagnosis,
+        'notes': notes,
+      };
+      
+      if (prescriptions != null && prescriptions.isNotEmpty) {
+        data['prescriptions'] = prescriptions;
+      }
+      
+      if (testResults != null && testResults.isNotEmpty) {
+        data['testResults'] = testResults;
+      }
+      
+      if (nextVisitDate != null) {
+        data['nextVisitDate'] = nextVisitDate.toIso8601String();
+      }
+      
+      print("Creating medical record for appointment $appointmentId");
+      final response = await _apiService.post('/api/medical-records/$appointmentId', data: data);
+      
       if (response['success']) {
-        // Create notification for the patient
-        final medicalRecordData =
-            response['record'] ?? response['medicalRecord'];
-        if (medicalRecordData != null &&
-            medicalRecordData['patientId'] != null) {
-          await _apiService.createNotification(
-            userId: medicalRecordData['patientId'],
-            title: 'New Medical Record',
-            message:
-                'A new medical record has been created for your appointment',
-            type: 'medical_record',
-            relatedId: medicalRecordData['_id'],
-          );
+        // Send notification to patient
+        if (response['data'] != null) {
+          final medicalRecord = response['data'];
+          String? patientId;
+          
+          if (medicalRecord['patientId'] is Map) {
+            patientId = medicalRecord['patientId']['_id'];
+          } else {
+            patientId = medicalRecord['patientId'];
+          }
+          
+          if (patientId != null) {
+            await _apiService.createNotification(
+              userId: patientId,
+              title: 'New Medical Record',
+              message: 'A new medical record has been created for your appointment',
+              type: 'medical_record',
+              relatedId: medicalRecord['_id'],
+            );
+          }
         }
-
-        await loadMedicalRecords(); // Refresh the list
+        
+        _isLoading = false;
         notifyListeners();
         return true;
       } else {
         _error = response['message'] ?? 'Failed to create medical record';
+        _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
+      print("Error creating medical record: $e");
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -92,22 +165,18 @@ class MedicalRecordsProvider with ChangeNotifier {
     }
   }
 
-  // Get a PDF URL for a medical record
-  Future<String?> getMedicalRecordPdf(String recordId) async {
+  // Generate PDF for a medical record
+  Future<String?> generatePdf(String recordId) async {
     try {
-      _isLoading = true;
-      notifyListeners();
-
-      final pdfUrl = await _apiService.getMedicalRecordPdf(recordId);
-
-      _isLoading = false;
-      notifyListeners();
-
-      return pdfUrl;
+      final response = await _apiService.get('/api/medical-records/record/$recordId/pdf?download=true');
+      
+      if (response['success'] && response['url'] != null) {
+        return response['url'];
+      }
+      
+      return null;
     } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
+      print("Error generating PDF: $e");
       return null;
     }
   }

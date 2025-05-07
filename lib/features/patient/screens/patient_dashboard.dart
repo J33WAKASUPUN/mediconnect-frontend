@@ -48,7 +48,7 @@ class PatientDashboardState extends State<PatientDashboard> {
       context.read<AppointmentProvider>().loadAppointments();
       context.read<NotificationProvider>().loadNotifications();
       // Load other data as needed
-      context.read<MedicalRecordsProvider>().loadMedicalRecords();
+      // context.read<MedicalRecordsProvider>().loadMedicalRecords();
     });
 
     Future.microtask(() async {

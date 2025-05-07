@@ -1,5 +1,3 @@
-// lib/features/patient/screens/patient_appointments_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
@@ -351,20 +349,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen>
   }
 
   void _navigateToMedicalRecord(BuildContext context, Appointment appointment) {
-    if (appointment.medicalRecord != null) {
-      // Create a MedicalRecord from the appointment's medicalRecord map
-      final record = MedicalRecord.fromJson(appointment.medicalRecord!);
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MedicalRecordDetailScreen(
-            record: record,
-          ),
+  if (appointment.medicalRecord != null) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MedicalRecordDetailScreen(
+          recordId: appointment.medicalRecord!['_id'],
+          isDoctorView: false,
         ),
-      );
-    }
+      ),
+    );
   }
+}
 
   void _navigateToPayment(BuildContext context, Appointment appointment) {
     Navigator.push(

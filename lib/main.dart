@@ -230,7 +230,7 @@ class MyApp extends StatelessWidget {
               ModalRoute.of(context)!.settings.arguments as String;
           return PatientProfileScreen(patientId: patientId);
         },
-        
+
         // Payment routes (that don't need arguments)
         '/payment/history': (context) => const PaymentHistoryScreen(),
       },
@@ -245,16 +245,7 @@ class MyApp extends StatelessWidget {
             );
           }
           // Handle invalid arguments
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Error'),
-              ),
-              body: const Center(
-                child: Text('Invalid doctor profile data'),
-              ),
-            ),
-          );
+          return _errorRoute('Invalid doctor profile data');
         }
 
         // Handle patient details
@@ -266,16 +257,7 @@ class MyApp extends StatelessWidget {
               settings: settings,
             );
           }
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Error'),
-              ),
-              body: const Center(
-                child: Text('Invalid patient ID'),
-              ),
-            ),
-          );
+          return _errorRoute('Invalid patient ID');
         }
 
         // Handle payment screen
@@ -287,16 +269,7 @@ class MyApp extends StatelessWidget {
               settings: settings,
             );
           }
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Error'),
-              ),
-              body: const Center(
-                child: Text('Invalid payment data'),
-              ),
-            ),
-          );
+          return _errorRoute('Invalid payment data');
         }
 
         // For payment details screen
@@ -308,16 +281,7 @@ class MyApp extends StatelessWidget {
               settings: settings,
             );
           }
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Error'),
-              ),
-              body: const Center(
-                child: Text('Invalid payment ID'),
-              ),
-            ),
-          );
+          return _errorRoute('Invalid payment ID');
         }
 
         // Handle payment receipt
@@ -335,22 +299,28 @@ class MyApp extends StatelessWidget {
         // Handle medical record detail
         if (settings.name == '/medical-record/detail') {
           final args = settings.arguments;
-          if (args is MedicalRecord) {
+          if (args is Map<String, dynamic>) {
+            // New format with recordId
             return MaterialPageRoute(
-              builder: (context) => MedicalRecordDetailScreen(record: args),
+              builder: (context) => MedicalRecordDetailScreen(
+                recordId: args['recordId'],
+                isDoctorView: args['isDoctorView'] ?? false,
+                patientName: args['patientName'],
+              ),
+              settings: settings,
+            );
+          } else if (args is MedicalRecord) {
+            // Legacy format with direct record object
+            // This maintains backward compatibility
+            return MaterialPageRoute(
+              builder: (context) => MedicalRecordDetailScreen(
+                recordId: args.id,
+                isDoctorView: false,
+              ),
               settings: settings,
             );
           }
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Error'),
-              ),
-              body: const Center(
-                child: Text('Invalid medical record data'),
-              ),
-            ),
-          );
+          return _errorRoute('Invalid medical record data');
         }
 
         return null;
@@ -367,6 +337,20 @@ class MyApp extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+// Helper method for error routes
+  Route<dynamic> _errorRoute(String message) {
+    return MaterialPageRoute(
+      builder: (context) => Scaffold(
+        appBar: AppBar(
+          title: const Text('Error'),
+        ),
+        body: Center(
+          child: Text(message),
+        ),
+      ),
     );
   }
 

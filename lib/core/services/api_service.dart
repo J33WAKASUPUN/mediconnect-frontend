@@ -284,33 +284,55 @@ class ApiService {
       _paymentService.linkPaymentToAppointment(appointmentId, paymentId);
 
   // Medical record methods
-  Future<List<Map<String, dynamic>>> getPatientMedicalRecords() =>
-      _medicalRecordService.getPatientMedicalRecords();
-
-  Future<Map<String, dynamic>> createMedicalRecord({
+  Future<dynamic> createMedicalRecord({
     required String appointmentId,
     required String diagnosis,
-    required String symptoms,
-    required String treatment,
-    required String prescription,
-    required List<String> tests,
     required String notes,
-  }) =>
-      _medicalRecordService.createMedicalRecord(
-        appointmentId: appointmentId,
-        diagnosis: diagnosis,
-        symptoms: symptoms,
-        treatment: treatment,
-        prescription: prescription,
-        tests: tests,
-        notes: notes,
-      );
+    List<Map<String, dynamic>>? prescriptions,
+    List<Map<String, dynamic>>? testResults,
+    DateTime? nextVisitDate,
+  }) async {
+    return await _medicalRecordService.createMedicalRecord(
+      appointmentId: appointmentId,
+      diagnosis: diagnosis,
+      notes: notes,
+      prescriptions: prescriptions,
+      testResults: testResults,
+      nextVisitDate: nextVisitDate,
+    );
+  }
 
-  Future<Map<String, dynamic>> getMedicalRecord(String recordId) =>
-      _medicalRecordService.getMedicalRecord(recordId);
+  Future<dynamic> getMedicalRecord(String recordId) async {
+    return await _medicalRecordService.getMedicalRecord(recordId);
+  }
 
-  Future<String?> getMedicalRecordPdf(String recordId) =>
-      _medicalRecordService.getMedicalRecordPdf(recordId);
+  Future<dynamic> getPatientMedicalRecords() async {
+    return await _medicalRecordService.getPatientMedicalRecords();
+  }
+
+  Future<dynamic> getPatientMedicalRecordsById(String patientId) async {
+    return await _medicalRecordService.getPatientMedicalRecordsById(patientId);
+  }
+
+  Future<String?> generateMedicalRecordPdf(String recordId) async {
+    return await _medicalRecordService.generatePdf(recordId);
+  }
+
+  Future<dynamic> post(String endpoint, {dynamic data}) async {
+    try {
+      final baseService = BaseApiService();
+      if (_authService.hasValidToken()) {
+        baseService.setAuthToken(await _authService.getToken() ?? '');
+      }
+      final response = await baseService.post(endpoint, data: data);
+      return response is Map<String, dynamic>
+          ? response
+          : {'success': false, 'message': 'Invalid response'};
+    } catch (e) {
+      print('Error making POST request to $endpoint: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 
   // Notification methods
   Future<List<Map<String, dynamic>>> getUserNotifications() =>
