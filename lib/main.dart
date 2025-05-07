@@ -1,8 +1,11 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
+import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -220,6 +223,7 @@ class MyApp extends StatelessWidget {
         '/patient/doctors': (context) => const DoctorsListScreen(),
         '/patient/appointments': (context) => const PatientAppointmentsScreen(),
         '/patient/dashboard': (context) => const PatientDashboard(),
+        '/medical-records': (context) => const PatientMedicalRecordsScreen(),
 
         // Doctor routes
         '/doctor/dashboard': (context) => const DoctorDashboard(),
@@ -317,6 +321,38 @@ class MyApp extends StatelessWidget {
                 recordId: args.id,
                 isDoctorView: false,
               ),
+              settings: settings,
+            );
+          }
+          return _errorRoute('Invalid medical record data');
+        }
+
+        // Handle medical record detail
+        if (settings.name == '/medical-record/detail') {
+          final args = settings.arguments;
+          if (args is Map<String, dynamic>) {
+            // New format with recordId
+            return MaterialPageRoute(
+              builder: (context) => MedicalRecordDetailScreen(
+                recordId: args['recordId'],
+                isDoctorView: args['isDoctorView'] ?? false,
+                patientName: args['patientName'],
+              ),
+              settings: settings,
+            );
+          } else if (args is String) {
+            // Simple recordId string
+            return MaterialPageRoute(
+              builder: (context) => MedicalRecordDetailScreen(
+                recordId: args,
+                isDoctorView: false,
+              ),
+              settings: settings,
+            );
+          } else if (args == null) {
+            // Default to the medical records list screen if no arguments
+            return MaterialPageRoute(
+              builder: (context) => const PatientMedicalRecordsScreen(),
               settings: settings,
             );
           }

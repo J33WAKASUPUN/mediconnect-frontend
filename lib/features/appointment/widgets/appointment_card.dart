@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
-import 'package:mediconnect/features/appointment/widgets/appointment_cancellation_dialog.dart';
-import 'package:mediconnect/features/doctor/widgets/doctor_appointment_action_dialog.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
+import '../../doctor/widgets/doctor_appointment_action_dialog.dart';
+import '../providers/appointment_provider.dart';
+import 'appointment_cancellation_dialog.dart';
 import 'appointment_status_badge.dart';
 
 class AppointmentCard extends StatelessWidget {
@@ -158,6 +158,15 @@ class AppointmentCard extends StatelessWidget {
                     'Reason: ${appointment.cancellationReason}'),
 
               _buildInfoRow(Icons.payments, _getAmountText(context)),
+              
+              // Show indicator if medical record is available
+              if (!isCompact && 
+                  appointment.status.toLowerCase() == 'completed' && 
+                  appointment.medicalRecord != null)
+                _buildInfoRow(
+                  Icons.medical_services, 
+                  'Medical record available'
+                ),
 
               // Action buttons
               if (!isCompact && _shouldShowActions()) ...[
@@ -392,134 +401,111 @@ class AppointmentCard extends StatelessWidget {
     final appointmentProvider =
         Provider.of<AppointmentProvider>(context, listen: false);
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
       children: [
         // Cancel button for pending/confirmed appointments
         if (onCancelPressed != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: OutlinedButton(
-              onPressed: isPatientView
-                  ? () => _showCancellationDialog(context)
-                  : () => _showDoctorCancellationDialog(
-                      context), // Use doctor dialog for doctor view
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-              ),
-              child: const Text('Cancel'),
+          OutlinedButton(
+            onPressed: isPatientView
+                ? () => _showCancellationDialog(context)
+                : () => _showDoctorCancellationDialog(
+                    context), // Use doctor dialog for doctor view
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
             ),
+            child: const Text('Cancel'),
           ),
 
         // Confirm button for doctor (pending appointments)
         if (onConfirmPressed != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: () => _showDoctorConfirmationDialog(
-                  context), // Use new dialog for confirmation
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-              child: const Text('Confirm'),
+          ElevatedButton(
+            onPressed: () => _showDoctorConfirmationDialog(
+                context), // Use new dialog for confirmation
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
             ),
+            child: const Text('Confirm'),
           ),
 
         // Complete button for doctor (confirmed appointments)
         if (onCompletePressed != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: onCompletePressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-              ),
-              child: const Text('Complete'),
+          ElevatedButton(
+            onPressed: onCompletePressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
             ),
+            child: const Text('Complete'),
           ),
 
         // Review button for patient (completed appointments)
         if (onReviewPressed != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: OutlinedButton(
-              onPressed: onReviewPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.warning,
-              ),
-              child: const Text('Review'),
+          OutlinedButton(
+            onPressed: onReviewPressed,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.warning,
             ),
+            child: const Text('Review'),
           ),
 
         // Medical record buttons
         if (onViewMedicalRecord != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: OutlinedButton(
-              onPressed: onViewMedicalRecord,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.info,
-              ),
-              child: const Text('Medical Record'),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.medical_information, size: 16),
+            label: const Text('View Record'),
+            onPressed: onViewMedicalRecord,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.info,
             ),
           ),
 
         if (onCreateMedicalRecord != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: onCreateMedicalRecord,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.info,
-              ),
-              child: const Text('Create Record'),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add_circle_outline, size: 16),
+            label: const Text('Create Record'),
+            onPressed: onCreateMedicalRecord,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.info,
             ),
           ),
 
         // Payment button - Show different states based on payment status
         if (_isPaymentNeeded(context) && onPaymentPressed != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.payment, size: 16),
-              label: const Text('Pay Now'),
-              onPressed: onPaymentPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.info,
-                foregroundColor: Colors.white,
-              ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.payment, size: 16),
+            label: const Text('Pay Now'),
+            onPressed: onPaymentPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.info,
+              foregroundColor: Colors.white,
             ),
           ),
 
         // Show PAID button if payment is completed
         if ((appointment.paymentId != null ||
             appointmentProvider.isAppointmentPaid(appointment.id)))
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.check_circle, size: 16),
-              label: const Text('Paid'),
-              onPressed: null, // Disabled button
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.green,
-                disabledForegroundColor: Colors.white,
-              ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check_circle, size: 16),
+            label: const Text('Paid'),
+            onPressed: null, // Disabled button
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.green,
+              disabledForegroundColor: Colors.white,
             ),
           ),
 
         // View patient profile button (Only shown in doctor view)
         if (!isPatientView && onViewPatientProfile != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.person, size: 16),
-              label: const Text('Profile'),
-              onPressed: onViewPatientProfile,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-              ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.person, size: 16),
+            label: const Text('Profile'),
+            onPressed: onViewPatientProfile,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
             ),
           ),
       ],

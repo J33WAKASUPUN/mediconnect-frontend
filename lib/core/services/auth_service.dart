@@ -40,6 +40,4 @@ class AuthService extends BaseApiService {
     print('Refreshing auth token: ${token.substring(0, 10)}...');
     setAuthToken(token);
   }
-
-  // Add other authentication methods here
 }

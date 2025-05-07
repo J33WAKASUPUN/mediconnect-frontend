@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'base_api_service.dart';
 import '../../config/api_endpoints.dart';
 
@@ -5,7 +7,13 @@ class MedicalRecordService extends BaseApiService {
   // Get all medical records for a patient (patient view)
   Future<dynamic> getPatientMedicalRecords() async {
     try {
-      final response = await get('/api/medical-records/patient/me');
+      // Get the user's own ID for "me" endpoint
+      // The backend route expects /patient/:patientId, not /patient/me
+      final profileResponse = await get('/profile');
+      final String patientId = profileResponse['user']['_id'];
+
+      // Now use the proper endpoint with the patient's ID
+      final response = await get('/medical-records/patient/$patientId');
       return response;
     } catch (e) {
       print("Error fetching patient medical records: $e");
@@ -16,7 +24,7 @@ class MedicalRecordService extends BaseApiService {
   // Get medical records for a specific patient (doctor view)
   Future<dynamic> getPatientMedicalRecordsById(String patientId) async {
     try {
-      final response = await get('/api/medical-records/patient/$patientId');
+      final response = await get('/medical-records/patient/$patientId');
       return response;
     } catch (e) {
       print("Error fetching patient medical records by ID: $e");
@@ -38,22 +46,24 @@ class MedicalRecordService extends BaseApiService {
         'diagnosis': diagnosis,
         'notes': notes,
       };
-      
+
       if (prescriptions != null && prescriptions.isNotEmpty) {
         data['prescriptions'] = prescriptions;
       }
-      
+
       if (testResults != null && testResults.isNotEmpty) {
         data['testResults'] = testResults;
       }
-      
+
       if (nextVisitDate != null) {
         data['nextVisitDate'] = nextVisitDate.toIso8601String();
       }
-      
-      print("Creating medical record for appointment $appointmentId with data: $data");
-      
-      final response = await post('/api/medical-records/$appointmentId', data: data);
+
+      print(
+          "Creating medical record for appointment $appointmentId with data: $data");
+
+      final response =
+          await post('/medical-records/$appointmentId', data: data);
       return response;
     } catch (e) {
       print("Error creating medical record: $e");
@@ -64,7 +74,7 @@ class MedicalRecordService extends BaseApiService {
   // Get a specific medical record
   Future<Map<String, dynamic>> getMedicalRecord(String recordId) async {
     try {
-      final response = await get('/api/medical-records/record/$recordId');
+      final response = await get('/medical-records/record/$recordId');
       return response;
     } catch (e) {
       print("Error fetching medical record: $e");
@@ -78,7 +88,9 @@ class MedicalRecordService extends BaseApiService {
     required Map<String, dynamic> data,
   }) async {
     try {
-      final response = await put('/api/medical-records/record/$recordId', data: data);
+      // Remove the duplicate /api prefix
+      final response =
+          await put('/medical-records/record/$recordId', data: data);
       return response;
     } catch (e) {
       print("Error updating medical record: $e");
@@ -89,7 +101,8 @@ class MedicalRecordService extends BaseApiService {
   // Generate PDF for a medical record
   Future<String> generatePdf(String recordId) async {
     try {
-      final response = await get('/api/medical-records/record/$recordId/pdf');
+      // Remove the duplicate /api prefix
+      final response = await get('/medical-records/record/$recordId/pdf');
       if (response['success'] && response['url'] != null) {
         return response['url'];
       }
@@ -101,17 +114,19 @@ class MedicalRecordService extends BaseApiService {
   }
 
   // Add attachments to a medical record
-  Future<Map<String, dynamic>> addAttachments(String recordId, List<dynamic> files) async {
+  Future<Map<String, dynamic>> addAttachments(
+      String recordId, List<dynamic> files) async {
     try {
       final formData = {
         'files': files,
       };
-      
+
+      // Remove the duplicate /api prefix
       final response = await post(
-        '/api/medical-records/record/$recordId/attachments', 
+        '/medical-records/record/$recordId/attachments',
         data: formData,
       );
-      
+
       return response;
     } catch (e) {
       print("Error adding attachments: $e");
@@ -120,9 +135,12 @@ class MedicalRecordService extends BaseApiService {
   }
 
   // Delete an attachment
-  Future<Map<String, dynamic>> deleteAttachment(String recordId, String attachmentId) async {
+  Future<Map<String, dynamic>> deleteAttachment(
+      String recordId, String attachmentId) async {
     try {
-      final response = await delete('/api/medical-records/record/$recordId/attachments/$attachmentId');
+      // Remove the duplicate /api prefix
+      final response = await delete(
+          '/medical-records/record/$recordId/attachments/$attachmentId');
       return response;
     } catch (e) {
       print("Error deleting attachment: $e");
@@ -133,7 +151,8 @@ class MedicalRecordService extends BaseApiService {
   // Get medical record statistics (for doctor dashboard)
   Future<Map<String, dynamic>> getMedicalRecordStats() async {
     try {
-      final response = await get('/api/medical-records/stats');
+      // Remove the duplicate /api prefix
+      final response = await get('/medical-records/stats');
       return response;
     } catch (e) {
       print("Error fetching medical record stats: $e");

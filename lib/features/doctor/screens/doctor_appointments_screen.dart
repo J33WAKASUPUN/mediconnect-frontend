@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/widgets/doctor_appointment_action_dialog.dart';
 import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
+import 'package:mediconnect/features/medical_records/providers/medical_records_provider.dart';
+import 'package:mediconnect/features/medical_records/screens/medical_record_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -227,11 +229,65 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen>
                 : null,
             onCreateMedicalRecord: appointment.status == 'completed' &&
                     appointment.medicalRecord == null
-                ? () => _createMedicalRecord(context, appointment)
+                ? () {
+                    // Navigate to the medical record form
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MedicalRecordForm(
+                          appointmentId: appointment.id,
+                          patientName: patientName,
+                          onSubmit: (data) async {
+                            // Call provider to create medical record
+                            final success = await context
+                                .read<MedicalRecordsProvider>()
+                                .createMedicalRecord(
+                                  appointmentId: appointment.id,
+                                  diagnosis: data['diagnosis'],
+                                  notes: data['notes'],
+                                  prescriptions: data['prescriptions'],
+                                  testResults: data['testResults'],
+                                  nextVisitDate: data['nextVisitDate'] != null
+                                      ? DateTime.parse(data['nextVisitDate'])
+                                      : null,
+                                );
+
+                            if (success && context.mounted) {
+                              // Navigate back to appointments screen
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Medical record created successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              // Refresh appointments to show the new medical record
+                              context
+                                  .read<AppointmentProvider>()
+                                  .loadAppointments();
+                            }
+                          },
+                        ),
+                      ),
+                    );
+                  }
                 : null,
             onViewMedicalRecord: appointment.status == 'completed' &&
                     appointment.medicalRecord != null
-                ? () => _viewMedicalRecord(context, appointment)
+                ? () {
+                    // Navigate to medical record detail screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MedicalRecordDetailScreen(
+                          recordId: appointment.medicalRecord!['_id'],
+                          isDoctorView: true,
+                          patientName: patientName,
+                        ),
+                      ),
+                    );
+                  }
                 : null,
             // paymentStatus: appointment.paymentId != null ? 'paid' : 'unpaid',
             onViewPatientProfile: () =>

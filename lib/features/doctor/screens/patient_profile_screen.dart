@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/doctor/widgets/medical_record_form.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../appointment/providers/appointment_provider.dart';
+import '../../medical_records/screens/medical_record_detail_screen.dart';
+import '../../medical_records/providers/medical_records_provider.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   final String patientId;
@@ -114,7 +117,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Patient Profile'),
+        title: const Text('Patient Profile'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -291,13 +294,80 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                                       const Spacer(),
                                       TextButton(
                                         onPressed: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Medical record viewing will be implemented soon'),
+                                          final String recordId = appointment.medicalRecord!['_id'];
+                                          Navigator.push(
+                                            context, 
+                                            MaterialPageRoute(
+                                              builder: (context) => MedicalRecordDetailScreen(
+                                                recordId: recordId,  
+                                                isDoctorView: true,
+                                                patientName: "${_patientData!['firstName'] ?? ''} ${_patientData!['lastName'] ?? ''}",
+                                              ),
                                             ),
                                           );
                                         },
                                         child: const Text('View Record', style: TextStyle(color: Colors.blue)),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+
+                                if (isCompleted && appointment.medicalRecord == null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.medical_services_outlined, 
+                                        size: 16, 
+                                        color: Colors.grey),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'No medical record',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => MedicalRecordForm(
+                                                appointmentId: appointment.id,
+                                                patientName: "${_patientData!['firstName'] ?? ''} ${_patientData!['lastName'] ?? ''}",
+                                                onSubmit: (data) async {
+                                                  // Call your provider to create the medical record
+                                                  final success = await context.read<MedicalRecordsProvider>().createMedicalRecord(
+                                                    appointmentId: appointment.id,
+                                                    diagnosis: data['diagnosis'],
+                                                    notes: data['notes'],
+                                                    prescriptions: data['prescriptions'],
+                                                    testResults: data['testResults'],
+                                                    nextVisitDate: data['nextVisitDate'],
+                                                  );
+                                                  
+                                                  if (success && context.mounted) {
+                                                    Navigator.pop(context);
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('Medical record created successfully'),
+                                                        backgroundColor: Colors.green,
+                                                      ),
+                                                    );
+                                                    // Refresh the patient profile
+                                                    await Future.delayed(const Duration(milliseconds: 500));
+                                                    if (context.mounted) {
+                                                      // Refresh appointments to show new medical record
+                                                      Provider.of<AppointmentProvider>(context, listen: false).loadAppointments();
+                                                      _loadPatientData();
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('Create Record', style: TextStyle(color: Colors.blue)),
                                       ),
                                     ],
                                   ),

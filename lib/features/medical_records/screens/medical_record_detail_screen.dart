@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../../../core/models/medical_record_model.dart';
+import '../../../core/services/api_service.dart';
+import '../../../config/api_endpoints.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -29,7 +33,7 @@ class _MedicalRecordDetailScreenState extends State<MedicalRecordDetailScreen> {
   bool _isLoading = true;
   String? _error;
   MedicalRecord? _record;
-  bool _pdfLoading = false;
+  bool _isDownloadingPdf = false;
   
   @override
   void initState() {
@@ -60,41 +64,63 @@ class _MedicalRecordDetailScreenState extends State<MedicalRecordDetailScreen> {
     }
   }
   
-  Future<void> _generatePdf() async {
+  Future<void> _downloadPdf() async {
     setState(() {
-      _pdfLoading = true;
+      _isDownloadingPdf = true;
     });
-    
+
     try {
-      final recordsProvider = Provider.of<MedicalRecordsProvider>(context, listen: false);
-      final pdfUrl = await recordsProvider.generatePdf(widget.recordId);
+      // Get the API service
+      final apiService = Provider.of<ApiService>(context, listen: false);
       
-      setState(() {
-        _pdfLoading = false;
-      });
+      // Make a direct API call with responseType set to bytes
+      final response = await apiService.httpClient.get(
+        Uri.parse('${ApiEndpoints.baseUrl}/medical-records/record/${widget.recordId}/pdf?download=true'),
+        headers: {
+          'Authorization': 'Bearer ${apiService.authToken}',
+          'Accept': 'application/pdf', // Important: tell server we want PDF
+        },
+      );
       
-      if (pdfUrl != null) {
-        final Uri uri = Uri.parse(pdfUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not launch PDF viewer')),
-          );
+      if (response.statusCode == 200) {
+        // The response is a PDF file, save it to device
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/medical_record_${widget.recordId}.pdf';
+        
+        // Write the bytes to a file
+        File file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        
+        // Open the PDF with a PDF viewer
+        final result = await OpenFile.open(filePath);
+        
+        if (result.type != ResultType.done) {
+          throw Exception('Could not open PDF: ${result.message}');
         }
-      } else {
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to generate PDF')),
+          const SnackBar(
+            content: Text('PDF downloaded successfully'),
+            backgroundColor: Colors.green,
+          ),
         );
+      } else {
+        throw Exception('Failed to download PDF: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error generating PDF: $e');
+      print("Error downloading PDF: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(
+          content: Text('Error downloading PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
-      setState(() {
-        _pdfLoading = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingPdf = false;
+        });
+      }
     }
   }
   
@@ -189,10 +215,10 @@ class _MedicalRecordDetailScreenState extends State<MedicalRecordDetailScreen> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
         child: CustomButton(
-          text: 'Download PDF',
+          text: _isDownloadingPdf ? 'Downloading...' : 'Download PDF',
           icon: Icons.picture_as_pdf,
-          isLoading: _pdfLoading,
-          onPressed: _generatePdf,
+          isLoading: _isDownloadingPdf,
+          onPressed: _isDownloadingPdf ? null : _downloadPdf,
         ),
       ),
     );

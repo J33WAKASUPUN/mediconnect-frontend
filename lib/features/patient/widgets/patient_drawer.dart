@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
+import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
@@ -107,15 +108,7 @@ class _PatientDrawerState extends State<PatientDrawer> {
                   title: const Text('Medical Records'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/medical-record/detail');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.medication),
-                  title: const Text('Medications'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // TODO: Navigate to medications
+                    Navigator.pushNamed(context, '/medical-records');
                   },
                 ),
                 ListTile(

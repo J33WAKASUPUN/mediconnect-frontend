@@ -1,5 +1,9 @@
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:mediconnect/config/api_endpoints.dart';
 import 'base_api_service.dart';
 import 'auth_service.dart';
 import 'profile_service.dart';
@@ -16,6 +20,7 @@ class ApiService {
   final PaymentService _paymentService;
   final MedicalRecordService _medicalRecordService;
   final NotificationService _notificationService;
+  final http.Client _httpClient = http.Client();
 
   ApiService()
       : _authService = AuthService(),
@@ -374,6 +379,33 @@ class ApiService {
     } catch (e) {
       print('Error making GET request to $endpoint: $e');
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  http.Client get httpClient => _httpClient;
+
+  String? get _authToken => _authService.getAuthToken();
+
+  String get authToken => _authToken ?? '';
+
+  Future<Uint8List> downloadFile(String endpoint) async {
+    try {
+      final response = await _httpClient.get(
+        Uri.parse('${ApiEndpoints.baseUrl}$endpoint'),
+        headers: {
+          'Authorization': 'Bearer $_authToken',
+          'Accept': 'application/octet-stream',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        throw Exception('Failed to download file: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error downloading file: $e');
+      rethrow;
     }
   }
 }
