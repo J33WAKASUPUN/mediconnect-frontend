@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/review_model.dart';
-import 'package:mediconnect/features/reivew/widgets/stars_rating.dart';
+import 'package:mediconnect/features/review/widgets/stars_rating.dart';
 import 'package:mediconnect/shared/constants/styles.dart';
 import 'package:mediconnect/shared/constants/colors.dart';
 
@@ -8,7 +8,7 @@ class ReviewCard extends StatelessWidget {
   final Review review;
   final bool isDoctorView;
   final Function(String)? onResponseSubmit;
-  
+
   const ReviewCard({
     super.key,
     required this.review,
@@ -35,21 +35,25 @@ class ReviewCard extends StatelessWidget {
                 // Patient avatar or anonymous icon
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: review.isAnonymous 
-                      ? Colors.grey.shade300 
+                  backgroundColor: review.isAnonymous
+                      ? Colors.grey.shade300
                       : AppColors.primary.withOpacity(0.2),
-                  backgroundImage: review.isAnonymous || review.patientProfilePicture == null
-                      ? null
-                      : NetworkImage(review.patientProfilePicture!),
-                  child: review.isAnonymous || review.patientProfilePicture == null
+                  backgroundImage:
+                      review.isAnonymous || review.patientProfilePicture == null
+                          ? null
+                          : NetworkImage(review.patientProfilePicture!),
+                  child: review.isAnonymous ||
+                          review.patientProfilePicture == null
                       ? Icon(
                           review.isAnonymous ? Icons.person_off : Icons.person,
-                          color: review.isAnonymous ? Colors.grey : AppColors.primary,
+                          color: review.isAnonymous
+                              ? Colors.grey
+                              : AppColors.primary,
                         )
                       : null,
                 ),
                 const SizedBox(width: 12),
-                
+
                 // Name and date
                 Expanded(
                   child: Column(
@@ -69,7 +73,7 @@ class ReviewCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                
+
                 // Rating stars
                 StarRating(
                   rating: review.rating.toDouble(),
@@ -77,9 +81,9 @@ class ReviewCard extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Review content
             Container(
               padding: const EdgeInsets.all(12),
@@ -92,13 +96,13 @@ class ReviewCard extends StatelessWidget {
                 style: AppStyles.bodyText1,
               ),
             ),
-            
+
             // Doctor's response (if available)
             if (review.doctorResponse != null) ...[
               const SizedBox(height: 16),
               _buildDoctorResponse(context, review.doctorResponse!),
             ],
-            
+
             // Add response button for doctors if no response yet
             if (isDoctorView && review.doctorResponse == null) ...[
               const SizedBox(height: 16),
@@ -109,7 +113,7 @@ class ReviewCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildDoctorResponse(BuildContext context, DoctorResponse response) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -141,7 +145,7 @@ class ReviewCard extends StatelessWidget {
               const Spacer(),
               Text(
                 'Replied on ${response.formattedDate}',
-                style: AppStyles.caption.copyWith(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10,
                 ),
@@ -157,10 +161,10 @@ class ReviewCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildResponseInput(BuildContext context) {
     final TextEditingController controller = TextEditingController();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/reivew/screens/review_form_screen.dart';
+import 'package:mediconnect/features/review/screens/review_form_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';

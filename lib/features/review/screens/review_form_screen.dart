@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/reivew/widgets/stars_rating.dart';
+import 'package:mediconnect/features/review/widgets/stars_rating.dart';
 import 'package:provider/provider.dart';
 import '../providers/review_provider.dart';
 import '../../../shared/constants/colors.dart';

@@ -7,6 +7,7 @@ import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart'
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
+import 'package:mediconnect/features/review/providers/review_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -191,6 +192,12 @@ void main() async {
         // Add PaymentProvider
         ChangeNotifierProvider(
           create: (context) => PaymentProvider(
+            apiService: context.read<ApiService>(),
+          ),
+        ),
+        // Add ReviewProvider
+        ChangeNotifierProvider(
+          create: (context) => ReviewProvider(
             apiService: context.read<ApiService>(),
           ),
         ),

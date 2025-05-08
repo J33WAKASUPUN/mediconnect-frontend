@@ -31,8 +31,15 @@ class ApiService {
         _paymentService = PaymentService(),
         _medicalRecordService = MedicalRecordService(),
         _notificationService = NotificationService(),
-        _reviewService = ReviewService();
-
+        _reviewService = ReviewService() {
+    // Initialize review service with token if available
+    if (_authService.hasValidToken()) {
+      final token = _authService.getAuthToken();
+      if (token.isNotEmpty) {
+        _reviewService.setAuthToken(token);
+      }
+    }
+  }
   // Auth methods
   void setAuthToken(String token) {
     _authService.setAuthToken(token);
@@ -41,6 +48,7 @@ class ApiService {
     _paymentService.setAuthToken(token);
     _medicalRecordService.setAuthToken(token);
     _notificationService.setAuthToken(token);
+    _reviewService.setAuthToken(token);
   }
 
 // Direct synchronous auth token accessor (non-async)

@@ -30,15 +30,46 @@ class Review {
   });
 
   factory Review.fromJson(Map<String, dynamic> json) {
+    // Handle appointmentId - can be either a String or a Map
+    String appointmentIdStr;
+    Map<String, dynamic>? appointmentDetailsData;
+
+    if (json['appointmentId'] is Map) {
+      var apptMap = json['appointmentId'] as Map<String, dynamic>;
+      appointmentIdStr = apptMap['_id']?.toString() ?? '';
+      appointmentDetailsData = apptMap;
+    } else {
+      appointmentIdStr = json['appointmentId']?.toString() ?? '';
+      appointmentDetailsData = null;
+    }
+
+    // Handle patientId - can be either a String or a Map
+    String patientIdStr;
+    Map<String, dynamic>? patientDetailsData;
+
+    if (json['patientId'] is Map) {
+      var patientMap = json['patientId'] as Map<String, dynamic>;
+      patientIdStr = patientMap['_id']?.toString() ?? '';
+      patientDetailsData = patientMap;
+    } else {
+      patientIdStr = json['patientId']?.toString() ?? '';
+      patientDetailsData = null;
+    }
+
+    // Handle doctorId - can be either a String or a Map
+    String doctorIdStr;
+    if (json['doctorId'] is Map) {
+      var doctorMap = json['doctorId'] as Map<String, dynamic>;
+      doctorIdStr = doctorMap['_id']?.toString() ?? '';
+    } else {
+      doctorIdStr = json['doctorId']?.toString() ?? '';
+    }
+
     return Review(
       id: json['_id'],
-      appointmentId: json['appointmentId'],
-      patientId: json['patientId'] is Map 
-        ? json['patientId']['_id'] 
-        : json['patientId'],
-      doctorId: json['doctorId'] is Map 
-        ? json['doctorId']['_id'] 
-        : json['doctorId'],
+      appointmentId: appointmentIdStr,
+      patientId: patientIdStr,
+      doctorId: doctorIdStr,
       rating: json['rating'],
       review: json['review'],
       isAnonymous: json['isAnonymous'] ?? false,
@@ -51,12 +82,8 @@ class Review {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
-      patientDetails: json['patientId'] is Map 
-          ? json['patientId'] as Map<String, dynamic>
-          : null,
-      appointmentDetails: json['appointmentId'] is Map 
-          ? json['appointmentId'] as Map<String, dynamic>
-          : null,
+      patientDetails: patientDetailsData,
+      appointmentDetails: appointmentDetailsData,
     );
   }
 
@@ -74,7 +101,8 @@ class Review {
   }
 
   String get patientName {
-    if (patientDetails == null) return isAnonymous ? 'Anonymous User' : 'Patient';
+    if (patientDetails == null)
+      return isAnonymous ? 'Anonymous User' : 'Patient';
     if (isAnonymous) return 'Anonymous User';
     return '${patientDetails!['firstName']} ${patientDetails!['lastName']}';
   }
@@ -136,7 +164,7 @@ class ReviewAnalytics {
     ratingData.forEach((key, value) {
       distribution[key] = value as int;
     });
-    
+
     // Convert monthly stats
     final Map<String, Map<String, dynamic>> monthly = {};
     final monthlyData = json['monthlyStats'] as Map<String, dynamic>;

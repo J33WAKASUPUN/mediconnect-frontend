@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/core/models/review_model.dart';
 import 'package:mediconnect/core/services/api_service.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
+import 'package:mediconnect/features/review/providers/review_provider.dart';
+import 'package:mediconnect/features/review/widgets/review_card.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/constants/colors.dart';
@@ -26,6 +29,8 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
   List _appointments = [];
   bool _loadingRecords = false;
   List<dynamic> _patientRecords = [];
+  List<dynamic> _patientReviews = [];
+  bool _loadingReviews = false;
   
   @override
   void initState() {
@@ -66,6 +71,9 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
 
       // Load patient medical records
       _loadPatientRecords();
+      
+      // Load patient reviews
+      _loadPatientReviews();
       
     } catch (e) {
       print('Error loading patient data: $e');
@@ -116,6 +124,95 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
       }
     }
   }
+  
+  Future<void> _loadPatientReviews() async {
+    if (mounted) {
+      setState(() {
+        _loadingReviews = true;
+      });
+    }
+
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      
+      // Try getting all reviews by this patient directly (if endpoint exists)
+      try {
+        final response = await apiService.get('/reviews/patient/${widget.patientId}');
+        
+        if (response['success'] && response['data'] != null) {
+          List<dynamic> reviews = [];
+          
+          // Handle different response formats
+          if (response['data'] is List) {
+            reviews = response['data'];
+          } else if (response['data']['reviews'] != null) {
+            reviews = response['data']['reviews'];
+          } else {
+            // Single review case
+            reviews.add(response['data']);
+          }
+          
+          if (mounted) {
+            setState(() {
+              _patientReviews = reviews;
+              _loadingReviews = false;
+            });
+            return; // Exit early since we got the reviews
+          }
+        }
+      } catch (e) {
+        print('Patient reviews endpoint not available: $e');
+        // Continue with fallback approach
+      }
+      
+      // Fallback: fetch reviews appointment by appointment
+      List<dynamic> allReviews = [];
+      
+      // Check completed appointments for this patient
+      final completedAppointments = _appointments.where((apt) => 
+        apt.status.toLowerCase() == 'completed' && apt.doctorId.isNotEmpty).toList();
+      
+      print('Found ${completedAppointments.length} completed appointments');
+      
+      // For each completed appointment, check if there's a review
+      for (var appointment in completedAppointments) {
+        try {
+          // Find reviews by appointment ID
+          print('Checking for reviews on appointment: ${appointment.id}');
+          final response = await apiService.get('/reviews/appointment/${appointment.id}');
+          
+          if (response['success'] && response['data'] != null) {
+            print('Found review data for appointment ${appointment.id}');
+            
+            if (response['data'] is List) {
+              allReviews.addAll(response['data']);
+            } else {
+              allReviews.add(response['data']);
+            }
+          }
+        } catch (e) {
+          print('Error fetching review for appointment ${appointment.id}: $e');
+        }
+      }
+      
+      // Debug output
+      print('Total reviews found: ${allReviews.length}');
+      
+      if (mounted) {
+        setState(() {
+          _patientReviews = allReviews;
+          _loadingReviews = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading patient reviews: $e');
+      if (mounted) {
+        setState(() {
+          _loadingReviews = false;
+        });
+      }
+    }
+  }
 
   void _showAllMedicalRecords() {
     Navigator.push(
@@ -126,6 +223,116 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
           patientName: "${_patientData!['firstName'] ?? ''} ${_patientData!['lastName'] ?? ''}",
         ),
       ),
+    );
+  }
+  
+  Future<void> _handleDoctorResponse(String reviewId, String response) async {
+    final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
+    
+    setState(() {
+      _isLoading = true; 
+    });
+    
+    try {
+      final success = await reviewProvider.addDoctorResponse(
+        reviewId: reviewId,
+        response: response,
+      );
+      
+      if (success) {
+        // Refresh reviews
+        _loadPatientReviews();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Response added successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(reviewProvider.error ?? 'Failed to add response'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error adding doctor response: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildDebugButton() {
+    return ElevatedButton(
+      onPressed: () async {
+        try {
+          // Test if review data is present
+          print('Debug: Patient reviews data:');
+          print('Reviews count: ${_patientReviews.length}');
+          
+          if (_patientReviews.isNotEmpty) {
+            print('First review: ${_patientReviews[0]}');
+            
+            // Try parsing the review
+            final review = Review.fromJson(_patientReviews[0]);
+            print('Review ID: ${review.id}');
+            print('Review by patient: ${review.patientId}');
+            print('Review for doctor: ${review.doctorId}');
+            print('Review content: ${review.review}');
+          }
+          
+          // Check completed appointments
+          final completedAppointments = _appointments
+              .where((apt) => apt.status.toLowerCase() == 'completed')
+              .toList();
+          
+          print('Completed appointments: ${completedAppointments.length}');
+          
+          // Try manually fetching a review for an appointment
+          if (completedAppointments.isNotEmpty) {
+            final apiService = Provider.of<ApiService>(context, listen: false);
+            final firstCompletedAppointment = completedAppointments[0];
+            print('Checking appointment ID: ${firstCompletedAppointment.id}');
+            
+            try {
+              final response = await apiService.get(
+                  '/reviews/appointment/${firstCompletedAppointment.id}');
+              print('API response: $response');
+            } catch (e) {
+              print('API error: $e');
+            }
+          }
+          
+          // Show success
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Debug info printed to console'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } catch (e) {
+          print('Debug error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Debug error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: const Text('Debug Reviews'),
     );
   }
 
@@ -267,6 +474,73 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                   ],
                 ),
               ),
+              
+            // Patient Reviews Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Patient Reviews',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_loadingReviews)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_patientReviews.isEmpty)
+                    Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'No reviews from this patient yet',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                        // Debug button only shown during development
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: _buildDebugButton(),
+                        ),
+                      ],
+                    )
+                  else
+                    ...List.generate(_patientReviews.length, (index) {
+                      try {
+                        final reviewJson = _patientReviews[index];
+                        final review = Review.fromJson(reviewJson);
+                        return ReviewCard(
+                          review: review,
+                          isDoctorView: true,
+                          onResponseSubmit: (response) {
+                            _handleDoctorResponse(review.id, response);
+                          },
+                        );
+                      } catch (e) {
+                        print('Error rendering review card #$index: $e');
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text('Error displaying review: $e'),
+                          ),
+                        );
+                      }
+                    }),
+                ],
+              ),
+            ),
               
             // Medical Records Summary Section
             Container(
@@ -461,23 +735,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                                   ),
                                 ],
 
-                                if (isCompleted && appointment.medicalRecord == null) ...[
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.medical_information_outlined, 
-                                        size: 16, 
-                                        color: Colors.grey),
-                                      const SizedBox(width: 4),
-                                      const Text(
-                                        'No medical record',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                // Removed the "No medical record" message for completed appointments
 
                                 if (isCancelled && appointment.cancellationReason != null) ...[
                                   const SizedBox(height: 8),

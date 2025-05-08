@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/reivew/providers/review_provider.dart';
-import 'package:mediconnect/features/reivew/screens/doctor_review_screen.dart';
-import 'package:mediconnect/features/reivew/widgets/review_card.dart';
-import 'package:mediconnect/features/reivew/widgets/stars_rating.dart';
-import 'package:provider/provider.dart';
+import 'package:mediconnect/features/review/providers/review_provider.dart';
+import 'package:mediconnect/features/review/screens/doctor_review_screen.dart';
+import 'package:mediconnect/features/review/widgets/review_card.dart';
+import 'package:mediconnect/features/review/widgets/stars_rating.dart';
 import '../../../core/models/user_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../widgets/appointment_booking_sheet.dart';
+import 'package:provider/provider.dart';
 
 class DoctorProfileScreen extends StatelessWidget {
   final User doctor;
@@ -154,6 +154,15 @@ class DoctorProfileScreen extends StatelessWidget {
                 ),
               ],
 
+              // Patient Reviews
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Patient Reviews',
+                children: [
+                  _buildReviewsSection(context),
+                ],
+              ),
+
               // Available Time Periods
               if (doctor.doctorProfile?.availableTimeSlots.isNotEmpty ??
                   false) ...[
@@ -236,99 +245,109 @@ class DoctorProfileScreen extends StatelessWidget {
   }
 
   Widget _buildReviewsSection(BuildContext context) {
-    final ReviewProvider reviewProvider = Provider.of<ReviewProvider>(context);
-
+    final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
+    
     return FutureBuilder(
       future: reviewProvider.loadDoctorReviews(doctor.id, limit: 3),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
-        if (reviewProvider.error != null) {
-          return Center(
-            child: Text('Error: ${reviewProvider.error}'),
-          );
-        }
-
-        if (reviewProvider.doctorReviews.isEmpty) {
-          return const Center(
-            child: Text('No reviews yet'),
-          );
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Summary
-            Row(
+        
+        return Consumer<ReviewProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            
+            if (provider.error != null && provider.doctorReviews.isEmpty) {
+              return Center(
+                child: Text('Error: ${provider.error}'),
+              );
+            }
+            
+            if (provider.doctorReviews.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No reviews yet.'),
+                ),
+              );
+            }
+            
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // Rating summary
+                Row(
                   children: [
-                    Text(
-                      reviewProvider.averageRating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          provider.averageRating.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        StarRating(
+                          rating: provider.averageRating,
+                          size: 20,
+                        ),
+                      ],
                     ),
-                    StarRating(
-                      rating: reviewProvider.averageRating,
-                      size: 20,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Based on ${provider.totalReviews} reviews',
+                            style: AppStyles.bodyText1,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Based on ${reviewProvider.totalReviews} reviews',
-                        style: AppStyles.bodyText1,
+                
+                const SizedBox(height: 16),
+                
+                // Reviews preview (3 max)
+                ...provider.doctorReviews.take(3).map((review) {
+                  return ReviewCard(
+                    review: review,
+                    isDoctorView: false,
+                  );
+                }).toList(),
+                
+                const SizedBox(height: 16),
+                
+                // View all button if there are more reviews
+                if (provider.totalReviews > 3)
+                  Center(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DoctorReviewsScreen(
+                              doctorId: doctor.id,
+                              doctorName: 'Dr. ${doctor.firstName} ${doctor.lastName}',
+                            ),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
                       ),
-                    ],
+                      child: const Text('View All Reviews'),
+                    ),
                   ),
-                ),
               ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Reviews
-            ...reviewProvider.doctorReviews.map((review) {
-              return ReviewCard(
-                review: review,
-                isDoctorView: false,
-              );
-            }).toList(),
-
-            const SizedBox(height: 16),
-
-            // View all button
-            if (reviewProvider.totalReviews > 3)
-              Center(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DoctorReviewsScreen(
-                          doctorId: doctor.id,
-                          doctorName:
-                              'Dr. ${doctor.firstName} ${doctor.lastName}',
-                        ),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                  ),
-                  child: const Text('View All Reviews'),
-                ),
-              ),
-          ],
+            );
+          },
         );
       },
     );
