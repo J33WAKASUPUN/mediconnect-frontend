@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
-import 'package:mediconnect/features/medical_records/providers/medical_records_provider.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/patient/screens/patient_appointments_screen.dart';
 import 'package:provider/provider.dart';

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mediconnect/config/api_endpoints.dart';
+import 'package:mediconnect/core/services/review_service.dart';
 import 'base_api_service.dart';
 import 'auth_service.dart';
 import 'profile_service.dart';
@@ -21,6 +22,7 @@ class ApiService {
   final MedicalRecordService _medicalRecordService;
   final NotificationService _notificationService;
   final http.Client _httpClient = http.Client();
+  final ReviewService _reviewService;
 
   ApiService()
       : _authService = AuthService(),
@@ -28,7 +30,8 @@ class ApiService {
         _appointmentService = AppointmentService(),
         _paymentService = PaymentService(),
         _medicalRecordService = MedicalRecordService(),
-        _notificationService = NotificationService();
+        _notificationService = NotificationService(),
+        _reviewService = ReviewService();
 
   // Auth methods
   void setAuthToken(String token) {
@@ -408,4 +411,40 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Create a review for an appointment
+  Future<Map<String, dynamic>> createReview({
+    required String appointmentId,
+    required int rating,
+    required String review,
+    bool isAnonymous = false,
+  }) =>
+      _reviewService.createReview(
+        appointmentId: appointmentId,
+        rating: rating,
+        review: review,
+        isAnonymous: isAnonymous,
+      );
+
+// Get reviews for a doctor
+  Future<Map<String, dynamic>> getDoctorReviews(
+    String doctorId, {
+    int page = 1,
+    int limit = 10,
+  }) =>
+      _reviewService.getDoctorReviews(doctorId, page: page, limit: limit);
+
+// Add doctor's response to a review
+  Future<Map<String, dynamic>> addDoctorResponse({
+    required String reviewId,
+    required String response,
+  }) =>
+      _reviewService.addDoctorResponse(
+        reviewId: reviewId,
+        response: response,
+      );
+
+// Get doctor review analytics
+  Future<Map<String, dynamic>> getDoctorReviewAnalytics(String doctorId) =>
+      _reviewService.getDoctorReviewAnalytics(doctorId);
 }

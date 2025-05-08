@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/reivew/providers/review_provider.dart';
+import 'package:mediconnect/features/reivew/screens/doctor_review_screen.dart';
+import 'package:mediconnect/features/reivew/widgets/review_card.dart';
+import 'package:mediconnect/features/reivew/widgets/stars_rating.dart';
+import 'package:provider/provider.dart';
 import '../../../core/models/user_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
@@ -227,6 +232,105 @@ class DoctorProfileScreen extends StatelessWidget {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildReviewsSection(BuildContext context) {
+    final ReviewProvider reviewProvider = Provider.of<ReviewProvider>(context);
+
+    return FutureBuilder(
+      future: reviewProvider.loadDoctorReviews(doctor.id, limit: 3),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (reviewProvider.error != null) {
+          return Center(
+            child: Text('Error: ${reviewProvider.error}'),
+          );
+        }
+
+        if (reviewProvider.doctorReviews.isEmpty) {
+          return const Center(
+            child: Text('No reviews yet'),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary
+            Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reviewProvider.averageRating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    StarRating(
+                      rating: reviewProvider.averageRating,
+                      size: 20,
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Based on ${reviewProvider.totalReviews} reviews',
+                        style: AppStyles.bodyText1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Reviews
+            ...reviewProvider.doctorReviews.map((review) {
+              return ReviewCard(
+                review: review,
+                isDoctorView: false,
+              );
+            }).toList(),
+
+            const SizedBox(height: 16),
+
+            // View all button
+            if (reviewProvider.totalReviews > 3)
+              Center(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DoctorReviewsScreen(
+                          doctorId: doctor.id,
+                          doctorName:
+                              'Dr. ${doctor.firstName} ${doctor.lastName}',
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                  ),
+                  child: const Text('View All Reviews'),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 

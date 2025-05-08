@@ -8,7 +8,6 @@ import '../../../core/models/medical_record_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../config/api_endpoints.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../providers/medical_records_provider.dart';

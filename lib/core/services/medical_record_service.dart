@@ -1,7 +1,6 @@
 // ignore_for_file: avoid_print
 
 import 'base_api_service.dart';
-import '../../config/api_endpoints.dart';
 
 class MedicalRecordService extends BaseApiService {
   // Get all medical records for a patient (patient view)

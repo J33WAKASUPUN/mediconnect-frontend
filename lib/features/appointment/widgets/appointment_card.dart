@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/reivew/screens/review_form_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -158,15 +159,13 @@ class AppointmentCard extends StatelessWidget {
                     'Reason: ${appointment.cancellationReason}'),
 
               _buildInfoRow(Icons.payments, _getAmountText(context)),
-              
+
               // Show indicator if medical record is available
-              if (!isCompact && 
-                  appointment.status.toLowerCase() == 'completed' && 
+              if (!isCompact &&
+                  appointment.status.toLowerCase() == 'completed' &&
                   appointment.medicalRecord != null)
                 _buildInfoRow(
-                  Icons.medical_services, 
-                  'Medical record available'
-                ),
+                    Icons.medical_services, 'Medical record available'),
 
               // Action buttons
               if (!isCompact && _shouldShowActions()) ...[
@@ -348,7 +347,7 @@ class AppointmentCard extends StatelessWidget {
     });
   }
 
-  // New method to show doctor confirmation dialog with reason
+  //  doctor confirmation dialog with reason
   void _showDoctorConfirmationDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -370,7 +369,7 @@ class AppointmentCard extends StatelessWidget {
     });
   }
 
-  // New method to show doctor cancellation dialog with reason
+  // doctor cancellation dialog with reason
   void _showDoctorCancellationDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -393,6 +392,33 @@ class AppointmentCard extends StatelessWidget {
 
         appointmentProvider.cancelAppointmentWithReason(
             appointment.id, result['reason'] ?? '');
+      }
+    });
+  }
+
+  // review functionality
+  void _showReviewDialog(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ReviewFormScreen(
+          appointmentId: appointment.id,
+          doctorId: appointment.doctorId,
+          doctorName: appointment.doctorDetails != null
+              ? 'Dr. ${appointment.doctorDetails!['firstName']} ${appointment.doctorDetails!['lastName']}'
+              : 'Doctor',
+          appointmentDate: appointment.formattedAppointmentDate,
+        ),
+      ),
+    ).then((result) {
+      // Handle result from the review form
+      if (result == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thank you for your review!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     });
   }
@@ -443,7 +469,7 @@ class AppointmentCard extends StatelessWidget {
         // Review button for patient (completed appointments)
         if (onReviewPressed != null)
           OutlinedButton(
-            onPressed: onReviewPressed,
+            onPressed: () => _showReviewDialog(context),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.warning,
             ),

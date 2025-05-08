@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/core/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
-import '../../../core/models/medical_record_model.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_button.dart';

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
-import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
