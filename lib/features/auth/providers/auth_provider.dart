@@ -2,9 +2,9 @@
 import 'dart:io';
 import 'dart:js_interop';
 import 'package:flutter/foundation.dart';
-import '../models/user_model.dart';
-import '../services/api_service.dart';
-import '../services/storage_service.dart';
+import '../../../core/models/user_model.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/services/storage_service.dart';
 
 enum AuthStatus {
   initial,

@@ -4,7 +4,7 @@ import 'package:mediconnect/features/appointment/providers/appointment_provider.
 import 'package:mediconnect/features/doctor/screens/doctor_appointments_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
-import '../../../core/providers/auth_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_bottom_navigation.dart';

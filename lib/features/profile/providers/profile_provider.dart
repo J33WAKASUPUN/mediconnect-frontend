@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/models/profile_models.dart';
 import '../../../core/services/api_service.dart';
-import '../../../core/providers/auth_provider.dart'; // Make sure to import this
+import '../../auth/providers/auth_provider.dart'; // Make sure to import this
 
 class ProfileProvider with ChangeNotifier {
   final ApiService _apiService;

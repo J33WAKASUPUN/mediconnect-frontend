@@ -7,7 +7,7 @@ import 'package:mediconnect/features/profile/widgets/patient_profile_section.dar
     as patient_profile;
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
-import '../../../core/providers/auth_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../../../shared/widgets/loading_overlay.dart';

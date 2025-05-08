@@ -20,7 +20,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Core imports
-import 'core/providers/auth_provider.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'core/services/api_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/models/appointment_model.dart';

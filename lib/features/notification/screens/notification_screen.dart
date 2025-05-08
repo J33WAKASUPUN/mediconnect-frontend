@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/notification_model.dart';
-import '../../../core/providers/auth_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../../core/utils/session_helper.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
