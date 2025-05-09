@@ -1,6 +1,5 @@
 import 'package:mediconnect/config/api_endpoints.dart';
 import 'package:mediconnect/core/services/base_api_service.dart';
-import '../models/review_model.dart';
 
 class ReviewService extends BaseApiService {
   ReviewService() : super();

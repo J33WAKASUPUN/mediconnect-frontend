@@ -39,6 +39,8 @@ dependencies:
   open_file: ^3.3.0
   webview_flutter_android: ^3.0.0
   webview_flutter_wkwebview: ^3.0.0
+  table_calendar: ^3.2.0
+  
   
   # Utils
   intl: ^0.20.2

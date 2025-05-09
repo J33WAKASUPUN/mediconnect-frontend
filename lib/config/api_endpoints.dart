@@ -34,4 +34,15 @@ class ApiEndpoints {
   // Review endpoints
   static const String reviews = '/reviews';
   static const String doctorReviews = '/reviews/doctor';
+
+  // Calendar management endpoints
+  static const String calendar = '/calendar';
+  static const String calendarWorkingHours = '/calendar/working-hours';
+  static const String calendarDate = '/calendar/date';
+  static const String calendarBlockSlot = '/calendar/block-slot';
+  static const String calendarAvailableSlots = '/calendar/available-slots';
+
+  // Todo endpoints
+  static const String todos = '/todos';
+  static const String todoToggle = '/todos/:id/toggle';
 }

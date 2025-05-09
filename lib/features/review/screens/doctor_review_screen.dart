@@ -264,7 +264,7 @@ class _DoctorReviewsScreenState extends State<DoctorReviewsScreen> with SingleTi
                       isDoctorView: true, // Only doctors can respond to reviews
                       onResponseSubmit: (response) => _handleResponseSubmit(review.id, response),
                     );
-                  }).toList(),
+                  }),
                   
                   // Loading indicator at the bottom if loading more
                   if (provider.isLoading && provider.doctorReviews.isNotEmpty)
@@ -469,7 +469,7 @@ class _DoctorReviewsScreenState extends State<DoctorReviewsScreen> with SingleTi
                           average: stats['average'],
                           count: stats['count'],
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),

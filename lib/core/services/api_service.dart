@@ -4,7 +4,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mediconnect/config/api_endpoints.dart';
+import 'package:mediconnect/core/models/calendar_model.dart';
+import 'package:mediconnect/core/models/todo_model.dart';
+import 'package:mediconnect/core/services/calendar_service.dart';
 import 'package:mediconnect/core/services/review_service.dart';
+import 'package:mediconnect/core/services/todo_service.dart';
 import 'base_api_service.dart';
 import 'auth_service.dart';
 import 'profile_service.dart';
@@ -23,6 +27,8 @@ class ApiService {
   final NotificationService _notificationService;
   final http.Client _httpClient = http.Client();
   final ReviewService _reviewService;
+  final CalendarService _calendarService;
+  final TodoService _todoService;
 
   ApiService()
       : _authService = AuthService(),
@@ -31,12 +37,16 @@ class ApiService {
         _paymentService = PaymentService(),
         _medicalRecordService = MedicalRecordService(),
         _notificationService = NotificationService(),
-        _reviewService = ReviewService() {
-    // Initialize review service with token if available
+        _reviewService = ReviewService(),
+        _calendarService = CalendarService(),
+        _todoService = TodoService() {
+    // Initialize services with token if available
     if (_authService.hasValidToken()) {
       final token = _authService.getAuthToken();
       if (token.isNotEmpty) {
         _reviewService.setAuthToken(token);
+        _calendarService.setAuthToken(token);
+        _todoService.setAuthToken(token);
       }
     }
   }
@@ -49,6 +59,8 @@ class ApiService {
     _medicalRecordService.setAuthToken(token);
     _notificationService.setAuthToken(token);
     _reviewService.setAuthToken(token);
+    _calendarService.setAuthToken(token);
+    _todoService.setAuthToken(token);
   }
 
 // Direct synchronous auth token accessor (non-async)
@@ -452,7 +464,87 @@ class ApiService {
         response: response,
       );
 
-// Get doctor review analytics
+  // Get doctor review analytics
   Future<Map<String, dynamic>> getDoctorReviewAnalytics(String doctorId) =>
       _reviewService.getDoctorReviewAnalytics(doctorId);
+
+  // Calendar methods
+  Future<DoctorCalendar> getCalendar({
+    required String doctorId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    return _calendarService.getCalendar(
+      doctorId: doctorId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+  }
+
+  Future<DoctorCalendar> setDefaultWorkingHours(
+      List<DefaultWorkingHours> defaultWorkingHours) {
+    return _calendarService.setDefaultWorkingHours(defaultWorkingHours);
+  }
+
+  Future<DoctorCalendar> updateDateSchedule({
+    required DateTime date,
+    required List<CalendarTimeSlot> slots,
+    bool isHoliday = false,
+    String? holidayReason,
+  }) {
+    return _calendarService.updateDateSchedule(
+      date: date,
+      slots: slots,
+      isHoliday: isHoliday,
+      holidayReason: holidayReason,
+    );
+  }
+
+  Future<DoctorCalendar> blockTimeSlot({
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+    String? reason,
+  }) {
+    return _calendarService.blockTimeSlot(
+      date: date,
+      startTime: startTime,
+      endTime: endTime,
+      reason: reason,
+    );
+  }
+
+  Future<AvailableSlots> getAvailableSlots({
+    required String doctorId,
+    required DateTime date,
+  }) {
+    return _calendarService.getAvailableSlots(
+      doctorId: doctorId,
+      date: date,
+    );
+  }
+
+  Future<DoctorCalendar> unblockTimeSlot({
+    required DateTime date,
+    required String slotId,
+  }) {
+    return _calendarService.unblockTimeSlot(
+      date: date,
+      slotId: slotId,
+    );
+  }
+
+  // Todo methods
+  Future<List<Todo>> getTodos(
+          {required DateTime startDate, DateTime? endDate}) =>
+      _todoService.getTodos(startDate: startDate, endDate: endDate);
+
+  Future<Todo> createTodo(Todo todo) => _todoService.createTodo(todo);
+
+  Future<Todo> updateTodo(String id, Todo todo) =>
+      _todoService.updateTodo(id, todo);
+
+  Future<void> deleteTodo(String id) => _todoService.deleteTodo(id);
+
+  Future<Todo> toggleTodoStatus(String id) => _todoService.toggleTodoStatus(id);
 }

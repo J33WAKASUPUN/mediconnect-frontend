@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 class Review {
   final String id;
@@ -101,8 +100,9 @@ class Review {
   }
 
   String get patientName {
-    if (patientDetails == null)
+    if (patientDetails == null) {
       return isAnonymous ? 'Anonymous User' : 'Patient';
+    }
     if (isAnonymous) return 'Anonymous User';
     return '${patientDetails!['firstName']} ${patientDetails!['lastName']}';
   }

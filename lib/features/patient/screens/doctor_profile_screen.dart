@@ -320,7 +320,7 @@ class DoctorProfileScreen extends StatelessWidget {
                     review: review,
                     isDoctorView: false,
                   );
-                }).toList(),
+                }),
                 
                 const SizedBox(height: 16),
                 
