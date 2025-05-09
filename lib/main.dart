@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart';
+import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
+import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
@@ -201,6 +205,14 @@ void main() async {
             apiService: context.read<ApiService>(),
           ),
         ),
+        // Add CalendarProvider
+        ChangeNotifierProvider(
+          create: (context) => CalendarProvider(apiService: apiService),
+        ),
+        // Add TodoProvider
+        ChangeNotifierProvider(
+          create: (context) => TodoProvider(apiService: apiService),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -244,6 +256,11 @@ class MyApp extends StatelessWidget {
 
         // Payment routes (that don't need arguments)
         '/payment/history': (context) => const PaymentHistoryScreen(),
+
+        // Add calendar routes
+        '/doctor/calendar': (context) => const DoctorCalendarScreen(),
+        '/doctor/calendar/working-hours': (context) =>
+            const WorkingHoursSettingsScreen(),
       },
       onGenerateRoute: (settings) {
         // Handle doctor profile

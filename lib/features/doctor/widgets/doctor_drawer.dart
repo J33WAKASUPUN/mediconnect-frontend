@@ -111,7 +111,15 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                   title: const Text('Schedule'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Navigate to schedule management
+                    Navigator.pushNamed(context, '/doctor/calendar');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.calendar_month),
+                  title: const Text('Calendar Management'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/doctor/calendar');
                   },
                 ),
                 ListTile(
