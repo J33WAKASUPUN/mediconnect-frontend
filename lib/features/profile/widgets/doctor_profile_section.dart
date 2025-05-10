@@ -5,6 +5,7 @@ import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.
 import 'package:provider/provider.dart';
 import '../../../core/models/profile_models.dart';
 import '../../../core/utils/datetime_helper.dart';
+import '../../../shared/constants/colors.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../providers/profile_provider.dart';
@@ -491,112 +492,133 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
             ),
             const SizedBox(height: 24),
 
-            // Working Hours Calendar Section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Working Hours Calendar Section with enhanced styling
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Working Hours',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (!_isEditing)
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _showCalendarView = !_showCalendarView;
-                          });
-                        },
-                        child: Text(
-                          _showCalendarView
-                              ? 'Show List View'
-                              : 'Show Calendar View',
-                          style: TextStyle(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Working Hours',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        if (!_isEditing)
+                          TextButton.icon(
+                            icon: Icon(
+                              _showCalendarView 
+                                  ? Icons.view_list 
+                                  : Icons.calendar_view_month,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _showCalendarView 
+                                  ? 'List View' 
+                                  : 'Calendar View',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _showCalendarView = !_showCalendarView;
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (_isLoadingCalendar)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else
+                      Consumer<CalendarProvider>(
+                        builder: (context, calendarProvider, child) {
+                          // Print debug info for troubleshooting
+                          print(
+                              'Consumer rebuilding: calendar=${calendarProvider.calendar != null}, loading=${calendarProvider.isLoading}');
+
+                          final calendar = calendarProvider.calendar;
+
+                          if (calendar == null || calendarProvider.isLoading) {
+                            return Column(
+                              children: [
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: calendarProvider.isLoading
+                                        ? const CircularProgressIndicator()
+                                        : const Text(
+                                            'No calendar data available. Set up your working hours in the Calendar section.',
+                                            style: TextStyle(
+                                                fontStyle: FontStyle.italic,
+                                                color: Colors.grey),
+                                          ),
+                                  ),
+                                ),
+                                // Add a button for manual refresh
+                                if (!calendarProvider.isLoading)
+                                  CustomButton(
+                                    text: 'Load Calendar Data',
+                                    onPressed: () => _loadCalendarData(),
+                                    isSecondary: true,
+                                    icon: Icons.refresh,
+                                  ),
+                              ],
+                            );
+                          }
+
+                          // If we get here, we have calendar data
+                          if (_showCalendarView) {
+                            return _buildCalendarGridView(calendarProvider);
+                          } else {
+                            return _buildWorkingHoursList(calendar);
+                          }
+                        },
+                      ),
+
+                    // Link to full calendar management
+                    if (!_isEditing)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Center(
+                          child: CustomButton(
+                            text: 'Manage Calendar',
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/doctor/calendar',
+                              ).then((_) {
+                                // Refresh calendar data when returning from calendar screen
+                                _loadCalendarData();
+                              });
+                            },
+                            isSecondary: false,
+                            icon: Icons.calendar_month,
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
-
-                if (_isLoadingCalendar)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                else
-                  Consumer<CalendarProvider>(
-                    builder: (context, calendarProvider, child) {
-                      // Print debug info for troubleshooting
-                      print(
-                          'Consumer rebuilding: calendar=${calendarProvider.calendar != null}, loading=${calendarProvider.isLoading}');
-
-                      final calendar = calendarProvider.calendar;
-
-                      if (calendar == null || calendarProvider.isLoading) {
-                        return Column(
-                          children: [
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: calendarProvider.isLoading
-                                    ? const CircularProgressIndicator()
-                                    : const Text(
-                                        'No calendar data available. Set up your working hours in the Calendar section.',
-                                        style: TextStyle(
-                                            fontStyle: FontStyle.italic,
-                                            color: Colors.grey),
-                                      ),
-                              ),
-                            ),
-                            // Add a button for manual refresh
-                            if (!calendarProvider.isLoading)
-                              CustomButton(
-                                text: 'Load Calendar Data',
-                                onPressed: () => _loadCalendarData(),
-                                isSecondary: true,
-                                icon: Icons.refresh,
-                              ),
-                          ],
-                        );
-                      }
-
-                      // If we get here, we have calendar data
-                      if (_showCalendarView) {
-                        return _buildCalendarGridView(calendarProvider);
-                      } else {
-                        return _buildWorkingHoursList(calendar);
-                      }
-                    },
-                  ),
-
-                // Link to full calendar management
-                if (!_isEditing)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: Center(
-                      child: CustomButton(
-                        text: 'Manage Calendar',
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/doctor/calendar',
-                          ).then((_) {
-                            // Refresh calendar data when returning from calendar screen
-                            _loadCalendarData();
-                          });
-                        },
-                        isSecondary: false,
-                        icon: Icons.calendar_month,
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -639,55 +661,78 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     );
   }
 
-  // NEW: Build working hours list from calendar data
+  // NEW: Build working hours list from calendar data with enhanced styling
   Widget _buildWorkingHoursList(DoctorCalendar calendar) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Default Working Hours
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Default Weekly Schedule',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                ...calendar.defaultWorkingHours.map((day) {
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Default Weekly Schedule',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              
+              Column(
+                children: calendar.defaultWorkingHours.map((day) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(
+                        Container(
                           width: 100,
-                          child: Text(
-                            day.day,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Center(
+                            child: Text(
+                              day.day,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: day.isWorking
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: day.slots.map((slot) {
-                                    return Text(
-                                        '${slot.startTime} - ${slot.endTime}');
-                                  }).toList(),
-                                )
-                              : const Text(
-                                  'Not Available',
-                                  style: TextStyle(color: Colors.red),
-                                ),
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: day.slots.map((slot) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Text(
+                                      '${slot.startTime} - ${slot.endTime}',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  );
+                                }).toList(),
+                              )
+                            : const Text(
+                                'Not Available',
+                                style: TextStyle(color: Colors.red),
+                              ),
                         ),
                       ],
                     ),
                   );
-                }),
-              ],
-            ),
+                }).toList(),
+              ),
+            ],
           ),
         ),
 
@@ -696,49 +741,111 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
           const SizedBox(height: 16),
           const Text(
             'Special Schedule Changes',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...calendar.schedule.map((day) {
-            final date = DateTimeHelper.formatDate(day.date);
-
-            if (day.isHoliday) {
-              return ListTile(
-                title: Text(date),
-                subtitle: Text(
-                  'Holiday${day.holidayReason != null ? ": ${day.holidayReason}" : ""}',
-                  style: const TextStyle(color: Colors.red),
+          
+          // Holidays section
+          if (calendar.schedule.any((day) => day.isHoliday)) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Holidays',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...calendar.schedule
+                    .where((day) => day.isHoliday)
+                    .map((holiday) {
+                      final dateStr = DateTimeHelper.formatDate(holiday.date);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_busy, color: Colors.red, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            if (holiday.holidayReason != null) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '- ${holiday.holidayReason}',
+                                style: TextStyle(color: Colors.red.shade700),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
+            ),
+          ],
+          
+          // Special days with custom slots
+          ...calendar.schedule
+            .where((day) => !day.isHoliday && day.slots.isNotEmpty)
+            .map((specialDay) {
+              final dateStr = DateTimeHelper.formatDate(specialDay.date);
+              
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                leading: const Icon(Icons.event_busy, color: Colors.red),
-              );
-            } else {
-              return ExpansionTile(
-                title: Text(date),
-                subtitle: Text(
-                  day.slots.isEmpty
-                      ? 'No special slots'
-                      : '${day.slots.length} special time slots',
+                child: ExpansionTile(
+                  title: Text(dateStr),
+                  subtitle: Text(
+                    '${specialDay.slots.length} custom time slot(s)',
+                    style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+                  ),
+                  leading: Icon(Icons.event_note, color: Colors.orange.shade800),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        children: specialDay.slots.map((slot) {
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '${slot.startTime} - ${slot.endTime}',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            subtitle: slot.isBlocked
+                              ? const Text('Blocked',
+                                  style: TextStyle(color: Colors.orange))
+                              : const Text('Available'),
+                            leading: Icon(
+                              slot.isBlocked ? Icons.block : Icons.access_time,
+                              color: slot.isBlocked ? Colors.orange : Colors.green,
+                              size: 18,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
-                leading: const Icon(Icons.event_note),
-                children: day.slots.map((slot) {
-                  return ListTile(
-                    title: Text('${slot.startTime} - ${slot.endTime}'),
-                    subtitle: slot.isBlocked
-                        ? const Text('Blocked',
-                            style: TextStyle(color: Colors.orange))
-                        : const Text('Available'),
-                    dense: true,
-                  );
-                }).toList(),
               );
-            }
-          }),
+            }).toList(),
         ],
       ],
     );
   }
 
-  // NEW: Build calendar grid view
+  // NEW: Build calendar grid view with enhanced styling matching booking sheet
   Widget _buildCalendarGridView(CalendarProvider calendarProvider) {
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
@@ -771,7 +878,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
             '${_getMonthName(now.month)} ${now.year}',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 18,
+              fontSize: 16,
             ),
           ),
         ),
@@ -787,7 +894,9 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                 child: Text(
                   day,
                   style: TextStyle(
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
+                    color: Colors.grey,
                   ),
                 ),
               ),
@@ -815,17 +924,26 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
             final isToday = day == now.day;
             final isHoliday = holidays.contains(day);
             final isSpecialDay = specialDays.contains(day);
-
+            
+            // Determine the date for this cell
+            final cellDate = DateTime(now.year, now.month, day);
+            final isPastDate = cellDate.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+            
             Color bgColor = Colors.transparent;
-            Color textColor = Colors.black;
-
+            Color textColor = isPastDate ? Colors.grey.shade400 : Colors.black;
+            Color borderColor = Colors.grey.withOpacity(0.2);
+            FontWeight fontWeight = FontWeight.normal;
+            
             if (isToday) {
-              bgColor = Colors.blue;
-              textColor = Colors.white;
+              bgColor = Colors.blue.withOpacity(0.2);
+              borderColor = Colors.blue;
+              fontWeight = FontWeight.bold;
             } else if (isHoliday) {
-              bgColor = Colors.red.withOpacity(0.3);
+              bgColor = Colors.red.withOpacity(0.1);
+              borderColor = Colors.red.withOpacity(0.3);
             } else if (isSpecialDay) {
-              bgColor = Colors.orange.withOpacity(0.3);
+              bgColor = Colors.orange.withOpacity(0.1);
+              borderColor = Colors.orange.withOpacity(0.3);
             }
 
             return Container(
@@ -833,14 +951,15 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                border: Border.all(color: borderColor),
               ),
               child: Center(
                 child: Text(
                   day.toString(),
                   style: TextStyle(
                     color: textColor,
-                    fontWeight: isToday ? FontWeight.bold : null,
+                    fontWeight: fontWeight,
+                    fontSize: 13,
                   ),
                 ),
               ),
@@ -850,16 +969,15 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
 
         // Legend
         Padding(
-          padding: const EdgeInsets.only(top: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.only(top: 12.0),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
             children: [
-              _buildLegendItem('Today', Colors.blue),
-              const SizedBox(width: 16),
-              _buildLegendItem('Holiday', Colors.red.withOpacity(0.3)),
-              const SizedBox(width: 16),
-              _buildLegendItem(
-                  'Special Schedule', Colors.orange.withOpacity(0.3)),
+              _buildLegendItem('Today', Colors.blue.withOpacity(0.2), Colors.blue),
+              _buildLegendItem('Holiday', Colors.red.withOpacity(0.1), Colors.red.withOpacity(0.3)),
+              _buildLegendItem('Special Hours', Colors.orange.withOpacity(0.1), Colors.orange.withOpacity(0.3)),
             ],
           ),
         ),
@@ -867,20 +985,28 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     );
   }
 
-  // Helper for legend items
-  Widget _buildLegendItem(String label, Color color) {
+  // Updated legend item builder to match booking sheet style
+  Widget _buildLegendItem(String label, Color bgColor, Color borderColor) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 16,
           height: 16,
           decoration: BoxDecoration(
-            color: color,
+            color: bgColor,
             borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: borderColor),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(label),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade700,
+          ),
+        ),
       ],
     );
   }
