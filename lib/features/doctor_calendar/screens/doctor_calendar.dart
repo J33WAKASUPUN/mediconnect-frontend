@@ -12,11 +12,10 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../core/models/todo_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
-
 class DoctorCalendarScreen extends StatefulWidget {
   static const String routeName = '/doctor/calendar';
 
-  const DoctorCalendarScreen({Key? key}) : super(key: key);
+  const DoctorCalendarScreen({super.key});
 
   @override
   State<DoctorCalendarScreen> createState() => _DoctorCalendarScreenState();
@@ -43,15 +42,19 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
   }
 
   Future<void> _loadData() async {
+    // Store ScaffoldMessenger before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
       final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-      
+
       final doctorId = authProvider.user!.id;
 
       // Calculate first and last day of the month
@@ -70,67 +73,66 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
         startDate: firstDay,
         endDate: lastDay,
       );
-      
+
       _updateEvents();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading data: $e')),
-      );
+      // Use stored reference and check if widget is still mounted
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Error loading data: $e')),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   void _updateEvents() {
-    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+    final calendarProvider =
+        Provider.of<CalendarProvider>(context, listen: false);
     final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-    
+
     final Map<DateTime, List<dynamic>> newEvents = {};
-    
+
     // Add appointments and schedule events
     if (calendarProvider.calendar != null) {
       for (final schedule in calendarProvider.calendar!.schedule) {
         final date = DateTime(
-          schedule.date.year, 
-          schedule.date.month, 
-          schedule.date.day
-        );
-        
+            schedule.date.year, schedule.date.month, schedule.date.day);
+
         if (newEvents[date] == null) {
           newEvents[date] = [];
         }
-        
+
         // Add slots (bookings, blocks)
         for (final slot in schedule.slots) {
           if (slot.isBooked || slot.isBlocked) {
             newEvents[date]!.add(slot);
           }
         }
-        
+
         // Add holiday indicator
         if (schedule.isHoliday) {
           newEvents[date]!.add('Holiday');
         }
       }
     }
-    
+
     // Add todo events
     for (final todo in todoProvider.todos) {
-      final date = DateTime(
-        todo.date.year, 
-        todo.date.month, 
-        todo.date.day
-      );
-      
+      final date = DateTime(todo.date.year, todo.date.month, todo.date.day);
+
       if (newEvents[date] == null) {
         newEvents[date] = [];
       }
-      
+
       newEvents[date]!.add(todo);
     }
-    
+
     setState(() {
       _events = newEvents;
     });
@@ -151,7 +153,7 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
             icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.pushNamed(context, WorkingHoursSettingsScreen.routeName)
-                .then((_) => _loadData()); // Refresh data when coming back
+                  .then((_) => _loadData()); // Refresh data when coming back
             },
           ),
           IconButton(
@@ -222,38 +224,50 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
         setState(() {
           _focusedDay = focusedDay;
         });
-        
+
         // Load data for new month
         final firstDay = DateTime(focusedDay.year, focusedDay.month, 1);
         final lastDay = DateTime(focusedDay.year, focusedDay.month + 1, 0);
-        
+
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final doctorId = authProvider.user!.id;
-        
+
         // Load data for the new month
-        Provider.of<CalendarProvider>(context, listen: false).fetchCalendar(
+        Provider.of<CalendarProvider>(context, listen: false)
+            .fetchCalendar(
           doctorId: doctorId,
           startDate: firstDay,
           endDate: lastDay,
-        ).then((_) {
-          Provider.of<TodoProvider>(context, listen: false).fetchTodos(
-            startDate: firstDay,
-            endDate: lastDay,
-          ).then((_) {
-            _updateEvents();
-          });
+        )
+            .then((_) {
+          if (mounted) {
+            Provider.of<TodoProvider>(context, listen: false)
+                .fetchTodos(
+              startDate: firstDay,
+              endDate: lastDay,
+            )
+                .then((_) {
+              if (mounted) {
+                _updateEvents();
+              }
+            });
+          }
         });
       },
     );
   }
 
   Widget _buildSelectedDayInfo() {
-    final selectedDateString = "${_selectedDay.day}/${_selectedDay.month}/${_selectedDay.year}";
+    final selectedDateString =
+        "${_selectedDay.day}/${_selectedDay.month}/${_selectedDay.year}";
     final events = _getEventsForDay(_selectedDay);
     final todosCount = events.whereType<Todo>().length;
-    final bookedSlotsCount = events.whereType<CalendarTimeSlot>().where((slot) => slot.isBooked).length;
+    final bookedSlotsCount = events
+        .whereType<CalendarTimeSlot>()
+        .where((slot) => slot.isBooked)
+        .length;
     final isHoliday = events.contains('Holiday');
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: Colors.grey.shade100,
@@ -310,18 +324,18 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
 
   Widget _buildEventsList() {
     final events = _getEventsForDay(_selectedDay);
-    
+
     if (events.isEmpty) {
       return const Center(
         child: Text("No events for this day"),
       );
     }
-    
+
     // Group events by type
     final todos = events.whereType<Todo>().toList();
     final slots = events.whereType<CalendarTimeSlot>().toList();
     final isHoliday = events.contains('Holiday');
-    
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -329,9 +343,8 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Holiday section
-            if (isHoliday)
-              _buildHolidaySection(),
-              
+            if (isHoliday) _buildHolidaySection(),
+
             // Appointments section
             if (slots.isNotEmpty) ...[
               const Text(
@@ -342,7 +355,7 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
               _buildSlotsList(slots),
               const SizedBox(height: 16),
             ],
-            
+
             // Tasks section
             if (todos.isNotEmpty) ...[
               const Text(
@@ -359,9 +372,10 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
   }
 
   Widget _buildHolidaySection() {
-    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+    final calendarProvider =
+        Provider.of<CalendarProvider>(context, listen: false);
     final daySchedule = calendarProvider.getScheduleForDate(_selectedDay);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -392,7 +406,7 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
                     ),
                   ],
                 ),
-                if (daySchedule?.holidayReason != null && 
+                if (daySchedule?.holidayReason != null &&
                     daySchedule!.holidayReason!.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -414,25 +428,36 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
       children: slots.map((slot) {
         final bool isBooked = slot.isBooked;
         final bool isBlocked = slot.isBlocked;
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: Icon(
-              isBlocked ? Icons.block : 
-              isBooked ? Icons.event_busy : Icons.event_available,
-              color: isBlocked ? Colors.red : 
-                     isBooked ? Colors.orange : Colors.green,
+              isBlocked
+                  ? Icons.block
+                  : isBooked
+                      ? Icons.event_busy
+                      : Icons.event_available,
+              color: isBlocked
+                  ? Colors.red
+                  : isBooked
+                      ? Colors.orange
+                      : Colors.green,
             ),
             title: Text("${slot.startTime} - ${slot.endTime}"),
             subtitle: Text(
-              isBlocked ? "Blocked" : 
-              isBooked ? "Booked" : "Available",
+              isBlocked
+                  ? "Blocked"
+                  : isBooked
+                      ? "Booked"
+                      : "Available",
             ),
-            trailing: isBlocked ? IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _unblockTimeSlot(slot.id!),
-            ) : null,
+            trailing: isBlocked
+                ? IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _unblockTimeSlot(slot.id!),
+                  )
+                : null,
           ),
         );
       }).toList(),
@@ -506,10 +531,15 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
         return AddTodoDialog(
           selectedDate: _selectedDay,
           onSave: (todo) async {
+            // Store context reference before async operation
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            
             try {
-              final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
-              
+              final todoProvider =
+                  Provider.of<TodoProvider>(context, listen: false);
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
+
               // Set the doctorId from current user
               final todoWithDoctorId = Todo(
                 doctorId: authProvider.user!.id,
@@ -522,17 +552,21 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
               );
-              
+
               await todoProvider.createTodo(todoWithDoctorId);
-              _updateEvents();
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Task added successfully')),
-              );
+              if (mounted) {
+                _updateEvents();
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Task added successfully')),
+                );
+              }
             } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to add task: $e')),
-              );
+              if (mounted) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('Failed to add task: $e')),
+                );
+              }
             }
           },
         );
@@ -548,21 +582,29 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
           selectedDate: _selectedDay,
           existingTodo: todo,
           onSave: (updatedTodo) async {
+            // Store context reference before async operation
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            
             try {
-              final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-              
+              final todoProvider =
+                  Provider.of<TodoProvider>(context, listen: false);
+
               if (todo.id != null) {
                 await todoProvider.updateTodo(todo.id!, updatedTodo);
-                _updateEvents();
                 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Task updated successfully')),
-                );
+                if (mounted) {
+                  _updateEvents();
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Task updated successfully')),
+                  );
+                }
               }
             } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to update task: $e')),
-              );
+              if (mounted) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('Failed to update task: $e')),
+                );
+              }
             }
           },
         );
@@ -571,36 +613,51 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
   }
 
   Future<void> _toggleTodoStatus(Todo todo) async {
+    // Store context reference before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     try {
       final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-      
+
       if (todo.id != null) {
         await todoProvider.toggleTodoStatus(todo.id!);
-        _updateEvents();
+        
+        if (mounted) {
+          _updateEvents();
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update task status: $e')),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to update task status: $e')),
+        );
+      }
     }
   }
 
   Future<void> _deleteTodo(Todo todo) async {
+    // Store context reference before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     try {
       final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-      
+
       if (todo.id != null) {
         await todoProvider.deleteTodo(todo.id!);
-        _updateEvents();
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task deleted successfully')),
-        );
+        if (mounted) {
+          _updateEvents();
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Task deleted successfully')),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete task: $e')),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to delete task: $e')),
+        );
+      }
     }
   }
 
@@ -611,24 +668,32 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
         return ScheduleDayDialog(
           date: _selectedDay,
           onSave: (slots, isHoliday, holidayReason) async {
+            // Store context reference before async operation
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            
             try {
-              final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-              
+              final calendarProvider =
+                  Provider.of<CalendarProvider>(context, listen: false);
+
               await calendarProvider.updateDateSchedule(
                 date: _selectedDay,
                 slots: slots,
                 isHoliday: isHoliday,
                 holidayReason: holidayReason,
               );
-              
-              _updateEvents();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Schedule updated successfully')),
-              );
+
+              if (mounted) {
+                _updateEvents();
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Schedule updated successfully')),
+                );
+              }
             } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to update schedule: $e')),
-              );
+              if (mounted) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('Failed to update schedule: $e')),
+                );
+              }
             }
           },
         );
@@ -640,148 +705,169 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
     String startTime = '';
     String endTime = '';
     String? reason;
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Block Time Slot'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    ListTile(
-                      title: const Text('Start Time'),
-                      trailing: const Icon(Icons.access_time),
-                      subtitle: startTime.isNotEmpty 
-                        ? Text(startTime) 
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Block Time Slot'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  ListTile(
+                    title: const Text('Start Time'),
+                    trailing: const Icon(Icons.access_time),
+                    subtitle: startTime.isNotEmpty
+                        ? Text(startTime)
                         : const Text('Select time'),
-                      onTap: () async {
-                        final TimeOfDay? picked = await showTimePicker(
-                          context: context,
-                          initialTime: const TimeOfDay(hour: 9, minute: 0),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            startTime = '${picked.hour.toString().padLeft(2, '0')}:'
-                                      '${picked.minute.toString().padLeft(2, '0')}';
-                          });
-                        }
-                      },
-                    ),
-                    ListTile(
-                      title: const Text('End Time'),
-                      trailing: const Icon(Icons.access_time),
-                      subtitle: endTime.isNotEmpty 
-                        ? Text(endTime) 
+                    onTap: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: const TimeOfDay(hour: 9, minute: 0),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          startTime =
+                              '${picked.hour.toString().padLeft(2, '0')}:'
+                              '${picked.minute.toString().padLeft(2, '0')}';
+                        });
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('End Time'),
+                    trailing: const Icon(Icons.access_time),
+                    subtitle: endTime.isNotEmpty
+                        ? Text(endTime)
                         : const Text('Select time'),
-                      onTap: () async {
-                        final TimeOfDay? picked = await showTimePicker(
-                          context: context,
-                          initialTime: const TimeOfDay(hour: 10, minute: 0),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            endTime = '${picked.hour.toString().padLeft(2, '0')}:'
-                                     '${picked.minute.toString().padLeft(2, '0')}';
-                          });
-                        }
-                      },
+                    onTap: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: const TimeOfDay(hour: 10, minute: 0),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          endTime = '${picked.hour.toString().padLeft(2, '0')}:'
+                              '${picked.minute.toString().padLeft(2, '0')}';
+                        });
+                      }
+                    },
+                  ),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Reason (optional)',
                     ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Reason (optional)',
-                      ),
-                      onChanged: (value) {
-                        reason = value;
-                      },
-                    ),
-                  ],
-                ),
+                    onChanged: (value) {
+                      reason = value;
+                    },
+                  ),
+                ],
               ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: const Text('Block'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    if (startTime.isNotEmpty && endTime.isNotEmpty) {
-                      _blockTimeSlot(
-                        startTime: startTime,
-                        endTime: endTime,
-                        reason: reason,
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please select start and end times')),
-                      );
-                    }
-                  },
-                ),
-              ],
-            );
-          }
-        );
+            ),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              TextButton(
+                child: const Text('Block'),
+                onPressed: () {
+                  // Store scaffoldMessenger reference when not in async context yet
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  Navigator.of(context).pop();
+                  
+                  if (startTime.isNotEmpty && endTime.isNotEmpty) {
+                    _blockTimeSlot(
+                      startTime: startTime,
+                      endTime: endTime,
+                      reason: reason,
+                    );
+                  } else {
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                          content: Text('Please select start and end times')),
+                    );
+                  }
+                },
+              ),
+            ],
+          );
+        });
       },
     );
   }
-  
+
   Future<void> _blockTimeSlot({
     required String startTime,
     required String endTime,
     String? reason,
   }) async {
+    // Store context reference before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
-      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-      
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
+
       await calendarProvider.blockTimeSlot(
         date: _selectedDay,
         startTime: startTime,
         endTime: endTime,
         reason: reason,
       );
-      
-      _updateEvents();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Time slot blocked successfully')),
-      );
+
+      // Use stored reference and check if widget is still mounted
+      if (mounted) {
+        _updateEvents();
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Time slot blocked successfully')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to block time slot: $e')),
-      );
+      // Use stored reference and check if widget is still mounted
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to block time slot: $e')),
+        );
+      }
     }
   }
-  
+
   Future<void> _unblockTimeSlot(String slotId) async {
+    // Store context reference before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     try {
-      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-      
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
+
       await calendarProvider.unblockTimeSlot(
         date: _selectedDay,
         slotId: slotId,
       );
-      
-      _updateEvents();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Time slot unblocked successfully')),
-      );
+
+      if (mounted) {
+        _updateEvents();
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Time slot unblocked successfully')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to unblock time slot: $e')),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to unblock time slot: $e')),
+        );
+      }
     }
   }
-  
+
   void _markAsHoliday() {
     String? holidayReason;
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -815,26 +901,34 @@ class _DoctorCalendarScreenState extends State<DoctorCalendarScreen> {
       },
     );
   }
-  
+
   Future<void> _saveAsHoliday(String? holidayReason) async {
+    // Store context reference before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     try {
-      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-      
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
+
       await calendarProvider.updateDateSchedule(
         date: _selectedDay,
         slots: [],
         isHoliday: true,
         holidayReason: holidayReason,
       );
-      
-      _updateEvents();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Day marked as holiday')),
-      );
+
+      if (mounted) {
+        _updateEvents();
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Day marked as holiday')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to mark as holiday: $e')),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to mark as holiday: $e')),
+        );
+      }
     }
   }
 }

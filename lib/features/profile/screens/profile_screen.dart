@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart'; // Add this import
 import 'package:mediconnect/features/profile/widgets/doctor_profile_section.dart';
 import 'package:mediconnect/features/profile/widgets/patient_profile_section.dart'
     as patient_profile;
@@ -28,6 +29,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _calendarLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +39,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Future.microtask(() {
         context.read<ProfileProvider>().getProfile();
       });
+    }
+  }
+
+  // Pre-load calendar data for doctor users
+  void _preloadCalendarData(User user) {
+    if (user.role != 'doctor' || _calendarLoading) return;
+
+    final calendarProvider =
+        Provider.of<CalendarProvider>(context, listen: false);
+
+    // Check if we need to load calendar data
+    if (calendarProvider.calendar == null) {
+      _calendarLoading = true;
+
+      // Get date range for current month
+      final now = DateTime.now();
+      final startDate = DateTime(now.year, now.month, 1);
+      final endDate = DateTime(now.year, now.month + 1, 0);
+
+      print('Pre-loading calendar data for doctor: ${user.id}');
+
+      // Load calendar data
+      calendarProvider
+          .fetchCalendar(
+        doctorId: user.id,
+        startDate: startDate,
+        endDate: endDate,
+        forceRefresh: true,
+      )
+          .then((_) {
+        if (mounted) setState(() => _calendarLoading = false);
+        print('Calendar pre-load complete');
+      }).catchError((e) {
+        if (mounted) setState(() => _calendarLoading = false);
+        print('Error pre-loading calendar: $e');
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if we're showing a doctor profile
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+
+    if (user != null && user.role == 'doctor') {
+      _preloadCalendarData(user);
     }
   }
 
@@ -50,6 +102,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:'
         '${now.second.toString().padLeft(2, '0')}';
 
+    // Try to preload calendar data when we have a user
+    if (user != null && user.role == 'doctor') {
+      // Trigger calendar data loading if needed
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_calendarLoading) {
+          _preloadCalendarData(user);
+        }
+      });
+    }
+
     return LoadingOverlay(
       isLoading: profileProvider.isLoading,
       child: Scaffold(
@@ -61,7 +123,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (!widget.readOnly)
                     IconButton(
                       icon: const Icon(Icons.refresh),
-                      onPressed: () => profileProvider.getProfile(),
+                      onPressed: () {
+                        // Refresh profile
+                        profileProvider.getProfile();
+
+                        // Also refresh calendar if doctor
+                        if (user != null && user.role == 'doctor') {
+                          final calendarProvider =
+                              Provider.of<CalendarProvider>(context,
+                                  listen: false);
+                          calendarProvider.resetState(); // Reset state first
+                          _preloadCalendarData(user); // Reload calendar data
+                        }
+                      },
                     ),
                 ],
               ),
@@ -207,9 +281,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           profile: profileProvider.patientProfile,
                         )
                       else if (user.role == 'doctor')
-                        DoctorProfileSection(
-                          profile: profileProvider.doctorProfile,
-                        ),
+                        // Small delay to ensure calendar is preloaded first
+                        Builder(builder: (context) {
+                          return DoctorProfileSection(
+                            profile: profileProvider.doctorProfile,
+                          );
+                        }),
                     ],
                   ],
                 ),

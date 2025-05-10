@@ -114,20 +114,44 @@ class DoctorCalendar {
   });
 
   factory DoctorCalendar.fromJson(Map<String, dynamic> json) {
-    List<dynamic> scheduleList = json['schedule'] ?? [];
-    List<dynamic> defaultWorkingHoursList = json['defaultWorkingHours'] ?? [];
-    
-    return DoctorCalendar(
-      id: json['_id'] ?? '',
-      doctorId: json['doctorId'] ?? '',
-      schedule: scheduleList.map((schedule) => DaySchedule.fromJson(schedule)).toList(),
-      defaultWorkingHours: defaultWorkingHoursList
-          .map((workingHours) => DefaultWorkingHours.fromJson(workingHours))
-          .toList(),
-      lastUpdated: json['lastUpdated'] != null 
-          ? DateTime.parse(json['lastUpdated']) 
-          : DateTime.now(),
-    );
+    try {
+      List<dynamic> scheduleList = json['schedule'] ?? [];
+      List<dynamic> defaultWorkingHoursList = json['defaultWorkingHours'] ?? [];
+
+      String doctorId = '';
+      // Handle both string and object doctor IDs
+      if (json['doctorId'] != null) {
+        if (json['doctorId'] is String) {
+          doctorId = json['doctorId'];
+        } else if (json['doctorId'] is Map) {
+          doctorId = json['doctorId']['_id']?.toString() ?? '';
+        }
+      }
+
+      return DoctorCalendar(
+        id: json['_id']?.toString() ?? '',
+        doctorId: doctorId,
+        schedule: scheduleList
+            .map((schedule) => DaySchedule.fromJson(schedule))
+            .toList(),
+        defaultWorkingHours: defaultWorkingHoursList
+            .map((workingHours) => DefaultWorkingHours.fromJson(workingHours))
+            .toList(),
+        lastUpdated: json['lastUpdated'] != null
+            ? DateTime.parse(json['lastUpdated'].toString())
+            : DateTime.now(),
+      );
+    } catch (e) {
+      print('Error parsing DoctorCalendar: $e');
+      // Return a default empty calendar instead of throwing
+      return DoctorCalendar(
+        id: '',
+        doctorId: '',
+        schedule: [],
+        defaultWorkingHours: [],
+        lastUpdated: DateTime.now(),
+      );
+    }
   }
 }
 
@@ -150,7 +174,8 @@ class AvailableSlots {
       date: DateTime.parse(json['date']),
       isHoliday: json['isHoliday'] ?? false,
       holidayReason: json['holidayReason'],
-      availableSlots: slotsList.map((slot) => CalendarTimeSlot.fromJson(slot)).toList(),
+      availableSlots:
+          slotsList.map((slot) => CalendarTimeSlot.fromJson(slot)).toList(),
     );
   }
 }

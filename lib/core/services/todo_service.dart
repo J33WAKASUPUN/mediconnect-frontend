@@ -74,7 +74,7 @@ class TodoService extends BaseApiService {
   
   Future<void> deleteTodo(String id) async {
     try {
-      final response = await delete('${ApiEndpoints.todos}/$id');
+      final response = await delete('${ApiEndpoints.todos}/$id', queryParams: {});
       
       if (response['success'] != true) {
         throw Exception(response['message'] ?? 'Failed to delete todo');

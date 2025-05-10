@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/core/models/calendar_model.dart';
+import 'package:mediconnect/features/auth/providers/auth_provider.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/profile_models.dart';
 import '../../../core/utils/datetime_helper.dart';
@@ -21,13 +24,41 @@ class DoctorProfileSection extends StatefulWidget {
 class _DoctorProfileSectionState extends State<DoctorProfileSection> {
   bool _isEditing = false;
   late DoctorProfile _editingProfile;
+  bool _isLoadingCalendar = false;
+  bool _showCalendarView = false;
 
   @override
   void initState() {
     super.initState();
     _initializeProfile();
+
+    // Make this synchronous to ensure it happens immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        // First reset the calendar provider to ensure clean state
+        final calendarProvider =
+            Provider.of<CalendarProvider>(context, listen: false);
+        calendarProvider.resetState();
+
+        // Then immediately load the calendar data
+        _loadCalendarDataImmediately();
+      }
+    });
   }
-  
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if calendar data is already loaded
+    final calendarProvider =
+        Provider.of<CalendarProvider>(context, listen: false);
+    if (calendarProvider.calendar == null && !_isLoadingCalendar) {
+      // Try loading calendar data again if it's not already loaded
+      _loadCalendarData();
+    }
+  }
+
   @override
   void didUpdateWidget(DoctorProfileSection oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -37,15 +68,127 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     }
   }
 
+  void _loadCalendarDataImmediately() {
+    if (widget.profile == null) return;
+
+    setState(() {
+      _isLoadingCalendar = true;
+    });
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final calendarProvider =
+        Provider.of<CalendarProvider>(context, listen: false);
+    final userId = authProvider.user?.id;
+
+    if (userId != null) {
+      final now = DateTime.now();
+      final startDate = DateTime(now.year, now.month, 1);
+      final endDate = DateTime(now.year, now.month + 1, 0);
+
+      print('Loading calendar for doctorId: $userId immediately');
+
+      // Use a separate method for immediate loading
+      _fetchCalendarAndRefresh(userId, startDate, endDate);
+    }
+  }
+
   void _initializeProfile() {
+    // When initializing, maintain profile data but set availableTimeSlots to empty
     _editingProfile = widget.profile?.clone() ?? DoctorProfile();
+    _editingProfile.availableTimeSlots = []; // Always set to empty list
+  }
+
+  Future<void> _fetchCalendarAndRefresh(
+      String userId, DateTime startDate, DateTime endDate) async {
+    try {
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
+
+      // Force a refresh to ensure we get fresh data
+      final calendar = await calendarProvider.fetchCalendar(
+        doctorId: userId,
+        startDate: startDate,
+        endDate: endDate,
+        forceRefresh: true, // Force refresh to ensure data is loaded
+      );
+
+      // Force setState to ensure UI updates regardless of notifyListeners
+      if (mounted) {
+        setState(() {
+          _isLoadingCalendar = false;
+        });
+
+        // Extra notification to be absolutely sure
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) {
+          calendarProvider.forceCalendarRefresh();
+        }
+      }
+    } catch (e) {
+      print('Error in _fetchCalendarAndRefresh: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCalendar = false;
+        });
+      }
+    }
+  }
+
+  // Load calendar data for the current doctor
+  Future<void> _loadCalendarData() async {
+    if (widget.profile == null) return;
+
+    setState(() {
+      _isLoadingCalendar = true;
+    });
+
+    try {
+      // Get the authenticated user's ID (which should be the doctor's ID)
+      final authProvider = context.read<AuthProvider>();
+      final userId = authProvider.user?.id;
+
+      if (userId != null) {
+        // Calculate date range for current month (or next 30 days)
+        final now = DateTime.now();
+        final startDate = DateTime(now.year, now.month, 1);
+        final endDate = DateTime(now.year, now.month + 1, 0);
+
+        // Load calendar data again regardless of whether the provider has it or not
+        final calendarProvider = context.read<CalendarProvider>();
+        await calendarProvider.fetchCalendar(
+          doctorId: userId,
+          startDate: startDate,
+          endDate: endDate,
+          forceRefresh: true, // Force it to refresh the data
+        );
+
+        // Force refresh UI explicitly
+        if (mounted) {
+          setState(() {
+            // Just triggering setState is enough to force a rebuild
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading calendar data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCalendar = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveChanges() async {
     try {
+      // Since we're not using availableTimeSlots anymore, make sure it's empty
+      _editingProfile.availableTimeSlots = [];
+
       await context
           .read<ProfileProvider>()
           .updateDoctorProfile(_editingProfile);
+
       if (mounted) {
         setState(() => _isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -62,7 +205,6 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     }
   }
 
-  // ignore: unused_element
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
@@ -82,7 +224,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
             const SizedBox(height: 16),
 
             // Basic Information
-            if (_isEditing) 
+            if (_isEditing)
               // Editing mode - show text fields
               Column(
                 children: [
@@ -95,7 +237,6 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                     },
                   ),
                   const SizedBox(height: 16),
-
                   CustomTextField(
                     label: 'License Number',
                     initialValue: _editingProfile.licenseNumber,
@@ -105,27 +246,25 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                     },
                   ),
                   const SizedBox(height: 16),
-
                   CustomTextField(
                     label: 'Years of Experience',
                     initialValue: _editingProfile.yearsOfExperience?.toString(),
                     enabled: true,
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
-                      setState(() =>
-                          _editingProfile.yearsOfExperience = int.tryParse(value));
+                      setState(() => _editingProfile.yearsOfExperience =
+                          int.tryParse(value));
                     },
                   ),
                   const SizedBox(height: 16),
-
                   CustomTextField(
                     label: 'Consultation Fees',
                     initialValue: _editingProfile.consultationFees?.toString(),
                     enabled: true,
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
-                      setState(() =>
-                          _editingProfile.consultationFees = double.tryParse(value));
+                      setState(() => _editingProfile.consultationFees =
+                          double.tryParse(value));
                     },
                   ),
                 ],
@@ -148,7 +287,8 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                           ),
                         ),
                         Expanded(
-                          child: Text(_editingProfile.specialization ?? 'Not specified'),
+                          child: Text(_editingProfile.specialization ??
+                              'Not specified'),
                         ),
                       ],
                     ),
@@ -166,7 +306,8 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                           ),
                         ),
                         Expanded(
-                          child: Text(_editingProfile.licenseNumber ?? 'Not specified'),
+                          child: Text(
+                              _editingProfile.licenseNumber ?? 'Not specified'),
                         ),
                       ],
                     ),
@@ -184,7 +325,9 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                           ),
                         ),
                         Expanded(
-                          child: Text(_editingProfile.yearsOfExperience?.toString() ?? 'Not specified'),
+                          child: Text(
+                              _editingProfile.yearsOfExperience?.toString() ??
+                                  'Not specified'),
                         ),
                       ],
                     ),
@@ -202,8 +345,9 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                           ),
                         ),
                         Expanded(
-                          child: _editingProfile.consultationFees != null 
-                              ? Text('\$RS.{_editingProfile.consultationFees?.toString()}')
+                          child: _editingProfile.consultationFees != null
+                              ? Text(
+                                  'Rs. ${_editingProfile.consultationFees?.toString()}')
                               : const Text('Not specified'),
                         ),
                       ],
@@ -225,7 +369,8 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                 if (_editingProfile.education.isEmpty)
                   const Text(
                     "No education information available",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
                 ..._editingProfile.education.map((edu) => Card(
                       child: ListTile(
@@ -265,26 +410,28 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                 if (_editingProfile.hospitalAffiliations.isEmpty)
                   const Text(
                     "No hospital affiliations listed",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
-                ..._editingProfile.hospitalAffiliations.map((affiliation) => Card(
-                      child: ListTile(
-                        title: Text(affiliation.hospitalName),
-                        subtitle: Text(
-                            '${affiliation.role} (Since ${DateTimeHelper.formatDate(affiliation.startDate)})'),
-                        trailing: _isEditing
-                            ? IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () {
-                                  setState(() {
-                                    _editingProfile.hospitalAffiliations
-                                        .remove(affiliation);
-                                  });
-                                },
-                              )
-                            : null,
-                      ),
-                    )),
+                ..._editingProfile.hospitalAffiliations
+                    .map((affiliation) => Card(
+                          child: ListTile(
+                            title: Text(affiliation.hospitalName),
+                            subtitle: Text(
+                                '${affiliation.role} (Since ${DateTimeHelper.formatDate(affiliation.startDate)})'),
+                            trailing: _isEditing
+                                ? IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () {
+                                      setState(() {
+                                        _editingProfile.hospitalAffiliations
+                                            .remove(affiliation);
+                                      });
+                                    },
+                                  )
+                                : null,
+                          ),
+                        )),
                 if (_isEditing)
                   CustomButton(
                     text: 'Add Hospital Affiliation',
@@ -307,7 +454,8 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                 if (_editingProfile.expertise.isEmpty)
                   const Text(
                     "No areas of expertise listed",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic, color: Colors.grey),
                   ),
                 ...List.generate(_editingProfile.expertise.length, (index) {
                   final exp = _editingProfile.expertise[index];
@@ -343,47 +491,110 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
             ),
             const SizedBox(height: 24),
 
-            // Available Time Slots
+            // Working Hours Calendar Section
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Available Time Slots',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Working Hours',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (!_isEditing)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _showCalendarView = !_showCalendarView;
+                          });
+                        },
+                        child: Text(
+                          _showCalendarView
+                              ? 'Show List View'
+                              : 'Show Calendar View',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                if (_editingProfile.availableTimeSlots.isEmpty)
-                  const Text(
-                    "No available time slots",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+
+                if (_isLoadingCalendar)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else
+                  Consumer<CalendarProvider>(
+                    builder: (context, calendarProvider, child) {
+                      // Print debug info for troubleshooting
+                      print(
+                          'Consumer rebuilding: calendar=${calendarProvider.calendar != null}, loading=${calendarProvider.isLoading}');
+
+                      final calendar = calendarProvider.calendar;
+
+                      if (calendar == null || calendarProvider.isLoading) {
+                        return Column(
+                          children: [
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: calendarProvider.isLoading
+                                    ? const CircularProgressIndicator()
+                                    : const Text(
+                                        'No calendar data available. Set up your working hours in the Calendar section.',
+                                        style: TextStyle(
+                                            fontStyle: FontStyle.italic,
+                                            color: Colors.grey),
+                                      ),
+                              ),
+                            ),
+                            // Add a button for manual refresh
+                            if (!calendarProvider.isLoading)
+                              CustomButton(
+                                text: 'Load Calendar Data',
+                                onPressed: () => _loadCalendarData(),
+                                isSecondary: true,
+                                icon: Icons.refresh,
+                              ),
+                          ],
+                        );
+                      }
+
+                      // If we get here, we have calendar data
+                      if (_showCalendarView) {
+                        return _buildCalendarGridView(calendarProvider);
+                      } else {
+                        return _buildWorkingHoursList(calendar);
+                      }
+                    },
                   ),
-                ..._editingProfile.availableTimeSlots.map((slot) => Card(
-                      child: ListTile(
-                        title: Text(slot.day),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: slot.slots
-                              .map((timeSlot) => Text(
-                                  '${timeSlot.startTime} - ${timeSlot.endTime}'))
-                              .toList(),
-                        ),
-                        trailing: _isEditing
-                            ? IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () {
-                                  setState(() {
-                                    _editingProfile.availableTimeSlots.remove(slot);
-                                  });
-                                },
-                              )
-                            : null,
+
+                // Link to full calendar management
+                if (!_isEditing)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Center(
+                      child: CustomButton(
+                        text: 'Manage Calendar',
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/doctor/calendar',
+                          ).then((_) {
+                            // Refresh calendar data when returning from calendar screen
+                            _loadCalendarData();
+                          });
+                        },
+                        isSecondary: false,
+                        icon: Icons.calendar_month,
                       ),
-                    )),
-                if (_isEditing)
-                  CustomButton(
-                    text: 'Add Time Slot',
-                    onPressed: _addTimeSlot,
-                    isSecondary: true,
+                    ),
                   ),
               ],
             ),
@@ -428,6 +639,271 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     );
   }
 
+  // NEW: Build working hours list from calendar data
+  Widget _buildWorkingHoursList(DoctorCalendar calendar) {
+    return Column(
+      children: [
+        // Default Working Hours
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Default Weekly Schedule',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                ...calendar.defaultWorkingHours.map((day) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            day.day,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          child: day.isWorking
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: day.slots.map((slot) {
+                                    return Text(
+                                        '${slot.startTime} - ${slot.endTime}');
+                                  }).toList(),
+                                )
+                              : const Text(
+                                  'Not Available',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+
+        // Special schedule changes
+        if (calendar.schedule.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'Special Schedule Changes',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          ...calendar.schedule.map((day) {
+            final date = DateTimeHelper.formatDate(day.date);
+
+            if (day.isHoliday) {
+              return ListTile(
+                title: Text(date),
+                subtitle: Text(
+                  'Holiday${day.holidayReason != null ? ": ${day.holidayReason}" : ""}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+                leading: const Icon(Icons.event_busy, color: Colors.red),
+              );
+            } else {
+              return ExpansionTile(
+                title: Text(date),
+                subtitle: Text(
+                  day.slots.isEmpty
+                      ? 'No special slots'
+                      : '${day.slots.length} special time slots',
+                ),
+                leading: const Icon(Icons.event_note),
+                children: day.slots.map((slot) {
+                  return ListTile(
+                    title: Text('${slot.startTime} - ${slot.endTime}'),
+                    subtitle: slot.isBlocked
+                        ? const Text('Blocked',
+                            style: TextStyle(color: Colors.orange))
+                        : const Text('Available'),
+                    dense: true,
+                  );
+                }).toList(),
+              );
+            }
+          }),
+        ],
+      ],
+    );
+  }
+
+  // NEW: Build calendar grid view
+  Widget _buildCalendarGridView(CalendarProvider calendarProvider) {
+    final now = DateTime.now();
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final firstDayOfMonth = DateTime(now.year, now.month, 1);
+    final firstWeekdayOfMonth = firstDayOfMonth.weekday;
+
+    // Get holidays and special days
+    final holidays = <int>[];
+    final specialDays = <int>[];
+
+    if (calendarProvider.calendar != null) {
+      for (var day in calendarProvider.calendar!.schedule) {
+        if (day.date.month == now.month && day.date.year == now.year) {
+          if (day.isHoliday) {
+            holidays.add(day.date.day);
+          } else if (day.slots.isNotEmpty) {
+            specialDays.add(day.date.day);
+          }
+        }
+      }
+    }
+
+    return Column(
+      children: [
+        // Calendar header - month name
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          child: Text(
+            '${_getMonthName(now.month)} ${now.year}',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ),
+
+        // Weekday headers
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: const ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) {
+            return SizedBox(
+              width: 36,
+              height: 36,
+              child: Center(
+                child: Text(
+                  day,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+
+        // Calendar grid
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 1,
+          ),
+          itemCount: (firstWeekdayOfMonth - 1) + daysInMonth,
+          itemBuilder: (context, index) {
+            // Empty cells before the 1st of month
+            if (index < (firstWeekdayOfMonth - 1)) {
+              return const SizedBox.shrink();
+            }
+
+            // Day cells
+            final day = index - (firstWeekdayOfMonth - 1) + 1;
+            final isToday = day == now.day;
+            final isHoliday = holidays.contains(day);
+            final isSpecialDay = specialDays.contains(day);
+
+            Color bgColor = Colors.transparent;
+            Color textColor = Colors.black;
+
+            if (isToday) {
+              bgColor = Colors.blue;
+              textColor = Colors.white;
+            } else if (isHoliday) {
+              bgColor = Colors.red.withOpacity(0.3);
+            } else if (isSpecialDay) {
+              bgColor = Colors.orange.withOpacity(0.3);
+            }
+
+            return Container(
+              margin: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              ),
+              child: Center(
+                child: Text(
+                  day.toString(),
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: isToday ? FontWeight.bold : null,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Legend
+        Padding(
+          padding: const EdgeInsets.only(top: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildLegendItem('Today', Colors.blue),
+              const SizedBox(width: 16),
+              _buildLegendItem('Holiday', Colors.red.withOpacity(0.3)),
+              const SizedBox(width: 16),
+              _buildLegendItem(
+                  'Special Schedule', Colors.orange.withOpacity(0.3)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper for legend items
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(label),
+      ],
+    );
+  }
+
+  // Helper for month name
+  String _getMonthName(int month) {
+    return [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ][month - 1];
+  }
+
+  // Dialog helpers
   Future<void> _addItem(String title, Function(String) onAdd) async {
     final result = await showDialog<String>(
       context: context,
@@ -462,6 +938,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     }
   }
 
+  // We need to keep this method to avoid errors with dialog references, but we won't expose it in the UI
   Future<void> _addTimeSlot() async {
     final result = await showDialog<AvailableTimeSlot>(
       context: context,
@@ -469,6 +946,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
     );
     if (result != null) {
       setState(() {
+        // Although we're adding it here, we'll clear this when saving
         _editingProfile.availableTimeSlots.add(result);
       });
     }
@@ -481,7 +959,7 @@ class _AddItemDialog extends StatefulWidget {
 
   const _AddItemDialog({required this.title});
 
-    @override
+  @override
   State<_AddItemDialog> createState() => _AddItemDialogState();
 }
 

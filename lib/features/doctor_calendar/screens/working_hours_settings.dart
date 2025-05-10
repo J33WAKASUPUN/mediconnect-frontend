@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 class WorkingHoursSettingsScreen extends StatefulWidget {
   static const String routeName = '/doctor/working-hours-settings';
 
-  const WorkingHoursSettingsScreen({Key? key}) : super(key: key);
+  const WorkingHoursSettingsScreen({super.key});
 
   @override
   State<WorkingHoursSettingsScreen> createState() => _WorkingHoursSettingsScreenState();

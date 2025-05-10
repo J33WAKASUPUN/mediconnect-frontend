@@ -7,11 +7,11 @@ class AddTodoDialog extends StatefulWidget {
   final Function(Todo) onSave;
 
   const AddTodoDialog({
-    Key? key,
+    super.key,
     required this.selectedDate,
     this.existingTodo,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<AddTodoDialog> createState() => _AddTodoDialogState();

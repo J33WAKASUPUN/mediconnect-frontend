@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
 import 'package:mediconnect/features/review/screens/doctor_review_screen.dart';
 import 'package:mediconnect/features/review/widgets/review_card.dart';
@@ -117,13 +118,11 @@ class DoctorProfileScreen extends StatelessWidget {
               ],
 
               // Hospital Affiliations
-              if (doctor.doctorProfile?.hospitalAffiliations.isNotEmpty ??
-                  false) ...[
+              if (doctor.doctorProfile?.hospitalAffiliations.isNotEmpty ?? false) ...[
                 const SizedBox(height: 16),
                 _buildSection(
                   title: 'Hospital Affiliations',
-                  children: doctor.doctorProfile!.hospitalAffiliations
-                      .map((hospital) {
+                  children: doctor.doctorProfile!.hospitalAffiliations.map((hospital) {
                     return _buildInfoRow(
                       hospital.hospitalName,
                       hospital.role,
@@ -141,8 +140,7 @@ class DoctorProfileScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children:
-                          doctor.doctorProfile!.expertise.map((expertise) {
+                      children: doctor.doctorProfile!.expertise.map((expertise) {
                         return Chip(
                           label: Text(expertise),
                           backgroundColor: AppColors.primary.withOpacity(0.1),
@@ -163,52 +161,149 @@ class DoctorProfileScreen extends StatelessWidget {
                 ],
               ),
 
-              // Available Time Periods
-              if (doctor.doctorProfile?.availableTimeSlots.isNotEmpty ??
-                  false) ...[
-                const SizedBox(height: 16),
-                _buildSection(
-                  title: 'Available Time Periods',
-                  children:
-                      doctor.doctorProfile!.availableTimeSlots.map((slot) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              slot.day,
-                              style: AppStyles.bodyText1.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: slot.slots.map((time) {
-                                return Chip(
-                                  label: Text(
-                                    '${time.startTime} - ${time.endTime}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  backgroundColor:
-                                      AppColors.primary.withOpacity(0.1),
-                                  labelStyle: const TextStyle(
-                                    color: AppColors.primary,
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
+              // Available Time Periods - Always show regardless of legacy time slots
+              const SizedBox(height: 16),
+              _buildSection(
+                title: 'Available Time Periods',
+                children: [
+                  // Add calendar data fetch widget
+                  FutureBuilder(
+                    future: context.read<CalendarProvider>().fetchCalendar(
+                          doctorId: doctor.id,
+                          startDate: DateTime.now(),
+                          endDate: DateTime.now().add(const Duration(days: 30)),
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      return Consumer<CalendarProvider>(
+                        builder: (context, provider, child) {
+                          // If we have calendar data, use that
+                          if (provider.calendar != null) {
+                            // If there are no working days, show a message
+                            final workingDays = provider.calendar!.defaultWorkingHours
+                                .where((day) => day.isWorking && day.slots.isNotEmpty)
+                                .toList();
+                                
+                            if (workingDays.isEmpty) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'This doctor has not set their working hours yet.',
+                                    style: TextStyle(fontStyle: FontStyle.italic),
+                                  ),
+                                ),
+                              );
+                            }
+                            
+                            return Column(
+                              children: [
+                                // Weekly schedule
+                                ...workingDays.map((day) {
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            day.day,
+                                            style: AppStyles.bodyText1.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: day.slots.map((time) {
+                                              return Chip(
+                                                label: Text(
+                                                  '${time.startTime} - ${time.endTime}',
+                                                  style: const TextStyle(fontSize: 12),
+                                                ),
+                                                backgroundColor: AppColors.primary.withOpacity(0.1),
+                                                labelStyle: const TextStyle(
+                                                  color: AppColors.primary,
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+
+                                // Upcoming holidays (next 30 days)
+                                if (provider.calendar!.schedule
+                                    .where((day) =>
+                                        day.isHoliday &&
+                                        day.date.isAfter(DateTime.now()) &&
+                                        day.date.isBefore(DateTime.now().add(const Duration(days: 30))))
+                                    .isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Upcoming Unavailable Dates',
+                                          style: TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ...provider.calendar!.schedule
+                                            .where((day) =>
+                                                day.isHoliday &&
+                                                day.date.isAfter(DateTime.now()) &&
+                                                day.date.isBefore(DateTime.now().add(const Duration(days: 30))))
+                                            .map((holiday) {
+                                              final dateStr =
+                                                  '${holiday.date.day}/${holiday.date.month}/${holiday.date.year}';
+                                              return Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(Icons.event_busy,
+                                                        color: Colors.red, size: 16),
+                                                    const SizedBox(width: 8),
+                                                    Text(dateStr),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            );
+                          } else {
+                            // If we don't have calendar data, show a message
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'Doctor\'s schedule information is not available at the moment.',
+                                  style: TextStyle(fontStyle: FontStyle.italic),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
             ],
           ],
         ),
@@ -246,26 +341,26 @@ class DoctorProfileScreen extends StatelessWidget {
 
   Widget _buildReviewsSection(BuildContext context) {
     final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
-    
+
     return FutureBuilder(
       future: reviewProvider.loadDoctorReviews(doctor.id, limit: 3),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        
+
         return Consumer<ReviewProvider>(
           builder: (context, provider, child) {
             if (provider.isLoading) {
               return const Center(child: CircularProgressIndicator());
             }
-            
+
             if (provider.error != null && provider.doctorReviews.isEmpty) {
               return Center(
                 child: Text('Error: ${provider.error}'),
               );
             }
-            
+
             if (provider.doctorReviews.isEmpty) {
               return const Center(
                 child: Padding(
@@ -274,7 +369,7 @@ class DoctorProfileScreen extends StatelessWidget {
                 ),
               );
             }
-            
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -311,9 +406,9 @@ class DoctorProfileScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Reviews preview (3 max)
                 ...provider.doctorReviews.take(3).map((review) {
                   return ReviewCard(
@@ -321,9 +416,9 @@ class DoctorProfileScreen extends StatelessWidget {
                     isDoctorView: false,
                   );
                 }),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // View all button if there are more reviews
                 if (provider.totalReviews > 3)
                   Center(
@@ -334,7 +429,8 @@ class DoctorProfileScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (context) => DoctorReviewsScreen(
                               doctorId: doctor.id,
-                              doctorName: 'Dr. ${doctor.firstName} ${doctor.lastName}',
+                              doctorName:
+                                  'Dr. ${doctor.firstName} ${doctor.lastName}',
                             ),
                           ),
                         );

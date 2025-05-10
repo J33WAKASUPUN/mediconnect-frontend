@@ -119,7 +119,7 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                   title: const Text('Calendar Management'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/doctor/calendar');
+                    Navigator.pushNamed(context, '/doctor/calendar/working-hours');
                   },
                 ),
                 ListTile(

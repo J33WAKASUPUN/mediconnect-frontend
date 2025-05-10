@@ -139,7 +139,7 @@ class MedicalRecordService extends BaseApiService {
     try {
       // Remove the duplicate /api prefix
       final response = await delete(
-          '/medical-records/record/$recordId/attachments/$attachmentId');
+          '/medical-records/record/$recordId/attachments/$attachmentId', queryParams: {});
       return response;
     } catch (e) {
       print("Error deleting attachment: $e");

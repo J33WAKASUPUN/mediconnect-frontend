@@ -7,10 +7,10 @@ class ScheduleDayDialog extends StatefulWidget {
   final Function(List<CalendarTimeSlot>, bool, String?) onSave;
 
   const ScheduleDayDialog({
-    Key? key,
+    super.key,
     required this.date,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<ScheduleDayDialog> createState() => _ScheduleDayDialogState();

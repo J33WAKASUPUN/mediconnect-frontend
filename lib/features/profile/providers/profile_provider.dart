@@ -10,7 +10,7 @@ class ProfileProvider with ChangeNotifier {
   final AuthProvider _authProvider; // Added AuthProvider
   bool _isLoading = false;
   String? _error;
-  
+
   PatientProfile? _patientProfile;
   DoctorProfile? _doctorProfile;
   DateTime _lastUpdated = DateTime.now().toUtc();
@@ -18,8 +18,8 @@ class ProfileProvider with ChangeNotifier {
   ProfileProvider({
     required ApiService apiService,
     required AuthProvider authProvider, // Added parameter
-  }) : _apiService = apiService,
-       _authProvider = authProvider; // Initialize AuthProvider
+  })  : _apiService = apiService,
+        _authProvider = authProvider; // Initialize AuthProvider
 
   // Getters
   bool get isLoading => _isLoading;
@@ -36,20 +36,21 @@ class ProfileProvider with ChangeNotifier {
       notifyListeners();
 
       final response = await _apiService.getProfile();
-      
+
       print("API Response: $response");
-      
+
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'];
-        
+
         // Update user information in AuthProvider
         _authProvider.updateUserFromProfile(data);
-        
+
         print("Patient Profile Data: ${data['patientProfile']}");
-        
+
         if (data['patientProfile'] != null) {
           try {
-            print("Parsing PatientProfile from JSON: ${data['patientProfile']}");
+            print(
+                "Parsing PatientProfile from JSON: ${data['patientProfile']}");
             _patientProfile = PatientProfile.fromJson(data['patientProfile']);
             print("Successfully parsed patient profile: $_patientProfile");
             print("Blood Type: ${_patientProfile?.bloodType}");
@@ -58,28 +59,30 @@ class ProfileProvider with ChangeNotifier {
           } catch (e) {
             print("Error parsing patient profile: $e");
             _error = "Error parsing profile data: $e";
-            _patientProfile = PatientProfile(); // Provide default profile instead of null
+            _patientProfile =
+                PatientProfile(); // Provide default profile instead of null
           }
         } else {
           _patientProfile = null;
         }
-        
+
         if (data['doctorProfile'] != null) {
           try {
             _doctorProfile = DoctorProfile.fromJson(data['doctorProfile']);
           } catch (e) {
             print("Error parsing doctor profile: $e");
-            _doctorProfile = DoctorProfile(); // Provide default profile instead of null
+            _doctorProfile =
+                DoctorProfile(); // Provide default profile instead of null
           }
         } else {
           _doctorProfile = null;
         }
-        
+
         _lastUpdated = DateTime.now().toUtc();
       } else {
         throw 'Failed to load profile data';
       }
-      
+
       notifyListeners(); // Make sure to notify after setting profiles
     } catch (e) {
       print("Error in getProfile: $e");
@@ -159,15 +162,12 @@ class ProfileProvider with ChangeNotifier {
         specialization: profile.specialization,
         licenseNumber: profile.licenseNumber,
         yearsOfExperience: profile.yearsOfExperience,
-        education: profile.education
-            .map((edu) => edu.toJson())
-            .toList(),
-        hospitalAffiliations: profile.hospitalAffiliations
-            .map((aff) => aff.toJson())
-            .toList(),
-        availableTimeSlots: profile.availableTimeSlots
-            .map((slot) => slot.toJson())
-            .toList(),
+        education: profile.education.map((edu) => edu.toJson()).toList(),
+        hospitalAffiliations:
+            profile.hospitalAffiliations.map((aff) => aff.toJson()).toList(),
+        // availableTimeSlots: profile.availableTimeSlots  // Remove this line
+        //     .map((slot) => slot.toJson())
+        //     .toList(),
         consultationFees: profile.consultationFees,
         expertise: profile.expertise,
       );
