@@ -75,6 +75,8 @@ class User {
   int? get yearsOfExperience => doctorProfile?.yearsOfExperience;
   String? get bloodType => patientProfile?.bloodType;
 
+  get allergies => null;
+
   User copyWith({
     String? id,
     String? username,

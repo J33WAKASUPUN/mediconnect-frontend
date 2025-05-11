@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/core/models/profile_models.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/api_service.dart';
 
@@ -20,22 +21,34 @@ class PatientProvider with ChangeNotifier {
 
   // Get patient profile
   Future<void> getPatientProfile() async {
+  try {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    try {
-      // TODO: Implement API call to get patient profile
-      // Will be implemented when we add the backend endpoint
-      _lastUpdated = '2025-03-08 14:38:02'; // Update timestamp
+    final response = await _apiService.getProfile();
+    
+    if (response['success'] == true && response['data'] != null) {
+      final data = response['data'];
       
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (data['patientProfile'] != null) {
+        _patientProfile = PatientProfile.fromJson(data['patientProfile']) as User?;
+        
+        // Debug information
+        print("Patient profile loaded: $_patientProfile");
+        print("Blood Type: ${_patientProfile?.bloodType}");
+        print("Allergies: ${_patientProfile?.allergies}");
+      } else {
+        _patientProfile = PatientProfile() as User?; // Default empty profile
+      }
     }
+    
+  } catch (e) {
+    _error = e.toString();
+    print("Error getting patient profile: $e");
+  } finally {
+    _isLoading = false;
+    notifyListeners();
   }
+}
 }

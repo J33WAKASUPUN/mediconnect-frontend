@@ -1,7 +1,7 @@
-// auth_provider.dart
 import 'dart:io';
 import 'dart:js_interop';
 import 'package:flutter/foundation.dart';
+import 'package:mediconnect/core/models/profile_models.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/storage_service.dart';
@@ -102,22 +102,22 @@ class AuthProvider with ChangeNotifier {
 
 // LOGOUT
   Future<void> logout() async {
-  await _storageService.clearAll();
+    await _storageService.clearAll();
 
-  if (kIsWeb) {
-    // Clear localStorage in web
-    try {
-      _jsRemoveLocalStorageItem('auth_token');
-    } catch (e) {
-      print("Error clearing localStorage: $e");
+    if (kIsWeb) {
+      // Clear localStorage in web
+      try {
+        _jsRemoveLocalStorageItem('auth_token');
+      } catch (e) {
+        print("Error clearing localStorage: $e");
+      }
     }
-  }
 
-  _token = null;
-  _user = null;
-  _status = AuthStatus.unauthenticated;
-  notifyListeners();
-}
+    _token = null;
+    _user = null;
+    _status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
 
   // Register
   Future<void> register({
@@ -239,12 +239,20 @@ class AuthProvider with ChangeNotifier {
           profilePicture:
               userData['profilePicture']?.toString() ?? _user!.profilePicture,
           createdAt: userData['createdAt']?.toString() ?? _user!.createdAt,
+          patientProfile: userData['patientProfile'] != null
+              ? PatientProfile.fromJson(userData['patientProfile'])
+              : _user!.patientProfile,
+          doctorProfile: userData['doctorProfile'] != null
+              ? DoctorProfile.fromJson(userData['doctorProfile'])
+              : _user!.doctorProfile,
         );
 
         _storageService.saveUser(_user!);
 
         print(
-            "Updated user in AuthProvider: firstName=${_user!.firstName}, lastName=${_user!.lastName}, email=${_user!.email}");
+            "Updated user in AuthProvider: firstName=${_user!.firstName}, lastName=${_user!.lastName}");
+        print("PatientProfile: ${_user!.patientProfile}");
+
         notifyListeners();
       } catch (e) {
         print("Error updating user from profile: $e");

@@ -1,16 +1,16 @@
 // File: lib/features/notification/screens/notification_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/auth/providers/auth_provider.dart';
+import 'package:mediconnect/features/notification/providers/notification_provider.dart';
+import 'package:mediconnect/features/notification/widgets/notification_item.dart';
 import 'package:provider/provider.dart';
-import '../../../core/models/notification_model.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../../../core/utils/session_helper.dart';
-import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
-import '../../../shared/widgets/error_view.dart';
-import '../../../shared/widgets/loading_indicator.dart';
-import '../../notification/widgets/notification_item.dart';
-import '../../notification/providers/notification_provider.dart';
+import '../../../../../../../core/models/notification_model.dart';
+import '../../../../../../../core/utils/session_helper.dart';
+import '../../../../../../../shared/constants/colors.dart';
+import '../../../../../../../shared/constants/styles.dart';
+import '../../../../../../../shared/widgets/error_view.dart';
+import '../../../../../../../shared/widgets/loading_indicator.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});

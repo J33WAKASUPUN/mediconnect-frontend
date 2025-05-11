@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mediconnect/core/models/profile_models.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
-import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/patient/screens/patient_appointments_screen.dart';
-import 'package:mediconnect/shared/constants/app_assets.dart';
-import 'package:path/path.dart';
+import 'package:mediconnect/features/profile/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
-import '../../../shared/widgets/custom_bottom_navigation.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/loading_overlay.dart';
 import '../providers/patient_provider.dart';
@@ -26,8 +22,10 @@ class PatientDashboard extends StatefulWidget {
   State<PatientDashboard> createState() => PatientDashboardState();
 }
 
+
 class PatientDashboardState extends State<PatientDashboard> {
   int _currentIndex = 0;
+  bool _isLoading = false;
 
   void changeTab(int index) {
     setState(() => _currentIndex = index);
@@ -42,38 +40,67 @@ class PatientDashboardState extends State<PatientDashboard> {
   @override
   void initState() {
     super.initState();
-
-    // Fix by using a post-frame callback to ensure context is available
+    // Make sure we load data after the widget is fully built
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        // Now the context is properly initialized
-        final patientProvider =
-            Provider.of<PatientProvider>(context as BuildContext, listen: false);
-        final appointmentProvider =
-            Provider.of<AppointmentProvider>(context as BuildContext, listen: false);
-        final notificationProvider =
-            Provider.of<NotificationProvider>(context as BuildContext, listen: false);
-
-        patientProvider.getPatientProfile();
-        appointmentProvider.loadAppointments();
-        notificationProvider.loadNotifications();
-
-        appointmentProvider.syncPaymentStatus();
-      }
+      _loadInitialData();
     });
+  }
+  
+
+  // Fixed loading function without using context as BuildContext
+  Future<void> _loadInitialData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Get providers without using context as BuildContext
+      final patientProvider =
+          Provider.of<PatientProvider>(context, listen: false);
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false); // Add this
+      final appointmentProvider =
+          Provider.of<AppointmentProvider>(context, listen: false);
+      final notificationProvider =
+          Provider.of<NotificationProvider>(context, listen: false);
+
+      // First load profile data to ensure patient profile is available
+      await profileProvider.getProfile();
+
+      // Then load patient-specific data
+      await patientProvider.getPatientProfile();
+
+      // Then load appointments and notifications
+      await appointmentProvider.loadAppointments();
+      await appointmentProvider.syncPaymentStatus();
+      await notificationProvider.loadNotifications();
+    } catch (e) {
+      print("Error loading initial data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return LoadingOverlay(
-      isLoading: context.watch<PatientProvider>().isLoading,
+      isLoading: _isLoading || context.watch<PatientProvider>().isLoading,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_currentIndex == 0
-              ? 'Patient Dashboard'
-              : _currentIndex == 1
-                  ? 'Appointments'
-                  : 'Profile'),
+          title: const Text(
+            'MediConnect',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
           elevation: 0,
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -96,43 +123,172 @@ class PatientDashboardState extends State<PatientDashboard> {
         ),
         drawer: const PatientDrawer(),
         body: _screens[_currentIndex],
-        bottomNavigationBar: CustomBottomNavigation(
-          currentIndex: _currentIndex,
-          onTap: changeTab,
-        ),
+        bottomNavigationBar: _buildCustomBottomNavigation(),
+      ),
+    );
+  }
+
+  Widget _buildCustomBottomNavigation() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      height: 60,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            icon: Icons.dashboard,
+            label: 'Dashboard',
+            isSelected: _currentIndex == 0,
+            onTap: () => changeTab(0),
+          ),
+          _buildNavItem(
+            icon: Icons.search,
+            label: 'Find Doctors',
+            isSelected: false,
+            onTap: () => Navigator.pushNamed(context, '/patient/doctors'),
+          ),
+          _buildNavItem(
+            icon: Icons.calendar_today,
+            label: 'Appointments',
+            isSelected: _currentIndex == 1,
+            onTap: () => changeTab(1),
+          ),
+          _buildNavItem(
+            icon: Icons.person,
+            label: 'Profile',
+            isSelected: _currentIndex == 2,
+            onTap: () => changeTab(2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? AppColors.primary : Colors.grey,
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? AppColors.primary : Colors.grey,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class PatientDashboardContent extends StatelessWidget {
+class PatientDashboardContent extends StatefulWidget {
   const PatientDashboardContent({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
-    final patientProvider = context.watch<PatientProvider>();
-    final appointmentProvider = context.watch<AppointmentProvider>();
+  State<PatientDashboardContent> createState() =>
+      _PatientDashboardContentState();
+}
 
+class _PatientDashboardContentState extends State<PatientDashboardContent> {
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Get profile provider
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
+
+      // Explicitly load profile data to ensure it's available
+      await profileProvider.getProfile();
+
+      // Then load appointments
+      final appointmentProvider =
+          Provider.of<AppointmentProvider>(context, listen: false);
+      await appointmentProvider.loadAppointments();
+    } catch (e) {
+      print("Error refreshing dashboard data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final profileProvider = context.watch<ProfileProvider>();
+    final appointmentProvider = context.watch<AppointmentProvider>();
+    final user = authProvider.user;
     // Get patient profile data
-    final patientProfile = user?.patientProfile;
+    PatientProfile? patientProfile = user?.patientProfile;
+
+    // If null, try from profile provider
+    if (patientProfile == null) {
+      patientProfile = profileProvider.patientProfile;
+
+      // Debug info
+      print(
+          "User patientProfile was null, using profileProvider.patientProfile: $patientProfile");
+    }
 
     // Current time and session info
     final currentTime = SessionHelper.getCurrentUTC();
     final userLogin = SessionHelper.getUserLogin();
 
+    // Debug info
+    print("Building dashboard with user: ${user?.firstName} ${user?.lastName}");
+    print("PatientProfile: $patientProfile");
+    print("BloodType: ${patientProfile?.bloodType}");
+    ;
+
     return RefreshIndicator(
-      onRefresh: () async {
-        await patientProvider.getPatientProfile();
-        await appointmentProvider.loadAppointments();
-      },
+      onRefresh: _refreshData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with greeting and health status
-            _buildPatientHeader(context, user),
+            // Header with greeting and patient info
+            _buildPatientHeader(user, patientProfile),
 
             // Main dashboard content
             Padding(
@@ -143,17 +299,17 @@ class PatientDashboardContent extends StatelessWidget {
                   const SizedBox(height: 24),
 
                   // Main action buttons
-                  _buildMainActionButtons(context),
+                  _buildMainActionButtons(),
 
                   const SizedBox(height: 24),
 
-                  // Health Summary
-                  _buildHealthSummarySection(context, patientProfile),
+                  // Health Summary - Using actual data from patient profile
+                  _buildHealthSummarySection(patientProfile),
 
                   const SizedBox(height: 24),
 
                   // Upcoming Appointments
-                  _buildUpcomingAppointments(context, appointmentProvider),
+                  _buildUpcomingAppointments(appointmentProvider),
 
                   const SizedBox(height: 24),
 
@@ -184,8 +340,12 @@ class PatientDashboardContent extends StatelessWidget {
       ),
     );
   }
+  
 
-  Widget _buildPatientHeader(BuildContext context, user) {
+  Widget _buildPatientHeader(user, PatientProfile? patientProfile) {
+    final bloodType = patientProfile?.bloodType ?? 'Not set';
+    final allergies = patientProfile?.allergies ?? [];
+    final lastCheckup = patientProfile?.lastCheckupDate;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.primary,
@@ -194,22 +354,42 @@ class PatientDashboardContent extends StatelessWidget {
           bottomRight: Radius.circular(20),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.white,
-                backgroundImage: user?.profilePicture != null
-                    ? NetworkImage(user!.profilePicture!)
-                    : null,
-                child: user?.profilePicture == null
-                    ? const Icon(Icons.person,
-                        size: 30, color: AppColors.primary)
-                    : null,
+              // Larger profile picture with border
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 3,
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 38, // Increased size
+                  backgroundColor: Colors.white,
+                  backgroundImage: user?.profilePicture != null
+                      ? NetworkImage(user!.profilePicture!)
+                      : null,
+                  child: user?.profilePicture == null
+                      ? Text(
+                          user != null &&
+                                  user.firstName.isNotEmpty &&
+                                  user.lastName.isNotEmpty
+                              ? '${user.firstName[0]}${user.lastName[0]}'
+                              : 'P',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : null,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -218,47 +398,53 @@ class PatientDashboardContent extends StatelessWidget {
                   children: [
                     Text(
                       'Hello,',
-                      style: AppStyles.bodyText2.copyWith(
+                      style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
                       ),
                     ),
                     Text(
                       '${user?.firstName ?? ''} ${user?.lastName ?? ''}',
-                      style: AppStyles.heading2.copyWith(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
+                        fontSize: 22,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 4),
+                    // Show appointment count instead of health status
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.calendar_month,
+                            color: Colors.white,
+                            size: 14,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.favorite,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Health Status: Good',
-                                style: TextStyle(
+                          const SizedBox(width: 4),
+                          Consumer<AppointmentProvider>(
+                            builder: (context, provider, _) {
+                              final count =
+                                  provider.upcomingAppointments.length;
+                              return Text(
+                                '$count upcoming appointment${count != 1 ? 's' : ''}',
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,
                                 ),
-                              ),
-                            ],
+                              );
+                            },
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -270,23 +456,12 @@ class PatientDashboardContent extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildHealthCard(
-                context: context,
                 icon: Icons.bloodtype,
                 title: 'Blood Type',
-                value: user?.patientProfile?.bloodType ?? 'Not set',
+                value: bloodType,
               ),
-              _buildHealthCard(
-                context: context,
-                icon: Icons.monitor_heart,
-                title: 'Heart Rate',
-                value: '72 bpm',
-              ),
-              _buildHealthCard(
-                context: context,
-                icon: Icons.water_drop,
-                title: 'Blood Sugar',
-                value: '90 mg/dL',
-              ),
+              _buildLastCheckupCard(lastCheckup),
+              _buildAllergiesCard(allergies: allergies),
             ],
           ),
         ],
@@ -295,7 +470,6 @@ class PatientDashboardContent extends StatelessWidget {
   }
 
   Widget _buildHealthCard({
-    required BuildContext context, // Make sure this is BuildContext not Context
     required IconData icon,
     required String title,
     required String value,
@@ -341,7 +515,102 @@ class PatientDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildMainActionButtons(BuildContext context) {
+  // New card showing last checkup date
+  Widget _buildLastCheckupCard(DateTime? lastCheckup) {
+    String value = 'Not available';
+    if (lastCheckup != null) {
+      value = DateTimeHelper.formatDate(lastCheckup);
+    }
+
+    return Expanded(
+      child: Card(
+        color: Colors.white.withOpacity(0.15),
+        elevation: 0,
+        margin: const EdgeInsets.only(right: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Column(
+            children: [
+              Icon(
+                Icons.calendar_month,
+                color: Colors.white,
+                size: 22,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Last Checkup',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // New card showing allergies count
+  Widget _buildAllergiesCard({required List<String> allergies}) {
+    String value = allergies.isEmpty ? 'None' : '${allergies.length}';
+
+    return Expanded(
+      child: Card(
+        color: Colors.white.withOpacity(0.15),
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Column(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Allergies',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainActionButtons() {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -351,7 +620,6 @@ class PatientDashboardContent extends StatelessWidget {
       childAspectRatio: 1.5,
       children: [
         _buildActionButton(
-          context: context,
           icon: Icons.search,
           label: 'Find Doctor',
           description: 'Search specialists',
@@ -359,15 +627,14 @@ class PatientDashboardContent extends StatelessWidget {
           onTap: () => Navigator.pushNamed(context, '/patient/doctors'),
         ),
         _buildActionButton(
-          context: context,
           icon: Icons.calendar_today,
           label: 'Book Appointment',
           description: 'Schedule a visit',
           color: AppColors.secondary,
-          onTap: () => Navigator.pushNamed(context, '/patient/doctors'),
+          // Use the appointments route here
+          onTap: () => Navigator.pushNamed(context, '/patient/appointments'),
         ),
         _buildActionButton(
-          context: context,
           icon: Icons.message,
           label: 'Consultations',
           description: 'Chat with your doctor',
@@ -375,19 +642,17 @@ class PatientDashboardContent extends StatelessWidget {
           onTap: () => Navigator.pushNamed(context, '/messages'),
         ),
         _buildActionButton(
-          context: context,
           icon: Icons.medical_services,
           label: 'Medical Records',
           description: 'View your history',
           color: AppColors.warning,
-          onTap: () => Navigator.pushNamed(context, '/patient/medical-records'),
+          onTap: () => Navigator.pushNamed(context, '/medical-records'),
         ),
       ],
     );
   }
 
   Widget _buildActionButton({
-    required BuildContext context,
     required IconData icon,
     required String label,
     required String description,
@@ -444,8 +709,8 @@ class PatientDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHealthSummarySection(BuildContext context, patientProfile) {
-    // Extract data from patient profile
+  Widget _buildHealthSummarySection(patientProfile) {
+    // Extract actual data from patient profile
     final bloodType = patientProfile?.bloodType ?? 'Not set';
     final allergies = patientProfile?.allergies ?? [];
     final chronicConditions = patientProfile?.chronicConditions ?? [];
@@ -466,8 +731,10 @@ class PatientDashboardContent extends StatelessWidget {
               children: [
                 Text(
                   'Health Summary',
-                  style: AppStyles.heading1.copyWith(
+                  style: TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
                   ),
                 ),
                 TextButton.icon(
@@ -595,8 +862,7 @@ class PatientDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildUpcomingAppointments(
-      BuildContext context, AppointmentProvider appointmentProvider) {
+  Widget _buildUpcomingAppointments(AppointmentProvider appointmentProvider) {
     // Get upcoming appointments sorted by date
     final upcomingAppointments = [...appointmentProvider.upcomingAppointments];
     upcomingAppointments
@@ -620,8 +886,11 @@ class PatientDashboardContent extends StatelessWidget {
               children: [
                 Text(
                   'Upcoming Appointments',
-                  style:
-                      AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () {
@@ -637,12 +906,17 @@ class PatientDashboardContent extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (appointmentProvider.isLoading)
-              const Center(child: CircularProgressIndicator())
+            if (appointmentProvider.isLoading || _isRefreshing)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (nextAppointments.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32.0),
+                  padding: const EdgeInsets.symmetric(vertical: 20.0),
                   child: Column(
                     children: [
                       Icon(
@@ -659,6 +933,7 @@ class PatientDashboardContent extends StatelessWidget {
                       CustomButton(
                         text: 'Book Now',
                         onPressed: () {
+                          // Fix: use doctors route instead of book-appointment
                           Navigator.pushNamed(context, '/patient/doctors');
                         },
                         icon: Icons.add,
@@ -791,6 +1066,7 @@ class PatientDashboardContent extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
+                    // Fix: use doctors route instead of book-appointment
                     Navigator.pushNamed(context, '/patient/doctors');
                   },
                   child: const Text('+ Book New Appointment'),
@@ -822,13 +1098,22 @@ class PatientDashboardContent extends StatelessWidget {
     final medications = patientProfile?.currentMedications ?? [];
 
     final medicationItems = [
-      {
-        'name': medications.isNotEmpty ? medications[0] : 'Paracetamol',
-        'dosage': '500mg',
-        'schedule': 'Twice daily',
-        'time': '08:00 AM, 08:00 PM',
-        'isActive': true,
-      },
+      if (medications.isNotEmpty)
+        {
+          'name': medications[0],
+          'dosage': '500mg',
+          'schedule': 'Twice daily',
+          'time': '08:00 AM, 08:00 PM',
+          'isActive': true,
+        }
+      else
+        {
+          'name': 'Paracetamol',
+          'dosage': '500mg',
+          'schedule': 'Twice daily',
+          'time': '08:00 AM, 08:00 PM',
+          'isActive': true,
+        },
       if (medications.length > 1)
         {
           'name': medications[1],
@@ -862,13 +1147,16 @@ class PatientDashboardContent extends StatelessWidget {
               children: [
                 Text(
                   'Medication Reminders',
-                  style:
-                      AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () {
                     // Navigate to medication management
-                    Navigator.pushNamed(context as BuildContext, '/patient/medications');
+                    Navigator.pushNamed(context, '/patient/medications');
                   },
                   icon: const Icon(Icons.add_circle_outline, size: 16),
                   label: const Text('Manage'),
@@ -996,13 +1284,16 @@ class PatientDashboardContent extends StatelessWidget {
               children: [
                 Text(
                   'Medical Records',
-                  style:
-                      AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () {
                     // Navigate to all medical records
-                    Navigator.pushNamed(context as BuildContext, '/patient/medical-records');
+                    Navigator.pushNamed(context, '/patient/medical-records');
                   },
                   icon: const Icon(Icons.folder_open, size: 16),
                   label: const Text('View All'),
@@ -1104,6 +1395,11 @@ class PatientDashboardContent extends StatelessWidget {
                     ),
                     onTap: () {
                       // Navigate to record details
+                      Navigator.pushNamed(
+                        context,
+                        '/patient/medical-record-details',
+                        arguments: record,
+                      );
                     },
                   ),
                 );
@@ -1146,7 +1442,11 @@ class PatientDashboardContent extends StatelessWidget {
           children: [
             Text(
               'Wellness Tips',
-              style: AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -1217,6 +1517,12 @@ class PatientDashboardContent extends StatelessWidget {
   }
 
   Widget _buildSessionInfo(String currentTime, String userLogin) {
+    // Get current date and time
+    final now = DateTime.now();
+    final formattedTime =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} "
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+
     return Card(
       elevation: 0,
       color: Colors.grey.shade100,
@@ -1239,16 +1545,15 @@ class PatientDashboardContent extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Current Session',
+                    'Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): $formattedTime',
                     style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade800,
-                      fontSize: 14,
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Time: $currentTime | ID: $userLogin',
+                    'Current User\'s Login: $userLogin',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
