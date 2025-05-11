@@ -787,7 +787,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),
@@ -839,7 +839,7 @@ class _DoctorProfileSectionState extends State<DoctorProfileSection> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
         ],
       ],
     );

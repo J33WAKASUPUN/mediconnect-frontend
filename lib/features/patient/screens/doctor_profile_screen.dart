@@ -280,7 +280,7 @@ class DoctorProfileScreen extends StatelessWidget {
                                                   ],
                                                 ),
                                               );
-                                            }).toList(),
+                                            }),
                                       ],
                                     ),
                                   ),

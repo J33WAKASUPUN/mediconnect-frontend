@@ -31,7 +31,9 @@ class TodoProvider with ChangeNotifier {
 
       // Log todos to see what's coming back
       print('Fetched todos: ${todos.length}');
-      todos.forEach((todo) => print('Todo: ${todo.title} - ${todo.date}'));
+      for (var todo in todos) {
+        print('Todo: ${todo.title} - ${todo.date}');
+      }
 
       // Update the state
       _todos = todos;
