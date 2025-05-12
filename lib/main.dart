@@ -3,15 +3,18 @@
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mediconnect/core/services/medication_reminder_service.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
+import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -76,6 +79,9 @@ bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize time zones
+  tz_data.initializeTimeZones();
 
   // Initialize WebView platform if we're on mobile
   if (!kIsWeb) {
@@ -212,6 +218,10 @@ void main() async {
         // Add TodoProvider
         ChangeNotifierProvider(
           create: (context) => TodoProvider(apiService: apiService),
+        ),
+        // Add MedicationReminderProvider
+        ChangeNotifierProvider(
+          create: (context) => MedicationReminderProvider(),
         ),
       ],
       child: const MyApp(),

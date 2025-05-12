@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:mediconnect/core/models/medical_record_model.dart';
 import 'package:mediconnect/core/models/profile_models.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/medical_records/providers/medical_records_provider.dart';
+import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/patient/screens/patient_appointments_screen.dart';
 import 'package:mediconnect/features/profile/providers/profile_provider.dart';
@@ -21,7 +25,6 @@ class PatientDashboard extends StatefulWidget {
   @override
   State<PatientDashboard> createState() => PatientDashboardState();
 }
-
 
 class PatientDashboardState extends State<PatientDashboard> {
   int _currentIndex = 0;
@@ -45,7 +48,6 @@ class PatientDashboardState extends State<PatientDashboard> {
       _loadInitialData();
     });
   }
-  
 
   // Fixed loading function without using context as BuildContext
   Future<void> _loadInitialData() async {
@@ -241,6 +243,11 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
       final appointmentProvider =
           Provider.of<AppointmentProvider>(context, listen: false);
       await appointmentProvider.loadAppointments();
+
+      // Also load medical records
+      final medicalRecordsProvider =
+          Provider.of<MedicalRecordsProvider>(context, listen: false);
+      await medicalRecordsProvider.loadPatientMedicalRecords();
     } catch (e) {
       print("Error refreshing dashboard data: $e");
     } finally {
@@ -253,10 +260,15 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final profileProvider = context.watch<ProfileProvider>();
     final appointmentProvider = context.watch<AppointmentProvider>();
+    final medicalRecordsProvider = context.watch<MedicalRecordsProvider>();
+    final medicationReminderProvider =
+        context.watch<MedicationReminderProvider>();
+
     final user = authProvider.user;
     // Get patient profile data
     PatientProfile? patientProfile = user?.patientProfile;
@@ -264,21 +276,33 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
     // If null, try from profile provider
     if (patientProfile == null) {
       patientProfile = profileProvider.patientProfile;
-
-      // Debug info
-      print(
-          "User patientProfile was null, using profileProvider.patientProfile: $patientProfile");
     }
 
     // Current time and session info
     final currentTime = SessionHelper.getCurrentUTC();
     final userLogin = SessionHelper.getUserLogin();
 
-    // Debug info
-    print("Building dashboard with user: ${user?.firstName} ${user?.lastName}");
-    print("PatientProfile: $patientProfile");
-    print("BloodType: ${patientProfile?.bloodType}");
-    ;
+    // Ensure medical records are loaded
+    if (!medicalRecordsProvider.isLoading &&
+        medicalRecordsProvider.records.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          medicalRecordsProvider.loadPatientMedicalRecords();
+        }
+      });
+    }
+
+    // Load medication reminders if medical records are available
+    if (!medicalRecordsProvider.isLoading &&
+        medicationReminderProvider.reminders.isEmpty &&
+        medicalRecordsProvider.records.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          medicationReminderProvider
+              .loadMedicationsFromRecords(medicalRecordsProvider.records);
+        }
+      });
+    }
 
     return RefreshIndicator(
       onRefresh: _refreshData,
@@ -313,12 +337,12 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
 
                   const SizedBox(height: 24),
 
-                  // Medication Reminder
+                  // Medication Reminder - Now using real data
                   _buildMedicationReminders(patientProfile),
 
                   const SizedBox(height: 24),
 
-                  // Medical Records
+                  // Medical Records - Now using real data
                   _buildMedicalRecordsSection(),
 
                   const SizedBox(height: 24),
@@ -340,7 +364,6 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
       ),
     );
   }
-  
 
   Widget _buildPatientHeader(user, PatientProfile? patientProfile) {
     final bloodType = patientProfile?.bloodType ?? 'Not set';
@@ -1094,54 +1117,38 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
   }
 
   Widget _buildMedicationReminders(patientProfile) {
-    // Extract medications from patient profile
-    final medications = patientProfile?.currentMedications ?? [];
+    final medicalRecordsProvider = Provider.of<MedicalRecordsProvider>(context);
+    final medicationReminderProvider =
+        Provider.of<MedicationReminderProvider>(context);
 
-    final medicationItems = [
-      if (medications.isNotEmpty)
-        {
-          'name': medications[0],
-          'dosage': '500mg',
-          'schedule': 'Twice daily',
-          'time': '08:00 AM, 08:00 PM',
-          'isActive': true,
+    // Check if we need to load records or reminders
+    if (!medicalRecordsProvider.isLoading &&
+        medicalRecordsProvider.records.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          medicalRecordsProvider.loadPatientMedicalRecords();
         }
-      else
-        {
-          'name': 'Paracetamol',
-          'dosage': '500mg',
-          'schedule': 'Twice daily',
-          'time': '08:00 AM, 08:00 PM',
-          'isActive': true,
-        },
-      if (medications.length > 1)
-        {
-          'name': medications[1],
-          'dosage': '250mg',
-          'schedule': 'Once daily',
-          'time': '09:00 AM',
-          'isActive': true,
+      });
+    } else if (!medicationReminderProvider.isLoading &&
+        medicationReminderProvider.reminders.isEmpty &&
+        medicalRecordsProvider.records.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          medicationReminderProvider
+              .loadMedicationsFromRecords(medicalRecordsProvider.records);
         }
-      else
-        {
-          'name': 'Multivitamin',
-          'dosage': '1 tablet',
-          'schedule': 'Once daily',
-          'time': '09:00 AM',
-          'isActive': true,
-        },
-    ];
+      });
+    }
 
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Title and manage button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1155,7 +1162,6 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
                 ),
                 TextButton.icon(
                   onPressed: () {
-                    // Navigate to medication management
                     Navigator.pushNamed(context, '/patient/medications');
                   },
                   icon: const Icon(Icons.add_circle_outline, size: 16),
@@ -1169,84 +1175,41 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
             ),
             const SizedBox(height: 12),
 
-            // Medication list
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: medicationItems.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final medication = medicationItems[index];
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.medication,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              medication['name'] as String,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Dosage: ${medication['dosage']}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              medication['schedule'] as String,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            Text(
-                              'Time: ${medication['time']}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: medication['isActive'] as bool,
-                        activeColor: AppColors.primary,
-                        onChanged: (value) {
-                          // Toggle reminder in real app
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
+            // Content based on loading state
+            if (medicalRecordsProvider.isLoading ||
+                medicationReminderProvider.isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (medicalRecordsProvider.error != null)
+              _buildErrorState(medicalRecordsProvider.error!,
+                  () => medicalRecordsProvider.loadPatientMedicalRecords())
+            else if (medicationReminderProvider.reminders.isEmpty)
+              _buildEmptyState()
+            else
+              _buildMedicationList(medicationReminderProvider),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error, VoidCallback retry) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.orange, size: 48),
+            const SizedBox(height: 16),
+            Text('Error loading medications: $error'),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: retry,
+              child: const Text('Retry'),
             ),
           ],
         ),
@@ -1254,20 +1217,123 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: Column(
+          children: [
+            Icon(
+              Icons.medication_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No medications prescribed',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMedicationList(MedicationReminderProvider provider) {
+    // Take top 3 reminders
+    final displayedReminders = provider.reminders.take(3).toList();
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: displayedReminders.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final reminder = displayedReminders[index];
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.medication,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reminder.medicationName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Dosage: ${reminder.dosage}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      reminder.frequency,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Important: Use StatefulBuilder to prevent setState during build
+              StatefulBuilder(builder: (context, setState) {
+                return Switch(
+                  value: reminder.isActive,
+                  activeColor: AppColors.primary,
+                  onChanged: (value) {
+                    // Handle toggle outside of build
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      provider.toggleReminder(reminder);
+                    });
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMedicalRecordsSection() {
-    // Sample medical records
-    final records = [
-      {
-        'title': 'General Checkup',
-        'date': '2025-04-15',
-        'doctor': 'Dr. Sarah Johnson',
-      },
-      {
-        'title': 'Blood Test Results',
-        'date': '2025-03-22',
-        'doctor': 'Dr. Michael Chen',
-      },
-    ];
+    final medicalRecordsProvider = Provider.of<MedicalRecordsProvider>(context);
+
+    // Load records if not already loaded
+    if (!medicalRecordsProvider.isLoading &&
+        medicalRecordsProvider.records.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          medicalRecordsProvider.loadPatientMedicalRecords();
+        }
+      });
+    }
 
     return Card(
       elevation: 2,
@@ -1292,8 +1358,7 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
                 ),
                 TextButton.icon(
                   onPressed: () {
-                    // Navigate to all medical records
-                    Navigator.pushNamed(context, '/patient/medical-records');
+                    Navigator.pushNamed(context, '/medical-records');
                   },
                   icon: const Icon(Icons.folder_open, size: 16),
                   label: const Text('View All'),
@@ -1305,110 +1370,194 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // Records list
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: records.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final record = records[index];
-                return Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(12),
+            if (medicalRecordsProvider.isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (medicalRecordsProvider.error != null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20.0),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Colors.orange, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                          'Error loading records: ${medicalRecordsProvider.error}'),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () =>
+                            medicalRecordsProvider.loadPatientMedicalRecords(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.description,
-                        color: AppColors.secondary,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      record['title'] as String,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 12,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              record['date'] as String,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.person,
-                              size: 12,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              record['doctor'] as String,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.download,
-                        color: AppColors.secondary,
-                      ),
-                      onPressed: () {
-                        // Download function
-                      },
-                    ),
-                    onTap: () {
-                      // Navigate to record details
-                      Navigator.pushNamed(
-                        context,
-                        '/patient/medical-record-details',
-                        arguments: record,
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
+                ),
+              )
+            else
+              _buildMedicalRecordsList(medicalRecordsProvider.records),
           ],
         ),
       ),
     );
+  }
+
+// Helper method to build medical records list
+  Widget _buildMedicalRecordsList(List<MedicalRecord> records) {
+    // If no records, show placeholder
+    if (records.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20.0),
+          child: Column(
+            children: [
+              Icon(
+                Icons.folder_outlined,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No medical records found',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Sort by most recent records first and take top 2
+    records.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final recentRecords = records.take(2).toList();
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: recentRecords.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final record = recentRecords[index];
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 4,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.description,
+                color: AppColors.secondary,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              record.diagnosis.length > 30
+                  ? '${record.diagnosis.substring(0, 30)}...'
+                  : record.diagnosis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 15,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 12,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      DateFormat('yyyy-MM-dd').format(record.createdAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person,
+                      size: 12,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      record.doctorName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(
+                Icons.download,
+                color: AppColors.secondary,
+              ),
+              onPressed: () {
+                _downloadMedicalRecordPdf(record.id);
+              },
+            ),
+            onTap: () {
+              // Navigate to record details
+              Navigator.pushNamed(
+                context,
+                '/medical-records',
+                arguments: record.id,
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+// Helper method to download record PDF
+  void _downloadMedicalRecordPdf(String recordId) async {
+    try {
+      final medicalRecordsProvider =
+          Provider.of<MedicalRecordsProvider>(context, listen: false);
+
+      final pdfUrl = await medicalRecordsProvider.generatePdf(recordId);
+
+      if (pdfUrl != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Opening PDF...')));
+
+        // Logic to open PDF would go here
+        // For example, using url_launcher to open the PDF in a browser
+      } else {
+        throw Exception('Failed to generate PDF');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    }
   }
 
   Widget _buildWellnessTips() {
