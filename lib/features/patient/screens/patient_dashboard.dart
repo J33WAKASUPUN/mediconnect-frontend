@@ -3,11 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:mediconnect/core/models/medical_record_model.dart';
 import 'package:mediconnect/core/models/profile_models.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
-import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/medical_records/providers/medical_records_provider.dart';
 import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
+import 'package:mediconnect/features/messages/screens/message_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
+import 'package:mediconnect/features/patient/screens/doctor_list_screen.dart';
 import 'package:mediconnect/features/patient/screens/patient_appointments_screen.dart';
 import 'package:mediconnect/features/profile/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
@@ -36,8 +37,10 @@ class PatientDashboardState extends State<PatientDashboard> {
 
   final List<Widget> _screens = [
     const PatientDashboardContent(),
-    const PatientAppointmentsScreen(),
+    const DoctorsListScreen(),
     const ProfileScreen(),
+    const MessagesScreen(),
+    const PatientAppointmentsScreen(),
   ];
 
   @override
@@ -62,7 +65,7 @@ class PatientDashboardState extends State<PatientDashboard> {
       final patientProvider =
           Provider.of<PatientProvider>(context, listen: false);
       final profileProvider =
-          Provider.of<ProfileProvider>(context, listen: false); // Add this
+          Provider.of<ProfileProvider>(context, listen: false); 
       final appointmentProvider =
           Provider.of<AppointmentProvider>(context, listen: false);
       final notificationProvider =
@@ -125,80 +128,112 @@ class PatientDashboardState extends State<PatientDashboard> {
         ),
         drawer: const PatientDrawer(),
         body: _screens[_currentIndex],
-        bottomNavigationBar: _buildCustomBottomNavigation(),
+        bottomNavigationBar: _buildCompactBottomNavigation(),
       ),
     );
   }
-
-  Widget _buildCustomBottomNavigation() {
+  
+  Widget _buildCompactBottomNavigation() {
     return Container(
+      height: 65, // More compact height
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.primary,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
             offset: const Offset(0, -2),
           ),
         ],
       ),
-      height: 60,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
         children: [
-          _buildNavItem(
-            icon: Icons.dashboard,
-            label: 'Dashboard',
-            isSelected: _currentIndex == 0,
-            onTap: () => changeTab(0),
+          // Base row with all navigation items
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(0, Icons.dashboard_outlined, 'Dashboard'),
+              _buildNavItem(1, Icons.search, 'Doctors'),
+              // Center space for profile
+              const SizedBox(width: 70),
+              _buildNavItem(3, Icons.chat_bubble_outline, 'Messages'),
+              _buildNavItem(4, Icons.calendar_today_outlined, 'Appointments'),
+            ],
           ),
-          _buildNavItem(
-            icon: Icons.search,
-            label: 'Find Doctors',
-            isSelected: false,
-            onTap: () => Navigator.pushNamed(context, '/patient/doctors'),
-          ),
-          _buildNavItem(
-            icon: Icons.calendar_today,
-            label: 'Appointments',
-            isSelected: _currentIndex == 1,
-            onTap: () => changeTab(1),
-          ),
-          _buildNavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: _currentIndex == 2,
-            onTap: () => changeTab(2),
+          
+          // Centered profile button (raised above row)
+          Positioned(
+            top: -15,
+            child: GestureDetector(
+              onTap: () => changeTab(2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 55,
+                    width: 55,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.primary, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.person_outline,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Profile',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _currentIndex == index;
+    
     return InkWell(
-      onTap: onTap,
+      onTap: () => changeTab(index),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             icon,
-            color: isSelected ? AppColors.primary : Colors.grey,
-            size: 24,
+            color: Colors.white,
+            size: 24, // Fixed size - no animation
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              color: isSelected ? AppColors.primary : Colors.grey,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w400, // Not bold when selected
             ),
           ),
         ],
@@ -278,10 +313,6 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
       patientProfile = profileProvider.patientProfile;
     }
 
-    // Current time and session info
-    final currentTime = SessionHelper.getCurrentUTC();
-    final userLogin = SessionHelper.getUserLogin();
-
     // Ensure medical records are loaded
     if (!medicalRecordsProvider.isLoading &&
         medicalRecordsProvider.records.isEmpty) {
@@ -351,11 +382,6 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
                   _buildWellnessTips(),
 
                   const SizedBox(height: 24),
-
-                  // Session info
-                  _buildSessionInfo(currentTime, userLogin),
-
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -1162,7 +1188,7 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
                 ),
                 TextButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/patient/medications');
+                    Navigator.pushNamed(context, '/medical-records');
                   },
                   icon: const Icon(Icons.add_circle_outline, size: 16),
                   label: const Text('Manage'),
@@ -1658,58 +1684,6 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
                   ),
                 );
               },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSessionInfo(String currentTime, String userLogin) {
-    // Get current date and time
-    final now = DateTime.now();
-    final formattedTime =
-        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} "
-        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
-
-    return Card(
-      elevation: 0,
-      color: Colors.grey.shade100,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.security,
-              size: 20,
-              color: Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): $formattedTime',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Current User\'s Login: $userLogin',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

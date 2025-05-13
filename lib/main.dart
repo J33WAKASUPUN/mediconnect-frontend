@@ -11,6 +11,7 @@ import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart
 import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
 import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
+import 'package:mediconnect/features/messages/screens/message_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
@@ -271,6 +272,8 @@ class MyApp extends StatelessWidget {
         '/doctor/calendar': (context) => const DoctorCalendarScreen(),
         '/doctor/calendar/working-hours': (context) =>
             const WorkingHoursSettingsScreen(),
+
+        '/messages': (context) => const MessagesScreen(),
       },
       onGenerateRoute: (settings) {
         // Handle doctor profile

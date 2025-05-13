@@ -5,14 +5,15 @@ import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
 import 'package:mediconnect/features/doctor/screens/doctor_appointments_screen.dart';
+import 'package:mediconnect/features/messages/screens/message_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
+import 'package:mediconnect/features/profile/providers/profile_provider.dart';
 import 'package:mediconnect/shared/constants/app_assets.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
-import '../../../shared/widgets/custom_bottom_navigation.dart';
 import '../../../shared/widgets/loading_overlay.dart';
 import '../providers/doctor_provider.dart';
 import '../widgets/doctor_drawer.dart';
@@ -27,44 +28,80 @@ class DoctorDashboard extends StatefulWidget {
 
 class DoctorDashboardState extends State<DoctorDashboard> {
   int _currentIndex = 0;
+  bool _isLoading = false;
 
   void changeTab(int index) {
     setState(() => _currentIndex = index);
   }
 
+  // Define screens for each tab
   late final List<Widget> _screens = [
     const DoctorDashboardContent(),
-    const DoctorAppointmentsScreen(),
+    const DoctorScheduleScreen(),
     const ProfileScreen(),
+    const MessagesScreen(),
+    const DoctorAppointmentsScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    // Load initial data
-    Future.microtask(() {
-      context.read<DoctorProvider>().getDoctorProfile();
-      context.read<NotificationProvider>().loadNotifications();
+    // Make sure we load data after the widget is fully built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInitialData();
+    });
+  }
+
+  // Fixed loading function without using context as BuildContext
+  Future<void> _loadInitialData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
     });
 
-    Future.microtask(() async {
-      final provider = context.read<AppointmentProvider>();
-      await provider.loadAppointments();
-      await provider.syncPaymentStatus();
-    });
+    try {
+      // Get providers without using context as BuildContext
+      final doctorProvider = Provider.of<DoctorProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
+      // First load profile data to ensure doctor profile is available
+      await profileProvider.getProfile();
+
+      // Then load doctor-specific data
+      await doctorProvider.getDoctorProfile();
+
+      // Then load appointments and notifications
+      await appointmentProvider.loadAppointments();
+      await appointmentProvider.syncPaymentStatus();
+      await notificationProvider.loadNotifications();
+    } catch (e) {
+      print("Error loading initial data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return LoadingOverlay(
-      isLoading: context.watch<DoctorProvider>().isLoading,
+      isLoading: _isLoading || context.watch<DoctorProvider>().isLoading,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_currentIndex == 0
-              ? 'Doctor Dashboard'
-              : _currentIndex == 1
-                  ? 'Appointments'
-                  : 'Profile'),
+          title: const Text(
+            'MediConnect',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
           elevation: 0,
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -86,21 +123,239 @@ class DoctorDashboardState extends State<DoctorDashboard> {
         ),
         drawer: const DoctorDrawer(),
         body: _screens[_currentIndex],
-        bottomNavigationBar: CustomBottomNavigation(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+        bottomNavigationBar: _buildCustomBottomNavigation(),
+      ),
+    );
+  }
+  
+  Widget _buildCustomBottomNavigation() {
+    return Container(
+      height: 65, // More compact height
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // Base row with all navigation items
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(0, Icons.dashboard_outlined, 'Dashboard'),
+              _buildNavItem(1, Icons.calendar_today_outlined, 'Schedule'),
+              // Center space for profile
+              const SizedBox(width: 70),
+              _buildNavItem(3, Icons.chat_bubble_outline, 'Messages'),
+              _buildNavItem(4, Icons.people_alt_outlined, 'Appointments'),
+            ],
+          ),
+          
+          // Centered profile button (raised above row)
+          Positioned(
+            top: -15,
+            child: GestureDetector(
+              onTap: () => changeTab(2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 55,
+                    width: 55,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.primary, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        final user = authProvider.user;
+                        return user?.profilePicture != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(27.5),
+                                child: Image.network(
+                                  user!.profilePicture!,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Icon(
+                                Icons.person_outline,
+                                color: AppColors.primary,
+                                size: 28,
+                              );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Profile',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _currentIndex == index;
+    
+    return InkWell(
+      onTap: () => changeTab(index),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: Colors.white,
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Create a placeholder for DoctorScheduleScreen
+class DoctorScheduleScreen extends StatelessWidget {
+  const DoctorScheduleScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 64,
+              color: AppColors.primary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Schedule',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Manage your working hours and availability',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Add schedule management functionality
+              },
+              icon: const Icon(Icons.edit_calendar),
+              label: const Text('Set Availability'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class DoctorDashboardContent extends StatelessWidget {
+class DoctorDashboardContent extends StatefulWidget {
   const DoctorDashboardContent({super.key});
 
   @override
+  State<DoctorDashboardContent> createState() => _DoctorDashboardContentState();
+}
+
+class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Get profile provider
+      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final doctorProvider = Provider.of<DoctorProvider>(context, listen: false);
+      final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+
+      // Explicitly load profile data to ensure it's available
+      await profileProvider.getProfile();
+      
+      // Then load doctor-specific data
+      await doctorProvider.getDoctorProfile();
+      
+      // Then load appointments
+      await appointmentProvider.loadAppointments();
+    } catch (e) {
+      print("Error refreshing dashboard data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user;
+    final authProvider = context.watch<AuthProvider>();
+    final profileProvider = context.watch<ProfileProvider>();
     final doctorProvider = context.watch<DoctorProvider>();
     final appointmentProvider = context.watch<AppointmentProvider>();
     final notificationProvider = context.watch<NotificationProvider>();
@@ -109,7 +364,13 @@ class DoctorDashboardContent extends StatelessWidget {
     final currentTime = SessionHelper.getCurrentUTC();
     final userLogin = SessionHelper.getUserLogin();
 
-    // Calculate metrics
+    // Get user from auth provider
+    final user = authProvider.user;
+    
+    // Get doctor profile data with fallback, like patient dashboard does
+    final doctorProfile = user?.doctorProfile;
+
+    // Calculate metrics from appointment data
     final totalAppointments = appointmentProvider.appointments.length;
     final completedAppointments = appointmentProvider.appointments
         .where((apt) => apt.status == 'completed')
@@ -122,19 +383,20 @@ class DoctorDashboardContent extends StatelessWidget {
         .length;
     final todayAppointments = appointmentProvider.todayAppointments.length;
 
+    // Get stat values with appropriate fallbacks
+    final specialization = doctorProfile?.specialization ?? 'Medical Professional';
+    final experience = doctorProfile?.yearsOfExperience ?? 0;
+    final patientCount = doctorProvider.patientCount;
+
     return RefreshIndicator(
-      onRefresh: () async {
-        await doctorProvider.getDoctorProfile();
-        await appointmentProvider.loadAppointments();
-        await notificationProvider.loadNotifications();
-      },
+      onRefresh: _refreshData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header section with greeting and profile summary
-            _buildHeaderSection(context, user),
+            // Header with greeting and doctor info
+            _buildProfileHeader(user, todayAppointments, specialization, experience, patientCount),
 
             // Main dashboard content
             Padding(
@@ -142,8 +404,8 @@ class DoctorDashboardContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
-                  
+                  const SizedBox(height: 24),
+
                   // KPI cards
                   _buildMetricsOverview(
                     todayAppointments: todayAppointments,
@@ -192,9 +454,9 @@ class DoctorDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderSection(BuildContext context, user) {
+  // New profile header styled like the patient dashboard
+  Widget _buildProfileHeader(user, int todayAppointments, String specialization, int experience, int patientCount) {
     return Container(
-      width: double.infinity,
       decoration: BoxDecoration(
         color: AppColors.primary,
         borderRadius: const BorderRadius.only(
@@ -202,21 +464,42 @@ class DoctorDashboardContent extends StatelessWidget {
           bottomRight: Radius.circular(20),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.white,
-                backgroundImage: user?.profilePicture != null
-                    ? NetworkImage(user!.profilePicture!)
-                    : null,
-                child: user?.profilePicture == null
-                    ? const Icon(Icons.person, size: 30, color: AppColors.primary)
-                    : null,
+              // Doctor profile picture with border
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 3,
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 38, // Increased size
+                  backgroundColor: Colors.white,
+                  backgroundImage: user?.profilePicture != null
+                      ? NetworkImage(user!.profilePicture!)
+                      : null,
+                  child: user?.profilePicture == null
+                      ? Text(
+                          user != null &&
+                                  user.firstName.isNotEmpty &&
+                                  user.lastName.isNotEmpty
+                              ? '${user.firstName[0]}${user.lastName[0]}'
+                              : 'D',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : null,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -224,24 +507,47 @@ class DoctorDashboardContent extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome back,',
-                      style: AppStyles.bodyText2.copyWith(
+                      'Hello,',
+                      style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
                       ),
                     ),
                     Text(
                       'Dr. ${user?.firstName ?? ''} ${user?.lastName ?? ''}',
-                      style: AppStyles.heading2.copyWith(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
+                        fontSize: 22,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      user?.specialization ?? 'Medical Professional',
-                      style: AppStyles.bodyText2.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                        fontStyle: FontStyle.italic,
+                    const SizedBox(height: 4),
+                    // Badge showing appointments
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.calendar_month,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$todayAppointments appointment${todayAppointments != 1 ? 's' : ''} today',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -253,17 +559,20 @@ class DoctorDashboardContent extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildHeaderStatCard(
-                context: context,
-                title: "Today's Schedule",
-                value: _formatCurrentDate(),
-                iconData: Icons.today,
+              _buildHealthCard(
+                icon: Icons.people,
+                title: 'Patients',
+                value: patientCount.toString(),
               ),
-              _buildHeaderStatCard(
-                context: context,
+              _buildHealthCard(
+                icon: Icons.medical_services,
+                title: 'Specialization',
+                value: specialization,
+              ),
+              _buildHealthCard(
+                icon: Icons.star,
                 title: 'Experience',
-                value: '${user?.yearsOfExperience ?? 0} Years',
-                iconData: Icons.star,
+                value: '$experience yrs',
               ),
             ],
           ),
@@ -272,11 +581,10 @@ class DoctorDashboardContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderStatCard({
-    required BuildContext context,
+  Widget _buildHealthCard({
+    required IconData icon,
     required String title,
     required String value,
-    required IconData iconData,
   }) {
     return Expanded(
       child: Card(
@@ -287,43 +595,32 @@ class DoctorDashboardContent extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  iconData,
-                  color: Colors.white,
-                  size: 20,
+              Icon(
+                icon,
+                color: Colors.white,
+                size: 22,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 10,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppStyles.bodyText2.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      value,
-                      style: AppStyles.bodyText1.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ],
           ),
@@ -642,7 +939,7 @@ class DoctorDashboardContent extends StatelessWidget {
               ],
             ),
             
-            if (appointmentProvider.isLoading)
+            if (appointmentProvider.isLoading || _isRefreshing)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.all(24.0),
