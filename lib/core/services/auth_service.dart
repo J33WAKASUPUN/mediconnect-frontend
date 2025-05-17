@@ -1,6 +1,20 @@
 import 'base_api_service.dart';
 
 class AuthService extends BaseApiService {
+  String? _currentUserId;
+  String? get currentUserId => _currentUserId;
+
+  @override
+  void setAuthToken(String token) {
+    super.setAuthToken(token);
+    _currentUserId = null; // Will be set later when user profile is loaded
+  }
+
+  // Method to set user ID explicitly
+  void setCurrentUserId(String userId) {
+    _currentUserId = userId;
+  }
+
   // Login
   Future<Map<String, dynamic>> login({
     required String email,

@@ -45,4 +45,13 @@ class ApiEndpoints {
   // Todo endpoints
   static const String todos = '/todos';
   static const String todoToggle = '/todos/:id/toggle';
+
+  // Message endpoints
+  static const String messages = '/messages';
+  static const String conversations = '/messages/conversations';
+  static const String unreadCount = '/messages/unread/count';
+  static const String searchMessages = '/messages/search';
+  
+  // File upload
+  static const String fileMessages = '/messages/file';
 }

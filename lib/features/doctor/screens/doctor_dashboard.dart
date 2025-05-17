@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
-import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
-import 'package:mediconnect/features/appointment/widgets/appointment_card.dart';
 import 'package:mediconnect/features/doctor/screens/doctor_appointments_screen.dart';
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:mediconnect/features/messages/screens/message_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/profile/providers/profile_provider.dart';
-import 'package:mediconnect/shared/constants/app_assets.dart';
+import 'package:mediconnect/shared/widgets/custom_button.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -61,21 +60,30 @@ class DoctorDashboardState extends State<DoctorDashboard> {
     });
 
     try {
-      // Get providers without using context as BuildContext
-      final doctorProvider = Provider.of<DoctorProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-      final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
-      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      // Get providers
+      final doctorProvider =
+          Provider.of<DoctorProvider>(context, listen: false);
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
+      final appointmentProvider =
+          Provider.of<AppointmentProvider>(context, listen: false);
+      final notificationProvider =
+          Provider.of<NotificationProvider>(context, listen: false);
 
       // First load profile data to ensure doctor profile is available
       await profileProvider.getProfile();
 
-      // Then load doctor-specific data
-      await doctorProvider.getDoctorProfile();
-
-      // Then load appointments and notifications
+      // Load appointments
       await appointmentProvider.loadAppointments();
       await appointmentProvider.syncPaymentStatus();
+
+      // Then load doctor-specific data and calculate metrics
+      await doctorProvider.getDoctorProfile();
+
+      // Calculate doctor metrics based on appointment data
+      doctorProvider.calculateMetrics(appointmentProvider);
+
+      // Also load notifications
       await notificationProvider.loadNotifications();
     } catch (e) {
       print("Error loading initial data: $e");
@@ -111,7 +119,8 @@ class DoctorDashboardState extends State<DoctorDashboard> {
                 label: Text(
                   context.watch<NotificationProvider>().unreadCount.toString(),
                 ),
-                isLabelVisible: context.watch<NotificationProvider>().unreadCount > 0,
+                isLabelVisible:
+                    context.watch<NotificationProvider>().unreadCount > 0,
                 child: const Icon(Icons.notifications),
               ),
               onPressed: () {
@@ -127,7 +136,7 @@ class DoctorDashboardState extends State<DoctorDashboard> {
       ),
     );
   }
-  
+
   Widget _buildCustomBottomNavigation() {
     return Container(
       height: 65, // More compact height
@@ -161,7 +170,7 @@ class DoctorDashboardState extends State<DoctorDashboard> {
               _buildNavItem(4, Icons.people_alt_outlined, 'Appointments'),
             ],
           ),
-          
+
           // Centered profile button (raised above row)
           Positioned(
             top: -15,
@@ -224,7 +233,7 @@ class DoctorDashboardState extends State<DoctorDashboard> {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _currentIndex == index;
-    
+
     return InkWell(
       onTap: () => changeTab(index),
       child: Column(
@@ -328,19 +337,45 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
     });
 
     try {
-      // Get profile provider
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-      final doctorProvider = Provider.of<DoctorProvider>(context, listen: false);
-      final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+      // Get providers
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
+      final doctorProvider =
+          Provider.of<DoctorProvider>(context, listen: false);
+      final appointmentProvider =
+          Provider.of<AppointmentProvider>(context, listen: false);
+      final calendarProvider =
+          Provider.of<CalendarProvider>(context, listen: false);
 
-      // Explicitly load profile data to ensure it's available
+      // Load profile data
       await profileProvider.getProfile();
-      
-      // Then load doctor-specific data
-      await doctorProvider.getDoctorProfile();
-      
-      // Then load appointments
+
+      // Load appointments
       await appointmentProvider.loadAppointments();
+
+      // Load doctor data and calculate metrics
+      await doctorProvider.getDoctorProfile();
+      doctorProvider.calculateMetrics(appointmentProvider);
+
+      // Load calendar data if we have a doctor profile
+      if (doctorProvider.doctorProfile != null) {
+        final doctorId = doctorProvider.doctorProfile!.id;
+        final now = DateTime.now();
+        final startDate = DateTime(now.year, now.month, 1);
+        final endDate = DateTime(now.year, now.month + 1, 0);
+
+        await calendarProvider.fetchCalendar(
+          doctorId: doctorId,
+          startDate: startDate,
+          endDate: endDate,
+        );
+
+        // Calculate calendar metrics
+        doctorProvider.calculateCalendarMetrics(calendarProvider);
+      } else {
+        // If no doctor profile, use default calendar metrics
+        doctorProvider.calculateCalendarMetrics(calendarProvider);
+      }
     } catch (e) {
       print("Error refreshing dashboard data: $e");
     } finally {
@@ -355,38 +390,38 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final profileProvider = context.watch<ProfileProvider>();
+    context.watch<ProfileProvider>();
     final doctorProvider = context.watch<DoctorProvider>();
     final appointmentProvider = context.watch<AppointmentProvider>();
-    final notificationProvider = context.watch<NotificationProvider>();
+    context.watch<NotificationProvider>();
+    context.watch<CalendarProvider>();
 
-    // Current time and session info
-    final currentTime = SessionHelper.getCurrentUTC();
-    final userLogin = SessionHelper.getUserLogin();
-
-    // Get user from auth provider
+    // Get user and profile data
     final user = authProvider.user;
-    
-    // Get doctor profile data with fallback, like patient dashboard does
     final doctorProfile = user?.doctorProfile;
 
-    // Calculate metrics from appointment data
-    final totalAppointments = appointmentProvider.appointments.length;
+    // Get metrics from providers
+    final specialization =
+        doctorProfile?.specialization ?? 'Medical Professional';
+    final experience = doctorProfile?.yearsOfExperience ?? 0;
+    final patientCount = doctorProvider.patientCount;
+    final pendingAppointments = doctorProvider.pendingAppointments;
+
+    // Get work days so far in current month - pass CalendarProvider instance to consider holidays
+    final CalendarProvider calendarProvider = Provider.of<CalendarProvider>(context);
+    final workDaysSoFar =
+        doctorProvider.calculateWorkDaysSoFar(calendarProvider);
+
+    // Debug print to check value
+    print("Work days so far (excluding holidays): $workDaysSoFar");
+
+    // Get other metrics
     final completedAppointments = appointmentProvider.appointments
         .where((apt) => apt.status == 'completed')
         .length;
     final cancelledAppointments = appointmentProvider.appointments
         .where((apt) => apt.status == 'cancelled')
         .length;
-    final pendingAppointments = appointmentProvider.appointments
-        .where((apt) => apt.status == 'pending')
-        .length;
-    final todayAppointments = appointmentProvider.todayAppointments.length;
-
-    // Get stat values with appropriate fallbacks
-    final specialization = doctorProfile?.specialization ?? 'Medical Professional';
-    final experience = doctorProfile?.yearsOfExperience ?? 0;
-    final patientCount = doctorProvider.patientCount;
 
     return RefreshIndicator(
       onRefresh: _refreshData,
@@ -395,8 +430,9 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with greeting and doctor info
-            _buildProfileHeader(user, todayAppointments, specialization, experience, patientCount),
+            // Header with profile info
+            _buildProfileHeader(user, pendingAppointments, specialization,
+                experience, patientCount),
 
             // Main dashboard content
             Padding(
@@ -406,45 +442,40 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                 children: [
                   const SizedBox(height: 24),
 
-                  // KPI cards
+                  // Performance metrics cards - pass workDaysInMonth here, not activeAppointments.length
                   _buildMetricsOverview(
-                    todayAppointments: todayAppointments,
-                    totalPatients: totalAppointments,
+                    workDaysInMonth: workDaysSoFar,
+                    totalPatients: patientCount,
                     completedAppointments: completedAppointments,
                     pendingAppointments: pendingAppointments,
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
-                  // Appointments analytics
+
+                  // Appointment analytics chart
                   _buildAppointmentAnalytics(
                     context,
                     completed: completedAppointments,
                     cancelled: cancelledAppointments,
                     pending: pendingAppointments,
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
-                  // Today's appointments
-                  _buildTodayAppointments(context, appointmentProvider),
-                  
+
+                  // Today's appointments - use the provider's todayActiveAppointments
+                  _buildTodayAppointments(appointmentProvider),
+
                   const SizedBox(height: 24),
-                  
+
                   // Recent patients section
                   _buildRecentPatients(context, appointmentProvider),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Action buttons section
                   _buildQuickActions(context),
-                  
+
                   const SizedBox(height: 24),
-                  
-                  // Session info at bottom
-                  _buildSessionInfo(currentTime, userLogin),
-                  
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -455,7 +486,14 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
   }
 
   // New profile header styled like the patient dashboard
-  Widget _buildProfileHeader(user, int todayAppointments, String specialization, int experience, int patientCount) {
+  Widget _buildProfileHeader(User? user, int pendingAppointments,
+      String specialization, int experience, int patientCount) {
+    final firstName = user?.firstName ?? '';
+    final lastName = user?.lastName ?? '';
+    final doctorName = firstName.isNotEmpty || lastName.isNotEmpty
+        ? 'Dr. $firstName $lastName'
+        : 'Doctor';
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.primary,
@@ -487,10 +525,8 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                       : null,
                   child: user?.profilePicture == null
                       ? Text(
-                          user != null &&
-                                  user.firstName.isNotEmpty &&
-                                  user.lastName.isNotEmpty
-                              ? '${user.firstName[0]}${user.lastName[0]}'
+                          firstName.isNotEmpty && lastName.isNotEmpty
+                              ? '${firstName[0]}${lastName[0]}'
                               : 'D',
                           style: const TextStyle(
                             fontSize: 28,
@@ -514,7 +550,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                       ),
                     ),
                     Text(
-                      'Dr. ${user?.firstName ?? ''} ${user?.lastName ?? ''}',
+                      doctorName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -523,7 +559,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    // Badge showing appointments
+                    // Badge showing pending appointments - similar to patient dashboard
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
@@ -535,13 +571,13 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
-                            Icons.calendar_month,
+                            Icons.pending_actions,
                             color: Colors.white,
                             size: 14,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '$todayAppointments appointment${todayAppointments != 1 ? 's' : ''} today',
+                            '$pendingAppointments pending appointment${pendingAppointments != 1 ? 's' : ''}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -630,7 +666,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
   }
 
   Widget _buildMetricsOverview({
-    required int todayAppointments,
+    required int workDaysInMonth,
     required int totalPatients,
     required int completedAppointments,
     required int pendingAppointments,
@@ -649,9 +685,9 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: "Today's\nAppointments",
-                value: todayAppointments.toString(),
-                icon: Icons.calendar_today,
+                title: "Work Days\nSo Far",
+                value: workDaysInMonth.toString(),
+                icon: Icons.calendar_month,
                 color: AppColors.primary,
               ),
             ),
@@ -742,10 +778,8 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
     );
   }
 
-  Widget _buildAppointmentAnalytics(
-    BuildContext context,
-    {required int completed, required int cancelled, required int pending}
-  ) {
+  Widget _buildAppointmentAnalytics(BuildContext context,
+      {required int completed, required int cancelled, required int pending}) {
     final total = completed + cancelled + pending;
     final completedPercentage = total > 0 ? completed / total * 100 : 0;
     final cancelledPercentage = total > 0 ? cancelled / total * 100 : 0;
@@ -818,7 +852,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                       ),
                     ),
                   ),
-                  
+
                   // Legend
                   Expanded(
                     flex: 2,
@@ -899,18 +933,15 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
     );
   }
 
-  Widget _buildTodayAppointments(
-    BuildContext context,
-    AppointmentProvider appointmentProvider
-  ) {
+  Widget _buildTodayAppointments(AppointmentProvider appointmentProvider) {
     // Get today's appointments sorted by time
-    final todayAppointments = [...appointmentProvider.todayAppointments];
-    todayAppointments.sort((a, b) {
-      // Extract start time from timeSlot format "HH:MM - HH:MM"
-      final aStartTime = a.timeSlot.split(' - ').first;
-      final bStartTime = b.timeSlot.split(' - ').first;
-      return aStartTime.compareTo(bStartTime);
-    });
+    final // Get upcoming appointments sorted by date
+        upcomingAppointments = [...appointmentProvider.upcomingAppointments];
+    upcomingAppointments
+        .sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
+
+    // Take only the next 3 appointments
+    final nextAppointments = upcomingAppointments.take(3).toList();
 
     return Card(
       elevation: 2,
@@ -927,39 +958,47 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
               children: [
                 Text(
                   'Today\'s Appointments',
-                  style: AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(context, '/doctor/appointments');
                   },
-                  icon: const Icon(Icons.calendar_view_day, size: 16),
-                  label: const Text('View All'),
+                  icon: const Icon(Icons.calendar_view_week, size: 16),
+                  label: const Text('All'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
                 ),
               ],
             ),
-            
+            const SizedBox(height: 8),
             if (appointmentProvider.isLoading || _isRefreshing)
               const Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24.0),
+                  padding: EdgeInsets.symmetric(vertical: 20.0),
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (todayAppointments.isEmpty)
+            else if (nextAppointments.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32.0),
+                  padding: const EdgeInsets.symmetric(vertical: 20.0),
                   child: Column(
                     children: [
                       Icon(
-                        Icons.event_available,
+                        Icons.calendar_today,
                         size: 48,
                         color: Colors.grey.shade400,
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No appointments scheduled for today',
+                        'No active appointments for today',
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
                     ],
@@ -967,130 +1006,118 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                 ),
               )
             else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: todayAppointments.length,
-                separatorBuilder: (context, index) => const Divider(),
-                itemBuilder: (context, index) {
-                  final appointment = todayAppointments[index];
-                  
-                  // Get patient name
-                  final patientName = appointment.patientDetails != null
-                      ? '${appointment.patientDetails!['firstName'] ?? ''} ${appointment.patientDetails!['lastName'] ?? ''}'
+              Column(
+                children: nextAppointments.map((appointment) {
+                  // Get patient details instead of doctor details
+                  final patientDetails = appointment.patientDetails;
+                  final patientName = patientDetails != null
+                      ? '${patientDetails['firstName'] ?? ''} ${patientDetails['lastName'] ?? ''}'
                       : 'Patient';
-                  
-                  // Get initials for avatar
-                  final initials = patientName.isNotEmpty
-                      ? patientName.split(' ').take(2).map((name) => name.isNotEmpty ? name[0] : '').join()
-                      : 'P';
-                  
-                  // Determine status color
-                  Color statusColor;
-                  IconData statusIcon;
-                  switch(appointment.status) {
-                    case 'confirmed':
-                      statusColor = AppColors.success;
-                      statusIcon = Icons.check_circle;
-                      break;
-                    case 'pending':
-                      statusColor = AppColors.warning;
-                      statusIcon = Icons.pending;
-                      break;
-                    case 'cancelled':
-                      statusColor = AppColors.error;
-                      statusIcon = Icons.cancel;
-                      break;
-                    default:
-                      statusColor = Colors.grey;
-                      statusIcon = Icons.schedule;
-                  }
-                  
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.2),
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
+
+                  // Format appointment date
+                  final formattedDate =
+                      DateTimeHelper.formatDate(appointment.appointmentDate);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Text(
+                          patientName.isNotEmpty
+                              ? patientName.substring(0, 1)
+                              : 'P',
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ),
-                    title: Text(
-                      patientName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              appointment.timeSlot,
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                            ),
-                          ],
-                        ),
-                        if (appointment.reason != null && appointment.reason!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2.0),
-                            child: Text(
-                              'Reason: ${appointment.reason}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 12,
-                                color: statusColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                appointment.status.toUpperCase(),
+                      title: Text(
+                        patientName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (appointment.reason != null &&
+                              appointment.reason!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2.0),
+                              child: Text(
+                                'Reason: ${appointment.reason}',
                                 style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: statusColor,
+                                  fontSize: 12,
+                                  color: Colors.grey.shade700,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.calendar_today,
+                                  size: 12,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  formattedDate,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                const SizedBox(width: 12),
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 12,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  appointment.timeSlot,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(appointment.status)
+                              .withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          appointment.status.toUpperCase(),
+                          style: TextStyle(
+                            color: _getStatusColor(appointment.status),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.chevron_right),
-                      ],
+                      ),
+                      onTap: () {
+                        // Navigate to appointment details - use doctor route
+                        Navigator.pushNamed(
+                          context,
+                          '/doctor/appointment-details',
+                          arguments: appointment,
+                        );
+                      },
                     ),
-                    onTap: () {
-                      // Navigate to appointment details
-                      Navigator.pushNamed(
-                        context,
-                        '/doctor/appointment-details',
-                        arguments: appointment,
-                      );
-                    },
                   );
-                },
+                }).toList(),
               ),
           ],
         ),
@@ -1098,15 +1125,28 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
     );
   }
 
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return AppColors.success;
+      case 'pending':
+        return AppColors.warning;
+      case 'cancelled':
+        return AppColors.error;
+      case 'completed':
+        return AppColors.info;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildRecentPatients(
-    BuildContext context,
-    AppointmentProvider appointmentProvider
-  ) {
+      BuildContext context, AppointmentProvider appointmentProvider) {
     // Get unique patients from completed appointments
     final Map<String, dynamic> uniquePatients = {};
-    
+
     for (var appointment in appointmentProvider.appointments) {
-      if (appointment.patientId != null && 
+      if (appointment.patientId != null &&
           appointment.patientDetails != null &&
           !uniquePatients.containsKey(appointment.patientId)) {
         uniquePatients[appointment.patientId] = {
@@ -1115,12 +1155,12 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
         };
       }
     }
-    
+
     // Sort patients by most recent appointment and take top 5
     final sortedPatients = uniquePatients.entries.toList()
       ..sort((a, b) => (b.value['lastAppointment'] as DateTime)
           .compareTo(a.value['lastAppointment'] as DateTime));
-    
+
     final recentPatients = sortedPatients.take(5).toList();
 
     return Card(
@@ -1138,18 +1178,21 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
               children: [
                 Text(
                   'Recent Patients',
-                  style: AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
+                  style:
+                      AppStyles.heading1.copyWith(fontWeight: FontWeight.bold),
                 ),
                 TextButton.icon(
                   onPressed: () {
-                    // Navigate to all patients view
+                    Navigator.pushNamed(
+                      context,
+                      '/doctor/patients',
+                    );
                   },
                   icon: const Icon(Icons.people, size: 16),
                   label: const Text('View All'),
                 ),
               ],
             ),
-            
             if (recentPatients.isEmpty)
               Center(
                 child: Padding(
@@ -1169,24 +1212,30 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                 itemBuilder: (context, index) {
                   final patientId = recentPatients[index].key;
                   final patientData = recentPatients[index].value;
-                  final patientDetails = patientData['details'] as Map<String, dynamic>;
-                  final lastAppointment = patientData['lastAppointment'] as DateTime;
-                  
+                  final patientDetails =
+                      patientData['details'] as Map<String, dynamic>;
+                  final lastAppointment =
+                      patientData['lastAppointment'] as DateTime;
+
                   // Format patient name
                   final firstName = patientDetails['firstName'] ?? '';
                   final lastName = patientDetails['lastName'] ?? '';
                   final fullName = '$firstName $lastName'.trim();
-                  final patientName = fullName.isNotEmpty ? fullName : 'Patient';
-                  
+                  final patientName =
+                      fullName.isNotEmpty ? fullName : 'Patient';
+
                   // Format last appointment date
-                  final lastAppointmentDate = DateTimeHelper.formatDate(lastAppointment);
-                  
+                  final lastAppointmentDate =
+                      DateTimeHelper.formatDate(lastAppointment);
+
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
                       backgroundColor: AppColors.secondary.withOpacity(0.2),
                       child: Text(
-                        patientName.isNotEmpty ? patientName[0].toUpperCase() : 'P',
+                        patientName.isNotEmpty
+                            ? patientName[0].toUpperCase()
+                            : 'P',
                         style: const TextStyle(
                           color: AppColors.secondary,
                           fontWeight: FontWeight.bold,
@@ -1199,29 +1248,19 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                     ),
                     subtitle: Row(
                       children: [
-                        const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
+                        const Icon(Icons.calendar_today,
+                            size: 12, color: Colors.grey),
                         const SizedBox(width: 4),
                         Text(
                           'Last visit: $lastAppointmentDate',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.medical_information, size: 20),
-                          color: AppColors.secondary,
-                          onPressed: () {
-                            // View medical records for this patient
-                            Navigator.pushNamed(
-                              context,
-                              '/doctor/patient-records',
-                              arguments: patientId,
-                            );
-                          },
-                        ),
                         IconButton(
                           icon: const Icon(Icons.message_outlined, size: 20),
                           color: AppColors.primary,
@@ -1278,7 +1317,8 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                 context: context,
                 icon: Icons.add_circle_outline,
                 label: 'Create Record',
-                onTap: () => Navigator.pushNamed(context, '/doctor/create-record'),
+                onTap: () =>
+                    Navigator.pushNamed(context, '/doctor/appointments'),
                 color: AppColors.secondary,
               ),
             ),
@@ -1359,66 +1399,5 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
         ),
       ),
     );
-  }
-
-  Widget _buildSessionInfo(String currentTime, String userLogin) {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.shade100,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.security,
-              size: 20,
-              color: Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Session',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade800,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Time: $currentTime | ID: $userLogin',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatCurrentDate() {
-    final now = DateTime.now();
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
-    final dayName = days[now.weekday - 1];
-    final monthName = months[now.month - 1];
-    
-    return '$dayName, $monthName ${now.day}, ${now.year}';
   }
 }

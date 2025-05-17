@@ -7,6 +7,7 @@ import 'package:mediconnect/config/api_endpoints.dart';
 import 'package:mediconnect/core/models/calendar_model.dart';
 import 'package:mediconnect/core/models/todo_model.dart';
 import 'package:mediconnect/core/services/calendar_service.dart';
+import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/review_service.dart';
 import 'package:mediconnect/core/services/todo_service.dart';
 import 'base_api_service.dart';
@@ -29,6 +30,7 @@ class ApiService {
   final ReviewService _reviewService;
   final CalendarService _calendarService;
   final TodoService _todoService;
+  final MessageService _messageService;
 
   ApiService()
       : _authService = AuthService(),
@@ -39,7 +41,8 @@ class ApiService {
         _notificationService = NotificationService(),
         _reviewService = ReviewService(),
         _calendarService = CalendarService(),
-        _todoService = TodoService() {
+        _todoService = TodoService(),
+        _messageService = MessageService() {
     // Initialize services with token if available
     if (_authService.hasValidToken()) {
       final token = _authService.getAuthToken();
@@ -47,6 +50,7 @@ class ApiService {
         _reviewService.setAuthToken(token);
         _calendarService.setAuthToken(token);
         _todoService.setAuthToken(token);
+        _messageService.setAuthToken(token); // Add token to MessageService
       }
     }
   }
@@ -61,6 +65,7 @@ class ApiService {
     _reviewService.setAuthToken(token);
     _calendarService.setAuthToken(token);
     _todoService.setAuthToken(token);
+    _messageService.setAuthToken(token);
   }
 
 // Direct synchronous auth token accessor (non-async)
@@ -547,4 +552,92 @@ class ApiService {
   Future<void> deleteTodo(String id) => _todoService.deleteTodo(id);
 
   Future<Todo> toggleTodoStatus(String id) => _todoService.toggleTodoStatus(id);
+
+  // Get user conversations
+  Future<List<Map<String, dynamic>>> getConversations() =>
+      _messageService.getConversations();
+
+  // Get messages for a conversation
+  Future<Map<String, dynamic>> getMessages(String conversationId,
+          {int page = 1, int limit = 20}) =>
+      _messageService.getMessages(conversationId, page: page, limit: limit);
+
+  // Send a text message
+  Future<Map<String, dynamic>> sendMessage({
+    required String receiverId,
+    required String content,
+    String category = 'general',
+    String priority = 'normal',
+    String relatedTo = 'none',
+    String? referenceId,
+  }) =>
+      _messageService.sendMessage(
+        receiverId: receiverId,
+        content: content,
+        category: category,
+        priority: priority,
+        relatedTo: relatedTo,
+        referenceId: referenceId,
+      );
+
+  // Send a file message (image or document)
+  Future<Map<String, dynamic>> sendFileMessage({
+    required String receiverId,
+    required File file,
+    String category = 'general',
+    String priority = 'normal',
+    String relatedTo = 'none',
+    String? referenceId,
+  }) =>
+      _messageService.sendFileMessage(
+        receiverId: receiverId,
+        file: file,
+        category: category,
+        priority: priority,
+        relatedTo: relatedTo,
+        referenceId: referenceId,
+      );
+
+  // Edit a message
+  Future<Map<String, dynamic>> editMessage(String messageId, String content) =>
+      _messageService.editMessage(messageId, content);
+
+  // Add reaction to a message
+  Future<Map<String, dynamic>> addReaction(String messageId, String reaction) =>
+      _messageService.addReaction(messageId, reaction);
+
+  // Remove reaction from a message
+  Future<Map<String, dynamic>> removeReaction(
+          String messageId, String reaction) =>
+      _messageService.removeReaction(messageId, reaction);
+
+  // Forward a message
+  Future<Map<String, dynamic>> forwardMessage(
+          String messageId, String receiverId) =>
+      _messageService.forwardMessage(messageId, receiverId);
+
+  // Search messages
+  Future<Map<String, dynamic>> searchMessages(
+    String query, {
+    String? conversationId,
+    int page = 1,
+    int limit = 20,
+  }) =>
+      _messageService.searchMessages(
+        query,
+        conversationId: conversationId,
+        page: page,
+        limit: limit,
+      );
+
+  // Mark message as read
+  Future<Map<String, dynamic>> markMessageAsRead(String messageId) =>
+      _messageService.markMessageAsRead(messageId);
+
+  // Get unread message count
+  Future<int> getUnreadMessageCount() => _messageService.getUnreadCount();
+
+  // Delete message
+  Future<void> deleteMessage(String messageId) =>
+      _messageService.deleteMessage(messageId);
 }

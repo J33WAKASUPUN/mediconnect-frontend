@@ -190,10 +190,23 @@ class PatientDashboardState extends State<PatientDashboard> {
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.person_outline,
-                      color: AppColors.primary,
-                      size: 28,
+                    child: Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        final user = authProvider.user;
+                        return user?.profilePicture != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(27.5),
+                                child: Image.network(
+                                  user!.profilePicture!,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Icon(
+                                Icons.person_outline,
+                                color: AppColors.primary,
+                                size: 28,
+                              );
+                      },
                     ),
                   ),
                   const SizedBox(height: 5),

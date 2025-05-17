@@ -1,9 +1,10 @@
 // ignore_for_file: avoid_print
-
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mediconnect/core/services/medication_reminder_service.dart';
+import 'package:mediconnect/core/services/auth_service.dart';
+import 'package:mediconnect/core/services/message_service.dart';
+import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
@@ -11,7 +12,10 @@ import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart
 import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
 import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
-import 'package:mediconnect/features/messages/screens/message_screen.dart';
+import 'package:mediconnect/features/messages/provider/message_provider.dart';
+import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
+import 'package:mediconnect/features/messages/screens/chat_list_screen.dart';
+import 'package:mediconnect/features/messages/screens/doctor_selection_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
@@ -26,6 +30,7 @@ import 'package:mediconnect/features/payment/screens/payment_details_screen.dart
 import 'package:mediconnect/features/payment/screens/payment_history_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 
 // Core imports
 import 'features/auth/providers/auth_provider.dart';
@@ -73,6 +78,9 @@ import 'features/notification/screens/notification_screen.dart';
 import 'shared/constants/colors.dart';
 import 'shared/constants/styles.dart';
 import 'core/utils/session_helper.dart';
+
+// Global navigator key for accessing context outside of build
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Helper getters for platform detection
 bool get isAndroid => defaultTargetPlatform == TargetPlatform.android;
@@ -224,18 +232,76 @@ void main() async {
         ChangeNotifierProvider(
           create: (context) => MedicationReminderProvider(),
         ),
+        // Add SocketService
+        Provider<SocketService>(
+          create: (_) => SocketService(),
+        ),
+        // Add MessageService
+        Provider<MessageService>(
+          create: (_) => MessageService(),
+        ),
+        // Add MessageProvider
+        ChangeNotifierProvider(
+          create: (context) => MessageProvider(
+            messageService: context.read<MessageService>(),
+            socketService: context.read<SocketService>(),
+            authService: context.read<AuthService>(),
+          ),
+        ),
       ],
       child: const MyApp(),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Schedule the socket initialization for after the first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeSocketService();
+    });
+  }
+  
+  void _initializeSocketService() {
+    try {
+      // Access providers directly from the current context
+      final socketService = Provider.of<SocketService>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Initialize Socket Service if user is authenticated
+      if (authProvider.isAuthenticated && authProvider.token != null) {
+        print('Initializing socket with token: ${authProvider.token!.substring(0, 10)}...');
+        socketService.initialize(authProvider.token!);
+      }
+      
+      // Listen for auth changes to reconnect socket if needed
+      authProvider.addListener(() {
+        if (authProvider.isAuthenticated && authProvider.token != null) {
+          print('Auth changed: Reconnecting socket');
+          socketService.initialize(authProvider.token!);
+        } else {
+          print('Auth changed: Disconnecting socket');
+          socketService.disconnect();
+        }
+      });
+    } catch (e) {
+      print('Error initializing socket service: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'MediConnect',
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
@@ -273,9 +339,35 @@ class MyApp extends StatelessWidget {
         '/doctor/calendar/working-hours': (context) =>
             const WorkingHoursSettingsScreen(),
 
-        '/messages': (context) => const MessagesScreen(),
+        // Add message routes
+        '/messages': (context) => ChatListScreen(), 
+
+        '/messages/chat': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return ChatDetailScreen(
+            conversationId: args['conversationId'],
+            otherUser: args['otherUser'],
+          );
+        },
+        '/messages/doctor-selection': (context) => DoctorSelectionScreen(),
       },
       onGenerateRoute: (settings) {
+        // Handle messages screen
+        if (settings.name == '/messages/chat') {
+          final args = settings.arguments;
+          if (args is Map<String, dynamic>) {
+            return MaterialPageRoute(
+              builder: (context) => ChatDetailScreen(
+                conversationId: args['conversationId'],
+                otherUser: args['otherUser'],
+              ),
+              settings: settings,
+            );
+          }
+          return _errorRoute('Invalid chat parameters');
+        }
+
         // Handle doctor profile
         if (settings.name == '/doctor/profile') {
           final args = settings.arguments;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/utils/session_helper.dart';
 import 'package:mediconnect/features/doctor/screens/doctor_dashboard.dart';
+import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -119,7 +120,8 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                   title: const Text('Calendar Management'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/doctor/calendar/working-hours');
+                    Navigator.pushNamed(
+                        context, '/doctor/calendar/working-hours');
                   },
                 ),
                 ListTile(
@@ -132,6 +134,39 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                     if (dashboardState != null) {
                       dashboardState.changeTab(2);
                     }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.message),
+                  title: const Text('Messages'),
+                  // Add this badge for unread messages
+                  trailing: Consumer<MessageProvider>(
+                    builder: (context, provider, _) {
+                      final unreadCount = provider.totalUnreadCount;
+                      if (unreadCount > 0) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            unreadCount.toString(),
+                            style: const TextStyle(
+                              color: AppColors.textLight,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      } else {
+                        return const SizedBox.shrink();
+                      }
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/messages');
                   },
                 ),
                 const Divider(),
