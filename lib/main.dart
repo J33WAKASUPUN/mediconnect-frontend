@@ -1,10 +1,10 @@
-// ignore_for_file: avoid_print
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/core/services/auth_service.dart';
 import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
+import 'package:mediconnect/core/services/user_service.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:mediconnect/features/doctor/screens/patient_list_screen.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
@@ -12,10 +12,12 @@ import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart
 import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
 import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
+import 'package:mediconnect/features/messages/provider/conversation_provider.dart';
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
 import 'package:mediconnect/features/messages/screens/chat_list_screen.dart';
 import 'package:mediconnect/features/messages/screens/doctor_selection_screen.dart';
+import 'package:mediconnect/features/messages/screens/socket_test_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
@@ -30,7 +32,6 @@ import 'package:mediconnect/features/payment/screens/payment_details_screen.dart
 import 'package:mediconnect/features/payment/screens/payment_history_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 // Core imports
 import 'features/auth/providers/auth_provider.dart';
@@ -107,6 +108,18 @@ void main() async {
   // Initialize Services
   final storageService = StorageService(prefs);
   final apiService = ApiService();
+  final authService = AuthService();
+
+  // Get stored token if any
+  final token = storageService.getToken();
+  if (token != null) {
+    apiService.setAuthToken(token);
+
+    // Initialize socket with stored token
+    final socketService = SocketService();
+    socketService.initialize(token);
+    print('App startup: Socket initialized with stored token');
+  }
 
   // Log session information
   print(SessionHelper.getCurrentUTC());
@@ -141,6 +154,27 @@ void main() async {
         ),
         Provider<ApiService>(
           create: (_) => apiService,
+        ),
+        // Add AuthService
+        Provider<AuthService>(
+          create: (_) => authService,
+        ),
+        // Add UserService
+        Provider<UserService>(
+          create: (context) {
+            final userService = UserService();
+            // Set auth token if available
+            final authProvider = context.read<AuthProvider>();
+            if (authProvider.isAuthenticated && authProvider.token != null) {
+              userService.setAuthToken(authProvider.token!);
+            }
+            return userService;
+          },
+        ),
+        Provider<UserService>(
+          create: (context) => UserService(
+            apiService: context.read<ApiService>(),
+          ),
         ),
         // Auth provider
         ChangeNotifierProvider(
@@ -238,7 +272,9 @@ void main() async {
         ),
         // Add MessageService
         Provider<MessageService>(
-          create: (_) => MessageService(),
+          create: (context) => MessageService(
+            apiService: context.read<ApiService>(),
+          ),
         ),
         // Add MessageProvider
         ChangeNotifierProvider(
@@ -246,6 +282,14 @@ void main() async {
             messageService: context.read<MessageService>(),
             socketService: context.read<SocketService>(),
             authService: context.read<AuthService>(),
+          ),
+        ),
+        // Add conversationProvider
+        ChangeNotifierProvider(
+          create: (context) => ConversationProvider(
+            messageService: context.read<MessageService>(),
+            authService: context.read<AuthService>(),
+            socketService: context.read<SocketService>(),
           ),
         ),
       ],
@@ -270,31 +314,83 @@ class _MyAppState extends State<MyApp> {
       _initializeSocketService();
     });
   }
-  
+
   void _initializeSocketService() {
     try {
       // Access providers directly from the current context
       final socketService = Provider.of<SocketService>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
-      // Initialize Socket Service if user is authenticated
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final messageService =
+          Provider.of<MessageService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      // Initialize services if user is authenticated
       if (authProvider.isAuthenticated && authProvider.token != null) {
-        print('Initializing socket with token: ${authProvider.token!.substring(0, 10)}...');
+        print(
+            'Initializing services with token: ${authProvider.token!.substring(0, 10)}...');
+
+        // Set the auth token on all relevant services
+        apiService.setAuthToken(authProvider.token!);
+        messageService.setAuthToken(authProvider.token!);
+        authService.setAuthToken(authProvider.token!);
+
+        // Set user ID if available
+        if (authProvider.user != null) {
+          authService.setCurrentUserId(authProvider.user!.id);
+        }
+
+        // Initialize socket
         socketService.initialize(authProvider.token!);
       }
-      
+
       // Listen for auth changes to reconnect socket if needed
       authProvider.addListener(() {
         if (authProvider.isAuthenticated && authProvider.token != null) {
           print('Auth changed: Reconnecting socket');
+
+          // Update token for all services
+          apiService.setAuthToken(authProvider.token!);
+          messageService.setAuthToken(authProvider.token!);
+          authService.setAuthToken(authProvider.token!);
+
+          // Update user ID
+          if (authProvider.user != null) {
+            authService.setCurrentUserId(authProvider.user!.id);
+          }
+
+          // Initialize socket
           socketService.initialize(authProvider.token!);
         } else {
           print('Auth changed: Disconnecting socket');
           socketService.disconnect();
         }
       });
+
+      // Initialize other providers
+      _initializeProviders();
     } catch (e) {
       print('Error initializing socket service: $e');
+    }
+  }
+
+  void _initializeProviders() {
+    try {
+      // Initialize MessageProvider
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      messageProvider.initialize().catchError((e) {
+        print('Error initializing MessageProvider: $e');
+      });
+
+      // Initialize ConversationProvider
+      final conversationProvider =
+          Provider.of<ConversationProvider>(context, listen: false);
+      conversationProvider.initialize().catchError((e) {
+        print('Error initializing ConversationProvider: $e');
+      });
+    } catch (e) {
+      print('Error in _initializeProviders: $e');
     }
   }
 
@@ -340,7 +436,7 @@ class _MyAppState extends State<MyApp> {
             const WorkingHoursSettingsScreen(),
 
         // Add message routes
-        '/messages': (context) => ChatListScreen(), 
+        '/messages': (context) => ChatListScreen(),
 
         '/messages/chat': (context) {
           final args = ModalRoute.of(context)!.settings.arguments
@@ -353,6 +449,12 @@ class _MyAppState extends State<MyApp> {
         '/messages/doctor-selection': (context) => DoctorSelectionScreen(),
       },
       onGenerateRoute: (settings) {
+        // Handle socket test
+        // if (settings.name == SocketTestScreen.routeName) {
+        //   return MaterialPageRoute(
+        //     builder: (_) => SocketTestScreen(),
+        //   );
+        // }
         // Handle messages screen
         if (settings.name == '/messages/chat') {
           final args = settings.arguments;

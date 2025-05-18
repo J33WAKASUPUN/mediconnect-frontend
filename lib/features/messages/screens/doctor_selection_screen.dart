@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/message.dart';
 import 'package:mediconnect/core/services/message_service.dart';
-import 'package:mediconnect/core/services/user';
+import 'package:mediconnect/core/services/user_service.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
 import 'package:provider/provider.dart';
@@ -12,30 +12,52 @@ class DoctorSelectionScreen extends StatefulWidget {
 }
 
 class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
-  final UserService _userService = UserService();
-  final TextEditingController _searchController = TextEditingController();
-
+  TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _doctors = [];
   List<Map<String, dynamic>> _filteredDoctors = [];
   bool _isLoading = true;
+  String? _error;
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadDoctors();
     _searchController.addListener(_onSearchChanged);
+
+    // Use addPostFrameCallback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDoctors();
+    });
   }
 
   Future<void> _loadDoctors() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
     try {
+      // Get UserService from Provider
+      final userService = Provider.of<UserService>(context, listen: false);
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final patientId = authProvider.user!.id;
 
-      // Load doctors that have appointment with this patient
-      final doctors = await _userService.getDoctorsForPatient(patientId);
+      // Set token if available
+      if (authProvider.isAuthenticated && authProvider.token != null) {
+        userService.setAuthToken(authProvider.token!);
+      }
+
+      List<Map<String, dynamic>> doctors = [];
+
+      if (authProvider.user != null) {
+        final patientId = authProvider.user!.id;
+        doctors = await userService.getDoctorsForPatient(patientId);
+
+        if (doctors.isEmpty) {
+          doctors = await userService.getAllDoctors();
+        }
+      } else {
+        doctors = await userService.getAllDoctors();
+      }
 
       setState(() {
         _doctors = doctors;
@@ -43,9 +65,15 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+      print('Error loading doctors: $e');
+
+      // Show a snackbar
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load doctors: $e')),
+        SnackBar(content: Text('Error loading doctors: $e')),
       );
     }
   }
@@ -96,6 +124,23 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
               ),
             ),
           ),
+          if (_error != null)
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    'Error: $_error',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadDoctors,
+                    child: Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _isLoading
                 ? Center(child: CircularProgressIndicator())
@@ -127,6 +172,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
                 color: Colors.grey,
               ),
             ),
+            SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadDoctors,
+              child: Text('Refresh'),
+            ),
           ],
         ),
       );
@@ -137,6 +187,11 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
       padding: EdgeInsets.symmetric(horizontal: 16),
       itemBuilder: (context, index) {
         final doctor = _filteredDoctors[index];
+        final doctorId = doctor['_id'] ?? doctor['id'];
+
+        if (doctorId == null) {
+          return SizedBox.shrink(); // Skip if no ID
+        }
 
         return Card(
           margin: EdgeInsets.only(bottom: 12),
@@ -202,10 +257,21 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
     try {
       final messageService =
           Provider.of<MessageService>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // Ensure MessageService has the auth token
+      if (authProvider.isAuthenticated && authProvider.token != null) {
+        messageService.setAuthToken(authProvider.token!);
+      }
+
+      final doctorId = doctor['_id'] ?? doctor['id'];
+      if (doctorId == null) {
+        throw Exception('Doctor ID is missing');
+      }
 
       // Send initial message to create conversation
       final response = await messageService.sendMessage(
-        receiverId: doctor['_id'],
+        receiverId: doctorId,
         content: 'Hello Dr. ${doctor['firstName']}',
       );
 
@@ -223,7 +289,8 @@ class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
           ),
         );
       } else {
-        throw Exception('Failed to create conversation');
+        throw Exception(
+            'Failed to create conversation: ${response['message'] ?? 'Unknown error'}');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

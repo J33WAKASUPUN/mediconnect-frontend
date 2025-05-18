@@ -1,14 +1,42 @@
-// lib/core/services/user_service.dart
+import 'package:mediconnect/core/services/api_service.dart';
 import 'base_api_service.dart';
 import 'auth_service.dart';
 
+// Update UserService to ensure token is properly set
 class UserService extends BaseApiService {
+  final ApiService? _apiService;
+
+  // Add constructor to accept ApiService
+  UserService({ApiService? apiService}) : _apiService = apiService {
+    // Get token from ApiService if provided
+    if (apiService != null) {
+      final token = apiService.getAuthToken();
+      if (token.isNotEmpty) {
+        setAuthToken(token);
+        print('UserService initialized with token from ApiService');
+      }
+    }
+  }
+
   // Get doctors available for a patient
   Future<List<Map<String, dynamic>>> getDoctorsForPatient(String patientId) async {
     try {
+      // Ensure we have a valid token
+      if (!hasValidToken() && _apiService != null) {
+        final token = _apiService!.getAuthToken();
+        if (token.isNotEmpty) {
+          setAuthToken(token);
+        }
+      }
+      
+      if (!hasValidToken()) {
+        print('UserService: No valid token for getDoctorsForPatient');
+        return [];
+      }
+
       final response = await get('/auth/users', queryParams: {
         'role': 'doctor',
-        'patientId': patientId // This assumes your API can filter doctors by patientId
+        'patientId': patientId
       });
       
       if (response['success'] == true && response['data'] != null) {
@@ -27,6 +55,19 @@ class UserService extends BaseApiService {
   // Get all doctors
   Future<List<Map<String, dynamic>>> getAllDoctors() async {
     try {
+      // Ensure we have a valid token
+      if (!hasValidToken() && _apiService != null) {
+        final token = _apiService!.getAuthToken();
+        if (token.isNotEmpty) {
+          setAuthToken(token);
+        }
+      }
+      
+      if (!hasValidToken()) {
+        print('UserService: No valid token for getAllDoctors');
+        return [];
+      }
+
       final response = await get('/auth/users', queryParams: {'role': 'doctor'});
       
       if (response['success'] == true && response['data'] != null) {
@@ -45,6 +86,19 @@ class UserService extends BaseApiService {
   // Get user by ID
   Future<Map<String, dynamic>?> getUserById(String userId) async {
     try {
+      // Ensure we have a valid token
+      if (!hasValidToken() && _apiService != null) {
+        final token = _apiService!.getAuthToken();
+        if (token.isNotEmpty) {
+          setAuthToken(token);
+        }
+      }
+      
+      if (!hasValidToken()) {
+        print('UserService: No valid token for getUserById');
+        return null;
+      }
+
       final response = await get('/auth/users', queryParams: {'id': userId});
       
       if (response['success'] == true && response['data'] != null && response['data'].isNotEmpty) {

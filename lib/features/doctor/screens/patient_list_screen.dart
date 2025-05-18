@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
 import 'package:mediconnect/features/doctor/screens/patient_profile_screen.dart';
 import 'package:provider/provider.dart';
-import '../../../core/models/appointment_model.dart';
-import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
-import '../../../shared/widgets/loading_indicator.dart';
-import '../../../shared/widgets/error_view.dart';
-import '../../appointment/providers/appointment_provider.dart';
+import '../../../../../../../core/models/appointment_model.dart';
+import '../../../../../../../shared/constants/colors.dart';
+import '../../../../../../../shared/constants/styles.dart';
+import '../../../../../../../shared/widgets/loading_indicator.dart';
+import '../../../../../../../shared/widgets/error_view.dart';
 
 class PatientListScreen extends StatefulWidget {
   const PatientListScreen({super.key});

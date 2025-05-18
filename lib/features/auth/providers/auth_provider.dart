@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:js_interop';
 import 'package:flutter/foundation.dart';
 import 'package:mediconnect/core/models/profile_models.dart';
+import 'package:mediconnect/core/services/socket_service.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/storage_service.dart';
@@ -187,6 +188,10 @@ class AuthProvider with ChangeNotifier {
       _token = response['token'];
       _user = User.fromJson(response['user']);
 
+      // Initialize socket with token
+      SocketService().initialize(_token!);
+      print('AuthProvider: Socket initialized with token');
+
       // Save to storage service
       await _storageService.saveToken(_token!);
       await _storageService.saveUser(_user!);
@@ -201,6 +206,14 @@ class AuthProvider with ChangeNotifier {
       }
 
       _apiService.setAuthToken(_token!);
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+
+      // Initialize socket connection
+      final socketService = SocketService();
+      socketService.initialize(_token!);
+      print('AuthProvider: Socket service initialized after login');
+
       _status = AuthStatus.authenticated;
       notifyListeners();
 

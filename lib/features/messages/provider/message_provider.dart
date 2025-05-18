@@ -1,4 +1,3 @@
-// lib/providers/message_provider.dart
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -22,7 +21,7 @@ class MessageProvider with ChangeNotifier {
   Message? _messageBeingEdited;
   bool _isTyping = false;
   Map<String, dynamic>? _pagination;
-  
+
   // Add these properties for unread count
   int _unreadMessageCount = 0;
   bool _initialized = false;
@@ -42,7 +41,7 @@ class MessageProvider with ChangeNotifier {
   Message? get messageBeingEdited => _messageBeingEdited;
   bool get isTyping => _isTyping;
   String? get currentConversationId => _currentConversationId;
-  
+
   // Add getter for totalUnreadCount
   int get totalUnreadCount => _unreadMessageCount;
 
@@ -53,14 +52,17 @@ class MessageProvider with ChangeNotifier {
     _socketService.onMessageRead.listen(_handleMessageRead);
     _socketService.onMessageReaction.listen(_handleMessageReaction);
     _socketService.onTyping.listen(_handleTypingStatus);
-    
-    // Fetch unread count
+
+    // Fetch unread count, but handle errors
     try {
       _unreadMessageCount = await _messageService.getUnreadCount();
       _initialized = true;
       notifyListeners();
     } catch (e) {
-      print('Error initializing message provider: $e');
+      print('Error initializing message provider unread count: $e');
+      _unreadMessageCount = 0; // Default to 0 on error
+      _initialized = true; // Still mark as initialized
+      notifyListeners();
     }
   }
 
@@ -71,6 +73,35 @@ class MessageProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Error refreshing unread count: $e');
+    }
+  }
+
+  Future<void> forceRefreshMessages() async {
+    if (_currentConversationId == null) return;
+
+    print('MessageProvider: Force refreshing messages');
+    try {
+      final result = await _messageService.getMessages(
+        _currentConversationId!,
+        page: 1, // Always get the first page
+      );
+
+      final List<dynamic> messageData = result['messages'] ?? [];
+      List<Message> newMessages =
+          messageData.map((data) => Message.fromJson(data)).toList();
+
+      // Sort messages to ensure they're in chronological order (oldest to newest)
+      newMessages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+      _messages = newMessages;
+      _currentPage = 2; // Set for next pagination
+      _hasMoreMessages = newMessages.length >= (_pagination?['limit'] ?? 20);
+
+      print(
+          'MessageProvider: Forced refresh - got ${newMessages.length} messages');
+      notifyListeners();
+    } catch (e) {
+      print('MessageProvider: Error in force refresh: $e');
     }
   }
 
@@ -111,21 +142,28 @@ class MessageProvider with ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      print(
+          'Loading messages for conversation: $_currentConversationId, page: $_currentPage');
+
       final result = await _messageService.getMessages(
         _currentConversationId!,
         page: _currentPage,
       );
 
       final List<dynamic> messageData = result['messages'] ?? [];
-      final List<Message> newMessages =
+      List<Message> newMessages =
           messageData.map((data) => Message.fromJson(data)).toList();
+
+      // Sort messages to ensure they're in chronological order (oldest to newest)
+      newMessages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
       _pagination = result['pagination'];
 
       if (refresh) {
         _messages = newMessages;
       } else {
-        _messages = [..._messages, ...newMessages];
+        // For pagination, we add older messages at the end of the list
+        _messages = [...newMessages, ..._messages];
       }
 
       _hasMoreMessages = newMessages.length >= (_pagination?['limit'] ?? 20);
@@ -139,9 +177,13 @@ class MessageProvider with ChangeNotifier {
 
       // Mark messages as read
       _markMessagesAsRead();
-      
+
       // Refresh unread count after marking messages as read
       await refreshUnreadCount();
+
+      // Debug
+      print('Current messages order:');
+      _messages.forEach((m) => print('${m.createdAt.toLocal()}: ${m.content}'));
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -159,12 +201,35 @@ class MessageProvider with ChangeNotifier {
     if (_currentConversationId == null || _otherUserId == null) return;
 
     try {
-      await _messageService.sendMessage(
+      print(
+          'MessageProvider: Sending message to $_otherUserId in conversation $_currentConversationId');
+
+      final response = await _messageService.sendMessage(
         receiverId: _otherUserId!,
         content: content,
         category: category,
         priority: priority,
       );
+
+      if (response['success'] == true && response['data'] != null) {
+        // If socket doesn't deliver the message, add it directly
+        final newMessage = Message.fromJson(response['data']);
+
+        // Check if this message is already in our list (perhaps delivered via socket)
+        final exists = _messages.any((m) => m.id == newMessage.id);
+
+        if (!exists) {
+          print('MessageProvider: Adding sent message directly to list');
+          _messages = [..._messages, newMessage];
+          notifyListeners();
+        } else {
+          print(
+              'MessageProvider: Message already exists in list (likely from socket)');
+        }
+      } else {
+        print(
+            'MessageProvider: Failed to send message: ${response['message']}');
+      }
 
       // Reset editing state if was editing
       if (_messageBeingEdited != null) {
@@ -172,6 +237,7 @@ class MessageProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
+      print('MessageProvider: Error sending message: $e');
       throw Exception('Failed to send message: $e');
     }
   }
@@ -324,18 +390,39 @@ class MessageProvider with ChangeNotifier {
   // Handle new message from socket
   void _handleNewMessage(Message message) {
     final currentUserId = _authService.currentUserId;
-    
+
+    print('MessageProvider: Received new message via socket:');
+    print('  Message ID: ${message.id}');
+    print('  Content: ${message.content}');
+    print('  Sender: ${message.senderId}');
+    print('  Receiver: ${message.receiverId}');
+    print('  ConversationID: ${message.conversationId}');
+    print('  Current ConversationID: $_currentConversationId');
+
+    if (currentUserId == null) {
+      print('MessageProvider: currentUserId is null in _handleNewMessage');
+      return;
+    }
+
     // Only add if for current conversation
     if (message.conversationId == _currentConversationId) {
-      // Add to beginning since our list is in reverse chronological
-      _messages = [message, ..._messages];
-      
-      // Mark as read if from other user
-      if (message.senderId != currentUserId) {
-        _messageService.markMessageAsRead(message.id);
+      // Check if message already exists (might happen with our direct add in sendMessage)
+      final exists = _messages.any((m) => m.id == message.id);
+
+      if (!exists) {
+        print('MessageProvider: Adding new message from socket to list');
+        _messages = [..._messages, message];
+
+        // Mark as read if from other user
+        if (message.senderId != currentUserId) {
+          _messageService.markMessageAsRead(message.id);
+        }
+
+        notifyListeners();
+      } else {
+        print(
+            'MessageProvider: Message already exists in list - not adding duplicate');
       }
-      
-      notifyListeners();
     } else if (message.receiverId == currentUserId) {
       // If message is for current user but not in current conversation, increment unread count
       _unreadMessageCount++;
@@ -381,33 +468,50 @@ class MessageProvider with ChangeNotifier {
 
   // Handle message read status from socket
   void _handleMessageRead(Map<String, dynamic> data) {
-    final String messageId = data['messageId'];
+    print('MessageProvider: Handling message read event: $data');
 
-    final index = _messages.indexWhere((m) => m.id == messageId);
-    if (index != -1) {
-      final updatedMetadata =
-          Map<String, dynamic>.from(_messages[index].metadata);
-      updatedMetadata['status'] = 'read';
-      updatedMetadata['readAt'] = data['readAt'];
+    final String messageId = data['messageId'] ?? '';
+    final String readAt = data['readAt'] ?? DateTime.now().toIso8601String();
 
-      _messages[index] = Message(
-        id: _messages[index].id,
-        senderId: _messages[index].senderId,
-        receiverId: _messages[index].receiverId,
-        conversationId: _messages[index].conversationId,
-        messageType: _messages[index].messageType,
-        content: _messages[index].content,
-        file: _messages[index].file,
-        createdAt: _messages[index].createdAt,
-        isEdited: _messages[index].isEdited,
-        editHistory: _messages[index].editHistory,
-        reactions: _messages[index].reactions,
-        forwardedFrom: _messages[index].forwardedFrom,
-        metadata: updatedMetadata,
-        deletedFor: _messages[index].deletedFor,
-      );
+    if (messageId.isEmpty) {
+      print('MessageProvider: Invalid message ID in read receipt');
+      return;
+    }
 
+    // Update all messages from this sender that were previously unread
+    bool updated = false;
+    final updatedMessages = _messages.map((message) {
+      if (message.id == messageId) {
+        print('MessageProvider: Marking message ${message.id} as read');
+        final updatedMetadata = Map<String, dynamic>.from(message.metadata);
+        updatedMetadata['status'] = 'read';
+        updatedMetadata['readAt'] = readAt;
+
+        updated = true;
+        return Message(
+          id: message.id,
+          senderId: message.senderId,
+          receiverId: message.receiverId,
+          conversationId: message.conversationId,
+          messageType: message.messageType,
+          content: message.content,
+          file: message.file,
+          createdAt: message.createdAt,
+          isEdited: message.isEdited,
+          editHistory: message.editHistory,
+          reactions: message.reactions,
+          forwardedFrom: message.forwardedFrom,
+          metadata: updatedMetadata,
+          deletedFor: message.deletedFor,
+        );
+      }
+      return message;
+    }).toList();
+
+    if (updated) {
+      _messages = updatedMessages;
       notifyListeners();
+      print('MessageProvider: Updated read status for message $messageId');
     }
   }
 
@@ -488,11 +592,12 @@ class MessageProvider with ChangeNotifier {
         .where((m) =>
             m.receiverId == currentUserId && m.metadata['status'] != 'read')
         .toList();
-    
+
     // If we found unread messages in current conversation
     if (unreadMessages.isNotEmpty) {
       // Update the unread count (decrease by the number of messages we're marking as read)
-      _unreadMessageCount = math.max(0, _unreadMessageCount - unreadMessages.length);
+      _unreadMessageCount =
+          math.max(0, _unreadMessageCount - unreadMessages.length);
       notifyListeners();
     }
 
@@ -503,6 +608,69 @@ class MessageProvider with ChangeNotifier {
         print('Error marking message as read: $e');
       }
     }
+  }
+
+  // Mark messages as read when viewing
+  Future<void> markVisibleMessagesAsRead() async {
+    if (_currentConversationId == null) return;
+
+    final currentUserId = _authService.currentUserId;
+    if (currentUserId == null) return;
+
+    // Find unread messages received by current user
+    final unreadMessages = _messages
+        .where((m) =>
+            m.receiverId == currentUserId &&
+            m.senderId != currentUserId &&
+            (m.metadata['status'] != 'read'))
+        .toList();
+
+    if (unreadMessages.isEmpty) return;
+
+    print('MessageProvider: Marking ${unreadMessages.length} messages as read');
+
+    // Mark each message as read
+    for (final message in unreadMessages) {
+      try {
+        final response = await _messageService.markMessageAsRead(message.id);
+        print(
+            'MessageProvider: Marked message ${message.id} as read: $response');
+
+        // Update the message in our list immediately
+        final index = _messages.indexWhere((m) => m.id == message.id);
+        if (index != -1) {
+          final updatedMetadata =
+              Map<String, dynamic>.from(_messages[index].metadata);
+          updatedMetadata['status'] = 'read';
+          updatedMetadata['readAt'] = DateTime.now().toIso8601String();
+
+          _messages[index] = Message(
+            id: _messages[index].id,
+            senderId: _messages[index].senderId,
+            receiverId: _messages[index].receiverId,
+            conversationId: _messages[index].conversationId,
+            messageType: _messages[index].messageType,
+            content: _messages[index].content,
+            file: _messages[index].file,
+            createdAt: _messages[index].createdAt,
+            isEdited: _messages[index].isEdited,
+            editHistory: _messages[index].editHistory,
+            reactions: _messages[index].reactions,
+            forwardedFrom: _messages[index].forwardedFrom,
+            metadata: updatedMetadata,
+            deletedFor: _messages[index].deletedFor,
+          );
+        }
+      } catch (e) {
+        print('MessageProvider: Error marking message as read: $e');
+      }
+    }
+
+    // Update UI
+    notifyListeners();
+
+    // Update unread count
+    await refreshUnreadCount();
   }
 
   // Clear data when changing conversations

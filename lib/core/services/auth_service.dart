@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'base_api_service.dart';
 
 class AuthService extends BaseApiService {
@@ -7,7 +9,25 @@ class AuthService extends BaseApiService {
   @override
   void setAuthToken(String token) {
     super.setAuthToken(token);
-    _currentUserId = null; // Will be set later when user profile is loaded
+    try {
+      // Simple JWT parser (only works for standard JWT tokens)
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final payload = parts[1];
+        final normalized = base64Url.normalize(payload);
+        final decoded = utf8.decode(base64Url.decode(normalized));
+        final Map<String, dynamic> data = json.decode(decoded);
+
+        if (data.containsKey('id')) {
+          _currentUserId = data['id'];
+          print('Extracted user ID from token: $_currentUserId');
+        }
+      }
+    } catch (e) {
+      print('Failed to extract user ID from token: $e');
+      _currentUserId = null;
+    }
+    // Will be set later when user profile is loaded
   }
 
   // Method to set user ID explicitly

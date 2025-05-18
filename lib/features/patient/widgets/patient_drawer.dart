@@ -168,26 +168,35 @@ class _PatientDrawerState extends State<PatientDrawer> {
                   // Add this badge for unread messages
                   trailing: Consumer<MessageProvider>(
                     builder: (context, provider, _) {
-                      final unreadCount = provider.totalUnreadCount;
-                      if (unreadCount > 0) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            unreadCount.toString(),
-                            style: const TextStyle(
-                              color: AppColors.textLight,
-                              fontWeight: FontWeight.bold,
+                      try {
+                        final unreadCount = provider.totalUnreadCount;
+                        if (unreadCount > 0) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
                             ),
-                          ),
-                        );
-                      } else {
-                        return const SizedBox.shrink();
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Text(
+                              unreadCount.toString(),
+                              style: const TextStyle(
+                                color: AppColors.textLight,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        // Silently handle any errors
                       }
+                      return const SizedBox.shrink();
                     },
                   ),
                   onTap: () {

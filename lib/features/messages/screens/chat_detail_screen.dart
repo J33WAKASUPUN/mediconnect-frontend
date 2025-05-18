@@ -1,10 +1,12 @@
-// lib/screens/messages/chat_detail_screen.dart
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/message.dart';
+import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/utils/date_formatter.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
+import 'package:mediconnect/features/messages/screens/socket_test_screen.dart';
 import 'package:mediconnect/features/messages/widgets/message_bubble.dart';
 import 'package:mediconnect/features/messages/widgets/message_input.dart';
 import 'package:provider/provider.dart';
@@ -27,60 +29,172 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
   bool _showScrollToBottom = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _setupProviders();
     _scrollController.addListener(_scrollListener);
+    _startPeriodicRefresh();
+
+    // Mark visible messages as read immediately and periodically
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markMessagesAsRead();
+    });
+
+    // Set up periodic read status update
+    Timer.periodic(Duration(seconds: 5), (timer) {
+      if (mounted && _isActive) {
+        _markMessagesAsRead();
+      } else if (!mounted) {
+        timer.cancel();
+      }
+    });
+  }
+
+  Timer? _refreshTimer;
+  bool _isActive = true;
+
+  void _markMessagesAsRead() {
+    if (mounted) {
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      messageProvider.markVisibleMessagesAsRead();
+    }
+  }
+
+  void _startPeriodicRefresh() {
+    _refreshTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+      if (mounted && _isActive) {
+        final socketService =
+            Provider.of<SocketService>(context, listen: false);
+        final messageProvider =
+            Provider.of<MessageProvider>(context, listen: false);
+
+        // Only force refresh if socket is not connected
+        if (!socketService.hasConnection()) {
+          print('ChatDetailScreen: Socket not connected, refreshing messages');
+          messageProvider.forceRefreshMessages();
+        }
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _isActive = true;
+
+    // Force refresh when returning to this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final messageProvider =
+            Provider.of<MessageProvider>(context, listen: false);
+        messageProvider.forceRefreshMessages();
+      }
+    });
+  }
+
+  @override
+  void deactivate() {
+    _isActive = false;
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the refresh timer
+    _refreshTimer?.cancel();
+
+    // Leave the conversation
+    final socketService = Provider.of<SocketService>(context, listen: false);
+    socketService.leaveConversation(widget.conversationId);
+
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _setupProviders() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final messageProvider =
           Provider.of<MessageProvider>(context, listen: false);
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      // Set current conversation
-      messageProvider.setCurrentConversation(
-        widget.conversationId,
-        widget.otherUser['_id'],
-      );
+      // Ensure the ID is correct
+      final otherUserId = widget.otherUser['_id'] ?? widget.otherUser['id'];
 
-      // Load messages
-      messageProvider.loadMessages(refresh: true);
+      if (otherUserId != null) {
+        // Set current conversation
+        messageProvider.setCurrentConversation(
+          widget.conversationId,
+          otherUserId,
+        );
+
+        // Load messages
+        messageProvider.loadMessages(refresh: true).then((_) {
+          setState(() {
+            _isInitialized = true;
+          });
+
+          // Scroll to bottom after loading messages
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController
+                  .jumpTo(_scrollController.position.maxScrollExtent);
+            }
+          });
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: Could not identify the other user')),
+        );
+      }
     });
   }
 
   void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+
     // Show scroll to bottom button when not at bottom
-    if (_scrollController.offset > 500 && !_showScrollToBottom) {
+    if (_scrollController.position.pixels <
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_showScrollToBottom) {
       setState(() {
         _showScrollToBottom = true;
       });
-    } else if (_scrollController.offset <= 500 && _showScrollToBottom) {
+    } else if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        _showScrollToBottom) {
       setState(() {
         _showScrollToBottom = false;
       });
     }
 
-    // Load more messages when reaching top
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+    // Load more messages when scrolling to top
+    if (_scrollController.position.pixels <=
+        _scrollController.position.minScrollExtent + 100) {
       final messageProvider =
           Provider.of<MessageProvider>(context, listen: false);
       if (!messageProvider.isLoading && messageProvider.hasMoreMessages) {
-        messageProvider.loadMessages();
+        messageProvider.loadMessages().then((_) {
+          // Maintain scroll position after loading more messages
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(100);
+          }
+        });
       }
     }
   }
 
   void _scrollToBottom() {
-    _scrollController.animateTo(
-      0,
-      duration: Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -95,8 +209,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     try {
       final messageProvider =
           Provider.of<MessageProvider>(context, listen: false);
-      // Now pass file as a named parameter
       await messageProvider.sendFileMessage(file: image);
+
+      // Scroll to bottom after sending a message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to send image: $e')),
@@ -119,58 +237,94 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Consumer<MessageProvider>(
                   builder: (context, messageProvider, child) {
-                    final messages = messageProvider.messages;
-
-                    if (messageProvider.isLoading && messages.isEmpty) {
+                    if (messageProvider.isLoading && !_isInitialized) {
                       return Center(child: CircularProgressIndicator());
                     }
 
-                    return ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      padding: EdgeInsets.all(16),
-                      itemCount:
-                          messages.length + (messageProvider.isLoading ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (messageProvider.isLoading &&
-                            index == messages.length) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
+                    // Get messages in chronological order (oldest first)
+                    final messages = messageProvider.messages;
 
-                        final message = messages[index];
+                    if (messages.isEmpty) {
+                      return Center(child: Text('No messages yet'));
+                    }
+
+                    // Group messages by date
+                    Map<String, List<Message>> messagesByDate = {};
+                    for (var message in messages) {
+                      final date = DateFormatter.formatMessageDate(
+                          message.createdAt.toLocal());
+                      if (!messagesByDate.containsKey(date)) {
+                        messagesByDate[date] = [];
+                      }
+                      messagesByDate[date]!.add(message);
+                    }
+
+                    // Build a list of widgets with date headers and messages
+                    List<Widget> messageWidgets = [];
+
+                    // Add loading indicator at the top if loading more messages
+                    if (messageProvider.isLoading) {
+                      messageWidgets.add(
+                        Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      );
+                    }
+
+                    // Process each date group
+                    messagesByDate.forEach((date, messagesForDate) {
+                      // Add date header
+                      messageWidgets.add(
+                        Container(
+                          alignment: Alignment.center,
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .primaryColor
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              date,
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+
+                      // Add messages for this date
+                      for (var message in messagesForDate) {
                         final authProvider =
                             Provider.of<AuthProvider>(context, listen: false);
                         final isCurrentUser =
-                            message.senderId == authProvider.user!.id;
+                            message.senderId == authProvider.user?.id;
 
-                        // Add date headers
-                        Widget dateHeader = SizedBox.shrink();
-                        if (index == messages.length - 1 ||
-                            !_isSameDay(messages[index].createdAt,
-                                messages[index + 1].createdAt)) {
-                          dateHeader = _buildDateHeader(message.createdAt);
-                        }
-
-                        return Column(
-                          children: [
-                            dateHeader,
-                            MessageBubble(
-                              message: message,
-                              isCurrentUser: isCurrentUser,
-                              otherUser: widget.otherUser,
-                              onLongPress: () =>
-                                  _showMessageOptions(message, isCurrentUser),
-                              onReactionTap: (emoji) =>
-                                  _handleReaction(message, emoji),
-                            ),
-                          ],
+                        messageWidgets.add(
+                          MessageBubble(
+                            message: message,
+                            isCurrentUser: isCurrentUser,
+                            otherUser: widget.otherUser,
+                            onLongPress: () =>
+                                _showMessageOptions(message, isCurrentUser),
+                            onReactionTap: (emoji) =>
+                                _handleReaction(message, emoji),
+                          ),
                         );
-                      },
+                      }
+                    });
+
+                    return ListView(
+                      controller: _scrollController,
+                      padding: EdgeInsets.all(16),
+                      children: messageWidgets,
                     );
                   },
                 ),
@@ -191,14 +345,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             builder: (context, messageProvider, _) {
               return MessageInput(
                 message: messageProvider.messageBeingEdited,
-                onSend: (content) {
+                onSend: (content) async {
                   if (messageProvider.messageBeingEdited != null) {
-                    messageProvider.editMessage(
+                    await messageProvider.editMessage(
                       messageProvider.messageBeingEdited!.id,
                       content,
                     );
                   } else {
-                    messageProvider.sendMessage(content);
+                    await messageProvider.sendMessage(content);
+
+                    // Scroll to bottom after sending a message
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom();
+                    });
                   }
                 },
                 onAttach: _showAttachmentOptions,
@@ -207,12 +366,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               );
             },
           ),
+          // SocketStatusWidget(),
         ],
       ),
     );
   }
 
+  // The rest of your methods remain the same
   PreferredSizeWidget _buildAppBar() {
+    // Your existing implementation
     return AppBar(
       titleSpacing: 0,
       title: Row(
@@ -269,11 +431,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             // Navigate to message search screen for this conversation
           },
         ),
+        // IconButton(
+        //   icon: Icon(Icons.bug_report),
+        //   onPressed: () {
+        //     Navigator.of(context).pushNamed(SocketTestScreen.routeName);
+        //   },
+        // ),
         PopupMenuButton<String>(
           onSelected: (value) {
             // Handle option selected
           },
           itemBuilder: (context) => [
+            // PopupMenuItem(
+            //   value: 'socket_test',
+            //   child: Text('Socket Test Tool'),
+            // ),
             PopupMenuItem(
               value: 'view_profile',
               child: Text('View Profile'),
@@ -288,35 +460,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildDateHeader(DateTime date) {
-    return Container(
-      alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          DateFormatter.formatMessageDate(date),
-          style: TextStyle(
-            color: Theme.of(context).primaryColor,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
-  }
-
   void _showMessageOptions(Message message, bool isCurrentUser) {
+    // Your existing implementation
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
@@ -370,6 +515,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _showAttachmentOptions() {
+    // Your existing implementation
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
@@ -403,6 +549,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _showDeleteDialog(Message message) {
+    // Your existing implementation
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -428,8 +575,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _showForwardDialog(Message message) {
-    // This would typically navigate to a user selection screen
-    // For simplicity, we'll show a placeholder
+    // Your existing implementation
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -446,6 +592,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _handleReaction(Message message, String emoji) {
+    // Your existing implementation
     final provider = Provider.of<MessageProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.user!.id;
@@ -457,11 +604,99 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       provider.addReaction(message.id, emoji);
     }
   }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_scrollListener);
-    _scrollController.dispose();
-    super.dispose();
-  }
 }
+
+// class SocketStatusWidget extends StatefulWidget {
+//   const SocketStatusWidget({Key? key}) : super(key: key);
+
+//   @override
+//   State<SocketStatusWidget> createState() => _SocketStatusWidgetState();
+// }
+
+// class _SocketStatusWidgetState extends State<SocketStatusWidget> {
+//   bool _reconnecting = false;
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final socketService = Provider.of<SocketService>(context, listen: false);
+
+//     return StreamBuilder<bool>(
+//       stream: socketService.connectionState,
+//       initialData: socketService.hasConnection(),
+//       builder: (context, snapshot) {
+//         final connected = snapshot.data ?? false;
+
+//         return GestureDetector(
+//           onTap: () {
+//             if (!connected && !_reconnecting) {
+//               setState(() {
+//                 _reconnecting = true;
+//               });
+
+//               final authProvider =
+//                   Provider.of<AuthProvider>(context, listen: false);
+//               if (authProvider.token != null) {
+//                 socketService.reconnect();
+
+//                 ScaffoldMessenger.of(context).showSnackBar(
+//                     SnackBar(content: Text('Attempting to reconnect...')));
+
+//                 // Reset reconnecting state after a delay
+//                 Future.delayed(Duration(seconds: 5), () {
+//                   if (mounted) {
+//                     setState(() {
+//                       _reconnecting = false;
+//                     });
+//                   }
+//                 });
+//               }
+//             }
+//           },
+//           child: Container(
+//             width: double.infinity,
+//             padding: EdgeInsets.symmetric(vertical: 2),
+//             color: connected
+//                 ? Colors.green.withOpacity(0.1)
+//                 : Colors.red.withOpacity(0.1),
+//             child: Center(
+//               child: _reconnecting
+//                   ? Row(
+//                       mainAxisSize: MainAxisSize.min,
+//                       children: [
+//                         SizedBox(
+//                           width: 10,
+//                           height: 10,
+//                           child: CircularProgressIndicator(
+//                             strokeWidth: 2,
+//                             valueColor:
+//                                 AlwaysStoppedAnimation<Color>(Colors.amber),
+//                           ),
+//                         ),
+//                         SizedBox(width: 6),
+//                         Text(
+//                           'Reconnecting...',
+//                           style: TextStyle(
+//                             color: Colors.amber,
+//                             fontSize: 10,
+//                             fontWeight: FontWeight.w500,
+//                           ),
+//                         ),
+//                       ],
+//                     )
+//                   : Text(
+//                       connected
+//                           ? 'Chat sync connected'
+//                           : 'Chat sync offline - Tap to reconnect',
+//                       style: TextStyle(
+//                         color: connected ? Colors.green : Colors.red,
+//                         fontSize: 10,
+//                         fontWeight: FontWeight.w500,
+//                       ),
+//                     ),
+//             ),
+//           ),
+//         );
+//       },
+//     );
+//   }
+// }

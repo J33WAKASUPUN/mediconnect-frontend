@@ -1,6 +1,6 @@
 class Conversation {
   final String id;
-  final List<dynamic> participants;
+  final dynamic participant; // Changed from List to a single participant
   final dynamic lastMessage;
   final DateTime updatedAt;
   final Map<String, dynamic> metadata;
@@ -8,24 +8,22 @@ class Conversation {
 
   Conversation({
     required this.id,
-    required this.participants,
-    this.lastMessage,
+    required this.participant,
+    required this.lastMessage,
     required this.updatedAt,
     required this.metadata,
-    this.unreadCount = 0,
+    required this.unreadCount,
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
       id: json['_id'] ?? '',
-      participants: json['participants'] ?? [],
-      lastMessage: json['lastMessage'],
-      updatedAt: json['updatedAt'] != null 
-        ? DateTime.parse(json['updatedAt']) 
-        : DateTime.now(),
-      metadata: json['metadata'] != null 
-        ? Map<String, dynamic>.from(json['metadata']) 
-        : {},
+      participant: json['participant'] ?? {}, // Changed from participants to participant
+      lastMessage: json['lastMessage'] ?? {},
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : DateTime.now(),
+      metadata: Map<String, dynamic>.from(json['metadata'] ?? {}),
       unreadCount: json['unreadCount'] ?? 0,
     );
   }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mediconnect/features/auth/providers/auth_provider.dart';
+import 'package:mediconnect/core/models/conversation.dart';
 import 'package:mediconnect/features/messages/provider/conversation_provider.dart';
 import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
-import 'package:mediconnect/features/messages/screens/doctor_selection_screen.dart';
-import 'package:mediconnect/features/messages/widgets/conversation_tile.dart';
+import 'package:mediconnect/core/services/auth_service.dart';
+import 'package:mediconnect/shared/constants/colors.dart';
 import 'package:provider/provider.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -12,166 +12,329 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  final TextEditingController _searchController = TextEditingController();
+  TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _isSearching = false;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _loadConversations();
+    _searchController.addListener(_onSearchChanged);
+
+    // Use addPostFrameCallback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadConversations();
+    });
   }
 
   Future<void> _loadConversations() async {
-    final conversationProvider = Provider.of<ConversationProvider>(context, listen: false);
-    await conversationProvider.loadConversations();
+    try {
+      await Provider.of<ConversationProvider>(context, listen: false)
+          .loadConversations();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading conversations: $e')),
+        );
+      }
+    }
   }
 
-  void _startSearch() {
+  Future<void> _refreshConversations() async {
+    try {
+      setState(() {
+        _isRefreshing = true;
+      });
+
+      await Provider.of<ConversationProvider>(context, listen: false)
+          .loadConversations();
+
+      setState(() {
+        _isRefreshing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isRefreshing = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error refreshing conversations: $e')),
+        );
+      }
+    }
+  }
+
+  void _onSearchChanged() {
     setState(() {
-      _isSearching = true;
+      _searchQuery = _searchController.text;
     });
-  }
-
-  void _stopSearch() {
-    setState(() {
-      _isSearching = false;
-      _searchQuery = '';
-      _searchController.clear();
-    });
-  }
-
-  void _showDoctorSelectionScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DoctorSelectionScreen(),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final conversationProvider = Provider.of<ConversationProvider>(context);
-    final currentUser = authProvider.user;
-    final isPatient = currentUser?.role == 'patient';
-
     return Scaffold(
       appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search conversations',
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-              )
-            : Text('Messages'),
+        title: const Text('Messages'),
         actions: [
-          if (_isSearching)
-            IconButton(
-              icon: Icon(Icons.close),
-              onPressed: _stopSearch,
-            )
-          else
-            IconButton(
-              icon: Icon(Icons.search),
-              onPressed: _startSearch,
-            ),
+          IconButton(
+            icon: Icon(_isRefreshing ? Icons.sync_disabled : Icons.refresh),
+            onPressed: _isRefreshing ? null : _refreshConversations,
+          ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadConversations,
-        child: conversationProvider.isLoading
-            ? Center(child: CircularProgressIndicator())
-            : _buildConversationList(conversationProvider),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search conversations',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Consumer<ConversationProvider>(
+              builder: (context, provider, _) {
+                if (provider.isLoading) {
+                  return Center(child: CircularProgressIndicator());
+                }
+
+                if (provider.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Error: ${provider.errorMessage}'),
+                        SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            provider.clearErrors();
+                            _loadConversations();
+                          },
+                          child: Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Filter conversations based on search
+                List<Conversation> filteredConversations = _searchQuery.isEmpty
+                    ? provider.conversations
+                    : provider.searchConversations(_searchQuery);
+
+                if (filteredConversations.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          _searchQuery.isEmpty
+                              ? 'No conversations yet'
+                              : 'No conversations match your search',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                        SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                                context, '/messages/doctor-selection');
+                          },
+                          child: Text('Start new conversation'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _refreshConversations,
+                  child: ListView.builder(
+                    itemCount: filteredConversations.length,
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (context, index) {
+                      final conversation = filteredConversations[index];
+
+                      // Get the other participant
+                      final authService =
+                          Provider.of<AuthService>(context, listen: false);
+                      final currentUserId = authService.currentUserId;
+
+                      // Safety check for currentUserId
+                      if (currentUserId == null) {
+                        return SizedBox.shrink();
+                      }
+
+                      final otherParticipant = _findOtherParticipant(
+                        conversation.participant,
+                        currentUserId,
+                      );
+
+                      if (otherParticipant == null) {
+                        return SizedBox.shrink();
+                      }
+
+                      final firstName = otherParticipant['firstName'] ?? '';
+                      final lastName = otherParticipant['lastName'] ?? '';
+                      final profilePicture = otherParticipant['profilePicture'];
+
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: profilePicture != null
+                                ? NetworkImage(profilePicture)
+                                : null,
+                            child: profilePicture == null
+                                ? Text(
+                                    firstName.isNotEmpty ? firstName[0] : '?')
+                                : null,
+                          ),
+                          title: Text('$firstName $lastName'),
+                          subtitle: Text(
+                            _getLastMessageText(conversation),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                _formatTimestamp(conversation.updatedAt),
+                                style:
+                                    TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              SizedBox(height: 4),
+                              if (conversation.unreadCount > 0)
+                                Container(
+                                  padding: EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    conversation.unreadCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatDetailScreen(
+                                  conversationId: conversation.id,
+                                  otherUser: otherParticipant,
+                                ),
+                              ),
+                            ).then((_) {
+                              // Refresh data when returning from chat
+                              _loadConversations();
+                            });
+
+                            // Reset unread count
+                            if (conversation.unreadCount > 0) {
+                              provider.resetUnreadCount(conversation.id);
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: isPatient
-          ? FloatingActionButton(
-              onPressed: _showDoctorSelectionScreen,
-              child: Icon(Icons.add),
-              tooltip: 'Start new conversation with a doctor',
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/messages/doctor-selection');
+        },
+        child: Icon(Icons.chat),
+        tooltip: 'New conversation',
+      ),
     );
   }
 
-  Widget _buildConversationList(ConversationProvider provider) {
-    final conversations = _searchQuery.isEmpty
-        ? provider.conversations
-        : provider.searchConversations(_searchQuery);
+  // Helper to find the other participant in a conversation
+  Map<String, dynamic>? _findOtherParticipant(
+      dynamic participant, String currentUserId) {
+    try {
+      // If participant is already a Map, just return it
+      if (participant is Map) {
+        return Map<String, dynamic>.from(participant);
+      }
 
-    if (conversations.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 64,
-              color: Theme.of(context).primaryColor.withOpacity(0.5),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'No conversations yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Start a new conversation by tapping the + button',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      );
+      // If it's a List, find the other participant
+      if (participant is List) {
+        return participant.firstWhere(
+          (p) => p['_id'] != currentUserId,
+          orElse: () => null,
+        );
+      }
+
+      return null;
+    } catch (e) {
+      print('Error finding other participant: $e');
+      return null;
+    }
+  }
+
+  // Helper to get the last message text
+  String _getLastMessageText(Conversation conversation) {
+    if (conversation.lastMessage == null) {
+      return 'No messages yet';
     }
 
-    return ListView.builder(
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        
-        // Find the other participant
-        final otherParticipant = conversation.participants.firstWhere(
-          (p) => p['_id'] != authProvider.user!.id,
-          orElse: () => {},
-        );
-        
-        if (otherParticipant.isEmpty) return SizedBox.shrink();
-        
-        return ConversationTile(
-          conversation: conversation,
-          otherUser: otherParticipant,
-          onTap: () {
-            // Reset unread count
-            provider.resetUnreadCount(conversation.id);
-            
-            // Navigate to chat detail
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatDetailScreen(
-                  conversationId: conversation.id,
-                  otherUser: otherParticipant,
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    if (conversation.lastMessage is Map) {
+      return conversation.lastMessage['content'] ?? 'New message';
+    }
+
+    // Handle other types
+    return 'New message';
+  }
+
+  // Helper to format timestamp
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
   }
 }

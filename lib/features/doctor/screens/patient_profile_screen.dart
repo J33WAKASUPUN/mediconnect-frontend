@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/review_model.dart';
 import 'package:mediconnect/core/services/api_service.dart';
+import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/medical_records/screens/medical_record_detail_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';
 import 'package:mediconnect/features/review/widgets/review_card.dart';
 import 'package:provider/provider.dart';
-import '../../../shared/widgets/loading_indicator.dart';
-import '../../../shared/constants/colors.dart';
-import '../../appointment/providers/appointment_provider.dart';
-import '../../medical_records/screens/medical_record_detail_screen.dart';
+import '../../../../../../../shared/widgets/loading_indicator.dart';
+import '../../../../../../../shared/constants/colors.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   final String patientId;

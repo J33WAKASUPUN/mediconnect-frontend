@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
 import 'package:mediconnect/features/appointment/providers/appointment_provider.dart';
+import 'package:mediconnect/features/auth/providers/auth_provider.dart';
+import 'package:mediconnect/features/doctor/providers/doctor_provider.dart';
 import 'package:mediconnect/features/doctor/screens/doctor_appointments_screen.dart';
+import 'package:mediconnect/features/doctor/widgets/doctor_drawer.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:mediconnect/features/messages/screens/message_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/profile/providers/profile_provider.dart';
+import 'package:mediconnect/features/profile/screens/profile_screen.dart';
 import 'package:mediconnect/shared/widgets/custom_button.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
-import '../../../shared/widgets/loading_overlay.dart';
-import '../providers/doctor_provider.dart';
-import '../widgets/doctor_drawer.dart';
-import '../../profile/screens/profile_screen.dart';
+import '../../../../../../../shared/constants/colors.dart';
+import '../../../../../../../shared/constants/styles.dart';
+import '../../../../../../../shared/widgets/loading_overlay.dart';
 
 class DoctorDashboard extends StatefulWidget {
   const DoctorDashboard({super.key});
