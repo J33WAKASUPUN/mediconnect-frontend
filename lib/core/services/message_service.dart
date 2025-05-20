@@ -420,7 +420,7 @@ Future<Map<String, dynamic>> sendMessage({
       return response;
     } catch (e) {
       print('Error deleting message: $e');
-      throw e;
+      rethrow;
     }
   }
 

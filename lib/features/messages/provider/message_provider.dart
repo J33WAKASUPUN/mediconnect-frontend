@@ -328,7 +328,7 @@ class MessageProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('MessageProvider: Error editing message: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -425,11 +425,11 @@ class MessageProvider with ChangeNotifier {
         _messages.insert(messageIndex, deletedMessage);
         notifyListeners();
         print('MessageProvider: Error from server when deleting: $e');
-        throw e;
+        rethrow;
       }
     } catch (e) {
       print('MessageProvider: Error deleting message: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -835,7 +835,7 @@ class MessageProvider with ChangeNotifier {
       // This is a simplified approach - in production you might want to handle
       // partial failures more gracefully
       print('Error deleting selected messages: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -889,7 +889,7 @@ class MessageProvider with ChangeNotifier {
       await _messageService.clearConversation(_currentConversationId!);
     } catch (e) {
       print('Error clearing chat: $e');
-      throw e;
+      rethrow;
     }
   }
 

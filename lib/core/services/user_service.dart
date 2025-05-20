@@ -1,6 +1,5 @@
 import 'package:mediconnect/core/services/api_service.dart';
 import 'base_api_service.dart';
-import 'auth_service.dart';
 
 // Update UserService to ensure token is properly set
 class UserService extends BaseApiService {

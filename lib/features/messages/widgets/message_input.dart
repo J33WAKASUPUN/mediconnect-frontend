@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/message.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
-import 'package:mediconnect/features/messages/widgets/emoji_panel.dart';
 import 'package:provider/provider.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart' as foundation;
 
 class MessageInput extends StatefulWidget {
   final Message? message;
@@ -111,21 +112,6 @@ class _MessageInputState extends State<MessageInput> {
     }
   }
 
-  void _onEmojiSelected(String emoji) {
-    final text = _controller.text;
-    final textSelection = _controller.selection;
-    final newText = text.replaceRange(
-      textSelection.start,
-      textSelection.end,
-      emoji,
-    );
-
-    _controller.text = newText;
-    _controller.selection = TextSelection.fromPosition(
-      TextPosition(offset: newText.length),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -208,9 +194,56 @@ class _MessageInputState extends State<MessageInput> {
             ],
           ),
         ),
+        
+        // Emoji picker
         if (_showEmojiPicker)
-          CustomEmojiPanel(
-            onEmojiSelected: _onEmojiSelected,
+          SizedBox(
+            height: 350,
+            child: EmojiPicker(
+              onEmojiSelected: (category, emoji) {
+                // Get current text and selection
+                final text = _controller.text;
+                final selection = _controller.selection;
+                
+                // Insert emoji at current cursor position
+                final newText = selection.textBefore(text) + emoji.emoji + selection.textAfter(text);
+                
+                // Update controller with new text and move cursor after the inserted emoji
+                _controller.value = TextEditingValue(
+                  text: newText,
+                  selection: TextSelection.collapsed(
+                    offset: selection.baseOffset + emoji.emoji.length,
+                  ),
+                );
+              },
+              textEditingController: _controller,
+              config: Config(
+                height: 150,
+                emojiViewConfig: EmojiViewConfig(
+                  emojiSizeMax: 25.0,
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                ),
+                skinToneConfig: SkinToneConfig(
+                  indicatorColor: Colors.grey,
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  initCategory: Category.RECENT,
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  iconColorSelected: Theme.of(context).primaryColor,
+                  iconColor: Colors.grey,
+                  indicatorColor: Theme.of(context).primaryColor,
+                  recentTabBehavior: RecentTabBehavior.RECENT,
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  buttonColor: Theme.of(context).primaryColor,
+                ),
+                searchViewConfig: SearchViewConfig(
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  buttonIconColor: Theme.of(context).primaryColor,
+                ),
+              ),
+            ),
           ),
       ],
     );
