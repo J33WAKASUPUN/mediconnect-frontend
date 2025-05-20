@@ -9,7 +9,7 @@ class PatientProvider with ChangeNotifier {
   User? _patientProfile;
   bool _isLoading = false;
   String? _error;
-  String _lastUpdated = '2025-03-08 14:38:02'; // Current UTC timestamp
+  final String _lastUpdated = '2025-03-08 14:38:02'; // Current UTC timestamp
 
   PatientProvider({required ApiService apiService}) : _apiService = apiService;
 

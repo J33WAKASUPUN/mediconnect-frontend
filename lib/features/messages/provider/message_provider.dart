@@ -19,6 +19,8 @@ class MessageProvider with ChangeNotifier {
   String? _currentConversationId;
   String? _otherUserId;
   Message? _messageBeingEdited;
+  Message? _replyToMessage;
+  Message? get replyToMessage => _replyToMessage;
   bool _isTyping = false;
   Map<String, dynamic>? _pagination;
 
@@ -183,7 +185,9 @@ class MessageProvider with ChangeNotifier {
 
       // Debug
       print('Current messages order:');
-      _messages.forEach((m) => print('${m.createdAt.toLocal()}: ${m.content}'));
+      for (var m in _messages) {
+        print('${m.createdAt.toLocal()}: ${m.content}');
+      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -265,25 +269,66 @@ class MessageProvider with ChangeNotifier {
   // Edit a message
   Future<void> editMessage(String messageId, String newContent) async {
     try {
+      // Find the message in our current list
+      final messageIndex = _messages.indexWhere((m) => m.id == messageId);
+      if (messageIndex == -1) {
+        print('MessageProvider: Message not found for editing: $messageId');
+        throw Exception('Message not found');
+      }
+
+      // Store the old message in case we need to revert
+      final oldMessage = _messages[messageIndex];
+
+      // Create a new message with updated content
+      final updatedMessage = Message(
+        id: oldMessage.id,
+        senderId: oldMessage.senderId,
+        receiverId: oldMessage.receiverId,
+        conversationId: oldMessage.conversationId,
+        messageType: oldMessage.messageType,
+        content: newContent,
+        file: oldMessage.file,
+        createdAt: oldMessage.createdAt,
+        isEdited: true,
+        editHistory: [
+          ...oldMessage.editHistory,
+          {
+            'content': oldMessage.content,
+            'editedAt': DateTime.now().toIso8601String()
+          }
+        ],
+        reactions: oldMessage.reactions,
+        forwardedFrom: oldMessage.forwardedFrom,
+        metadata: oldMessage.metadata,
+        deletedFor: oldMessage.deletedFor,
+      );
+
+      // Update UI optimistically
+      _messages[messageIndex] = updatedMessage;
+      notifyListeners();
+
+      print('MessageProvider: Sending edit to server for message: $messageId');
+
+      // Make API call to update on server
       final response = await _messageService.editMessage(messageId, newContent);
 
-      // Convert response to Message object
-      if (response['success'] == true && response['data'] != null) {
-        final updatedMessage = Message.fromJson(response['data']);
-
-        // Update the message in the list
-        final index = _messages.indexWhere((m) => m.id == messageId);
-        if (index != -1) {
-          _messages[index] = updatedMessage;
-          notifyListeners();
-        }
+      if (response['success'] != true) {
+        // Revert to old message if failed
+        _messages[messageIndex] = oldMessage;
+        notifyListeners();
+        print(
+            'MessageProvider: Error from server when editing: ${response['message']}');
+        throw Exception(response['message'] ?? 'Failed to edit message');
       }
+
+      print('MessageProvider: Message edited successfully');
 
       // Reset editing state
       _messageBeingEdited = null;
       notifyListeners();
     } catch (e) {
-      throw Exception('Failed to edit message: $e');
+      print('MessageProvider: Error editing message: $e');
+      throw e;
     }
   }
 
@@ -354,13 +399,37 @@ class MessageProvider with ChangeNotifier {
   // Delete a message
   Future<void> deleteMessage(String messageId) async {
     try {
-      await _messageService.deleteMessage(messageId);
+      // Find the message in our current list
+      final messageIndex = _messages.indexWhere((m) => m.id == messageId);
+      if (messageIndex == -1) {
+        print('MessageProvider: Message not found for deletion: $messageId');
+        throw Exception('Message not found');
+      }
 
-      // Remove from local list
-      _messages.removeWhere((m) => m.id == messageId);
+      // Store the message in case we need to revert
+      final deletedMessage = _messages[messageIndex];
+
+      // Update UI optimistically
+      _messages.removeAt(messageIndex);
       notifyListeners();
+
+      print(
+          'MessageProvider: Sending delete to server for message: $messageId');
+
+      // Make API call to delete on server
+      try {
+        await _messageService.deleteMessage(messageId);
+        print('MessageProvider: Message deleted successfully');
+      } catch (e) {
+        // Restore message if deletion failed
+        _messages.insert(messageIndex, deletedMessage);
+        notifyListeners();
+        print('MessageProvider: Error from server when deleting: $e');
+        throw e;
+      }
     } catch (e) {
-      throw Exception('Failed to delete message: $e');
+      print('MessageProvider: Error deleting message: $e');
+      throw e;
     }
   }
 
@@ -687,5 +756,215 @@ class MessageProvider with ChangeNotifier {
     _messageBeingEdited = null;
     _isTyping = false;
     notifyListeners();
+  }
+
+  // Add these properties to MessageProvider
+  List<String> _selectedMessageIds = [];
+  bool _isInSelectionMode = false;
+
+// Add these getters
+  bool get isInSelectionMode => _isInSelectionMode;
+  List<String> get selectedMessageIds => _selectedMessageIds;
+  int get selectedCount => _selectedMessageIds.length;
+
+// Add these methods for selection management
+  void enterSelectionMode(String messageId) {
+    _isInSelectionMode = true;
+    _selectedMessageIds = [messageId];
+    notifyListeners();
+  }
+
+  void exitSelectionMode() {
+    _isInSelectionMode = false;
+    _selectedMessageIds = [];
+    notifyListeners();
+  }
+
+  void toggleMessageSelection(String messageId) {
+    if (_selectedMessageIds.contains(messageId)) {
+      _selectedMessageIds.remove(messageId);
+      if (_selectedMessageIds.isEmpty) {
+        exitSelectionMode();
+      }
+    } else {
+      _selectedMessageIds.add(messageId);
+    }
+    notifyListeners();
+  }
+
+  bool isSelected(String messageId) {
+    return _selectedMessageIds.contains(messageId);
+  }
+
+// Add method to delete multiple messages
+  Future<void> deleteSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+
+    // Make a copy to avoid modification during iteration
+    final messagesToDelete = List<String>.from(_selectedMessageIds);
+
+    try {
+      // Find indices and keep messages for potential restoration
+      final deletedMessages = <int, Message>{};
+
+      for (final messageId in messagesToDelete) {
+        final index = _messages.indexWhere((m) => m.id == messageId);
+        if (index != -1) {
+          // Store original message and index
+          deletedMessages[index] = _messages[index];
+        }
+      }
+
+      // Remove from local list (optimistic update)
+      _messages.removeWhere((message) => messagesToDelete.contains(message.id));
+      notifyListeners();
+
+      // Delete each message on the server
+      List<Future<void>> deleteFutures = [];
+      for (final messageId in messagesToDelete) {
+        deleteFutures.add(_messageService.deleteMessage(messageId));
+      }
+
+      // Wait for all deletions to complete
+      await Future.wait(deleteFutures);
+
+      // Clear selection mode
+      exitSelectionMode();
+    } catch (e) {
+      // If any deletion fails, restore all messages
+      // This is a simplified approach - in production you might want to handle
+      // partial failures more gracefully
+      print('Error deleting selected messages: $e');
+      throw e;
+    }
+  }
+
+// Method to select all messages from current user
+  void selectAllMyMessages() {
+    final currentUserId = _authService.currentUserId;
+    if (currentUserId == null) return;
+
+    _isInSelectionMode = true;
+    _selectedMessageIds = _messages
+        .where((m) => m.senderId == currentUserId)
+        .map((m) => m.id)
+        .toList();
+    notifyListeners();
+  }
+
+  void selectAllMessages() {
+    _isInSelectionMode = true;
+    _selectedMessageIds = _messages.map((m) => m.id).toList();
+    notifyListeners();
+  }
+
+  // Select messages from a specific user
+  void selectUserMessages(String userId) {
+    _isInSelectionMode = true;
+    _selectedMessageIds =
+        _messages.where((m) => m.senderId == userId).map((m) => m.id).toList();
+    notifyListeners();
+  }
+
+// Invert current selection
+  void invertSelection() {
+    _isInSelectionMode = true;
+    final allIds = _messages.map((m) => m.id).toList();
+    _selectedMessageIds =
+        allIds.where((id) => !_selectedMessageIds.contains(id)).toList();
+    notifyListeners();
+  }
+
+// Method to clear chat (delete all messages)
+  Future<void> clearChat() async {
+    try {
+      // Store messages for potential restoration
+      final allMessages = List<Message>.from(_messages);
+
+      // Clear messages locally
+      _messages = [];
+      notifyListeners();
+
+      // Make API call to clear chat
+      await _messageService.clearConversation(_currentConversationId!);
+    } catch (e) {
+      print('Error clearing chat: $e');
+      throw e;
+    }
+  }
+
+  void setReplyMessage(Message message) {
+    _replyToMessage = message;
+    notifyListeners();
+  }
+
+  // Cancel reply
+  void cancelReply() {
+    _replyToMessage = null;
+    notifyListeners();
+  }
+
+  // Send a message with reply metadata
+  Future<void> sendMessageWithReply(
+    String content, {
+    String messageType = 'text',
+    String category = 'general',
+    String priority = 'normal',
+  }) async {
+    if (_currentConversationId == null ||
+        _otherUserId == null ||
+        _replyToMessage == null) {
+      return sendMessage(content,
+          messageType: messageType, category: category, priority: priority);
+    }
+
+    try {
+      print(
+          'MessageProvider: Sending reply message to $_otherUserId in conversation $_currentConversationId');
+
+      // Create metadata with the reply information in the format expected by the backend
+      final metadata = {
+        'category': category,
+        'priority': priority,
+        'replyTo': {
+          'messageId': _replyToMessage!.id,
+          'senderId': _replyToMessage!.senderId,
+          'content': _replyToMessage!.content,
+          'messageType': _replyToMessage!.messageType,
+        }
+      };
+
+      print('MessageProvider: Reply metadata structure: $metadata');
+
+      final response = await _messageService.sendMessage(
+        receiverId: _otherUserId!,
+        content: content,
+        category: category,
+        priority: priority,
+        metadata: metadata,
+      );
+
+      print('MessageProvider: Reply message response: $response');
+
+      if (response['success'] == true && response['data'] != null) {
+        final newMessage = Message.fromJson(response['data']);
+        print('MessageProvider: New message metadata: ${newMessage.metadata}');
+
+        final exists = _messages.any((m) => m.id == newMessage.id);
+        if (!exists) {
+          _messages = [..._messages, newMessage];
+          notifyListeners();
+        }
+      } else {
+        print(
+            'MessageProvider: Failed to send reply message: ${response['message']}');
+      }
+
+      // Reset reply state
+      cancelReply();
+    } catch (e) {
+      print('MessageProvider: Error sending reply message: $e');
+      throw Exception('Failed to send reply message: $e');
+    }
   }
 }

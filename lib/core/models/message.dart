@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Message {
   final String id;
   final String senderId;
@@ -35,12 +37,33 @@ class Message {
     // Handle reactions map conversion
     Map<String, List<Map<String, dynamic>>> reactionsMap = {};
     if (json['reactions'] != null) {
-      Map<String, dynamic> rawReactions = Map<String, dynamic>.from(json['reactions']);
+      Map<String, dynamic> rawReactions =
+          Map<String, dynamic>.from(json['reactions']);
       rawReactions.forEach((emoji, users) {
         if (users is List) {
           reactionsMap[emoji] = List<Map<String, dynamic>>.from(users);
         }
       });
+    }
+
+    // Improved metadata handling
+    Map<String, dynamic> metadataMap = {};
+    if (json['metadata'] != null) {
+      if (json['metadata'] is String) {
+        // If metadata is a JSON string, parse it
+        try {
+          metadataMap = Map<String, dynamic>.from(jsonDecode(json['metadata']));
+          print('Parsed metadata from string: $metadataMap');
+        } catch (e) {
+          print('Error parsing metadata string: $e');
+          // Fallback to empty map if parsing fails
+          metadataMap = {};
+        }
+      } else if (json['metadata'] is Map) {
+        // If metadata is already a Map, convert it to the right type
+        metadataMap = Map<String, dynamic>.from(json['metadata']);
+        print('Converted metadata from Map: $metadataMap');
+      }
     }
 
     return Message(
@@ -50,22 +73,23 @@ class Message {
       conversationId: json['conversationId'] ?? '',
       messageType: json['messageType'] ?? 'text',
       content: json['content'],
-      file: json['file'] != null ? Map<String, dynamic>.from(json['file']) : null,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      file:
+          json['file'] != null ? Map<String, dynamic>.from(json['file']) : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       isEdited: json['isEdited'] ?? false,
-      editHistory: json['editHistory'] != null 
-        ? List<Map<String, dynamic>>.from(json['editHistory']) 
-        : [],
+      editHistory: json['editHistory'] != null
+          ? List<Map<String, dynamic>>.from(json['editHistory'])
+          : [],
       reactions: reactionsMap,
-      forwardedFrom: json['forwardedFrom'] != null 
-        ? Map<String, dynamic>.from(json['forwardedFrom']) 
-        : null,
-      metadata: json['metadata'] != null 
-        ? Map<String, dynamic>.from(json['metadata']) 
-        : {},
-      deletedFor: json['deletedFor'] != null 
-        ? List<String>.from(json['deletedFor']) 
-        : [],
+      forwardedFrom: json['forwardedFrom'] != null
+          ? Map<String, dynamic>.from(json['forwardedFrom'])
+          : null,
+      metadata: metadataMap, // Use the improved metadata handling here
+      deletedFor: json['deletedFor'] != null
+          ? List<String>.from(json['deletedFor'])
+          : [],
     );
   }
 
@@ -90,7 +114,7 @@ class Message {
 
   // Helper method to check if message has reactions
   bool get hasReactions => reactions.isNotEmpty;
-  
+
   // Helper method to check if current user has reacted
   bool hasUserReacted(String userId, String emoji) {
     if (!reactions.containsKey(emoji)) return false;

@@ -1,25 +1,31 @@
-// lib/widgets/messages/message_input.dart
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:mediconnect/core/models/message.dart';
+import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/widgets/emoji_panel.dart';
+import 'package:provider/provider.dart';
 
 class MessageInput extends StatefulWidget {
   final Message? message;
+  final Message? replyToMessage;
+  final Map<String, dynamic> otherUser;
   final Function(String) onSend;
   final Function() onAttach;
   final Function(bool) onTypingStatusChanged;
   final Function() onCancelEdit;
+  final Function()? onCancelReply;
 
   const MessageInput({
-    Key? key,
+    super.key,
     this.message,
+    this.replyToMessage,
+    required this.otherUser,
     required this.onSend,
     required this.onAttach,
     required this.onTypingStatusChanged,
     required this.onCancelEdit,
-  }) : super(key: key);
+    this.onCancelReply,
+  });
 
   @override
   _MessageInputState createState() => _MessageInputState();
@@ -94,12 +100,12 @@ class _MessageInputState extends State<MessageInput> {
 
   void _handleSend() {
     if (_controller.text.trim().isEmpty) return;
-    
+
     widget.onSend(_controller.text.trim());
     _controller.clear();
     _isTyping = false;
     widget.onTypingStatusChanged(false);
-    
+
     if (_typingTimer?.isActive ?? false) {
       _typingTimer!.cancel();
     }
@@ -113,7 +119,7 @@ class _MessageInputState extends State<MessageInput> {
       textSelection.end,
       emoji,
     );
-    
+
     _controller.text = newText;
     _controller.selection = TextSelection.fromPosition(
       TextPosition(offset: newText.length),
@@ -124,7 +130,13 @@ class _MessageInputState extends State<MessageInput> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Show edit header
         if (widget.message != null) _buildEditingHeader(),
+
+        // Show reply header
+        if (widget.replyToMessage != null) _buildReplyHeader(),
+
+        // Message input
         Container(
           padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           decoration: BoxDecoration(
@@ -169,9 +181,11 @@ class _MessageInputState extends State<MessageInput> {
                           textCapitalization: TextCapitalization.sentences,
                           decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: widget.message != null 
+                            hintText: widget.message != null
                                 ? 'Edit message'
-                                : 'Type a message',
+                                : widget.replyToMessage != null
+                                    ? 'Reply to message'
+                                    : 'Type a message',
                           ),
                         ),
                       ),
@@ -202,6 +216,86 @@ class _MessageInputState extends State<MessageInput> {
     );
   }
 
+  Widget _buildReplyHeader() {
+    final message = widget.replyToMessage!;
+    final isTextMessage = message.messageType == 'text';
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final isCurrentUser = message.senderId == authProvider.user?.id;
+    
+    return Container(
+      padding: EdgeInsets.all(8),
+      color: Colors.grey.shade100,
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 40,
+            margin: EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: isCurrentUser ? Colors.blue : Colors.green,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reply to ${isCurrentUser ? 'yourself' : widget.otherUser['firstName']}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isCurrentUser ? Colors.blue : Colors.green,
+                    fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: 2),
+                if (isTextMessage)
+                  Text(
+                    message.content ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      Icon(
+                        message.messageType == 'image'
+                            ? Icons.image
+                            : Icons.insert_drive_file,
+                        size: 16,
+                        color: Colors.grey.shade700,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        message.messageType == 'image'
+                            ? 'Photo'
+                            : 'Document',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, size: 18),
+            constraints: BoxConstraints(),
+            padding: EdgeInsets.all(4),
+            onPressed: widget.onCancelReply,
+          ),
+        ],
+      ),
+    );
+  }
+  
   Widget _buildEditingHeader() {
     return Container(
       padding: EdgeInsets.all(8),

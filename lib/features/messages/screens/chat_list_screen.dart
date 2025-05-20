@@ -7,12 +7,14 @@ import 'package:mediconnect/shared/constants/colors.dart';
 import 'package:provider/provider.dart';
 
 class ChatListScreen extends StatefulWidget {
+  const ChatListScreen({super.key});
+
   @override
   _ChatListScreenState createState() => _ChatListScreenState();
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isRefreshing = false;
 
@@ -271,8 +273,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
         onPressed: () {
           Navigator.pushNamed(context, '/messages/doctor-selection');
         },
-        child: Icon(Icons.chat),
         tooltip: 'New conversation',
+        child: Icon(Icons.chat),
       ),
     );
   }

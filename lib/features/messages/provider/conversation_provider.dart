@@ -137,7 +137,9 @@ class ConversationProvider with ChangeNotifier {
 
     // Only handle if this is for current user
     if (message.senderId != currentUserId &&
-        message.receiverId != currentUserId) return;
+        message.receiverId != currentUserId) {
+      return;
+    }
 
     // Find conversation or create new one
     final conversationIndex =

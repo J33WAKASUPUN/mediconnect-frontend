@@ -4,9 +4,9 @@ class CustomEmojiPanel extends StatefulWidget {
   final Function(String) onEmojiSelected;
 
   const CustomEmojiPanel({
-    Key? key,
+    super.key,
     required this.onEmojiSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<CustomEmojiPanel> createState() => _CustomEmojiPanelState();

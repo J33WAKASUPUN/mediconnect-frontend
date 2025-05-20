@@ -261,7 +261,7 @@ class DoctorDashboardState extends State<DoctorDashboard> {
 
 // Create a placeholder for DoctorScheduleScreen
 class DoctorScheduleScreen extends StatelessWidget {
-  const DoctorScheduleScreen({Key? key}) : super(key: key);
+  const DoctorScheduleScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1046,8 +1046,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (appointment.reason != null &&
-                              appointment.reason!.isNotEmpty)
+                          if (appointment.reason.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2.0),
                               child: Text(
@@ -1146,8 +1145,7 @@ class _DoctorDashboardContentState extends State<DoctorDashboardContent> {
     final Map<String, dynamic> uniquePatients = {};
 
     for (var appointment in appointmentProvider.appointments) {
-      if (appointment.patientId != null &&
-          appointment.patientDetails != null &&
+      if (appointment.patientDetails != null &&
           !uniquePatients.containsKey(appointment.patientId)) {
         uniquePatients[appointment.patientId] = {
           'details': appointment.patientDetails,

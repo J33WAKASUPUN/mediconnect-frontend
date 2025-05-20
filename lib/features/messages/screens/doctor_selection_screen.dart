@@ -7,12 +7,14 @@ import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
 import 'package:provider/provider.dart';
 
 class DoctorSelectionScreen extends StatefulWidget {
+  const DoctorSelectionScreen({super.key});
+
   @override
   _DoctorSelectionScreenState createState() => _DoctorSelectionScreenState();
 }
 
 class _DoctorSelectionScreenState extends State<DoctorSelectionScreen> {
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _doctors = [];
   List<Map<String, dynamic>> _filteredDoctors = [];
   bool _isLoading = true;

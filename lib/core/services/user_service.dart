@@ -23,7 +23,7 @@ class UserService extends BaseApiService {
     try {
       // Ensure we have a valid token
       if (!hasValidToken() && _apiService != null) {
-        final token = _apiService!.getAuthToken();
+        final token = _apiService.getAuthToken();
         if (token.isNotEmpty) {
           setAuthToken(token);
         }
@@ -57,7 +57,7 @@ class UserService extends BaseApiService {
     try {
       // Ensure we have a valid token
       if (!hasValidToken() && _apiService != null) {
-        final token = _apiService!.getAuthToken();
+        final token = _apiService.getAuthToken();
         if (token.isNotEmpty) {
           setAuthToken(token);
         }
@@ -88,7 +88,7 @@ class UserService extends BaseApiService {
     try {
       // Ensure we have a valid token
       if (!hasValidToken() && _apiService != null) {
-        final token = _apiService!.getAuthToken();
+        final token = _apiService.getAuthToken();
         if (token.isNotEmpty) {
           setAuthToken(token);
         }

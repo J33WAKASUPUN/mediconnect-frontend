@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mediconnect/shared/constants/colors.dart';
 
 class MessagesScreen extends StatelessWidget {
-  const MessagesScreen({Key? key}) : super(key: key);
+  const MessagesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

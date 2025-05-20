@@ -5,10 +5,10 @@ class ReactionDisplay extends StatelessWidget {
   final Function(String) onTap;
 
   const ReactionDisplay({
-    Key? key,
+    super.key,
     required this.reactions,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

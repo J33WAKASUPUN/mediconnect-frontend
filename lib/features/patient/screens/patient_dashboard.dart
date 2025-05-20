@@ -322,9 +322,7 @@ class _PatientDashboardContentState extends State<PatientDashboardContent> {
     PatientProfile? patientProfile = user?.patientProfile;
 
     // If null, try from profile provider
-    if (patientProfile == null) {
-      patientProfile = profileProvider.patientProfile;
-    }
+    patientProfile ??= profileProvider.patientProfile;
 
     // Ensure medical records are loaded
     if (!medicalRecordsProvider.isLoading &&

@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mediconnect/core/models/message.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/utils/date_formatter.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
-import 'package:mediconnect/features/messages/screens/socket_test_screen.dart';
 import 'package:mediconnect/features/messages/widgets/message_bubble.dart';
 import 'package:mediconnect/features/messages/widgets/message_input.dart';
 import 'package:provider/provider.dart';
@@ -16,7 +17,8 @@ class ChatDetailScreen extends StatefulWidget {
   final String conversationId;
   final Map<String, dynamic> otherUser;
 
-  ChatDetailScreen({
+  const ChatDetailScreen({
+    super.key,
     required this.conversationId,
     required this.otherUser,
   });
@@ -28,8 +30,19 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
+  final FocusNode _keyboardListenerNode = FocusNode();
+
   bool _showScrollToBottom = false;
   bool _isInitialized = false;
+  Timer? _refreshTimer;
+  bool _isActive = true;
+
+  // Multi-select variables
+  bool _isInSelectionMode = false;
+  List<String> _selectedMessageIds = [];
+
+  // Common reaction emojis
+  final List<String> _reactionEmojis = ['👍', '❤️', '😮', '😢', '👏', '🙏'];
 
   @override
   void initState() {
@@ -52,9 +65,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     });
   }
-
-  Timer? _refreshTimer;
-  bool _isActive = true;
 
   void _markMessagesAsRead() {
     if (mounted) {
@@ -113,6 +123,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    _keyboardListenerNode.dispose();
     super.dispose();
   }
 
@@ -201,7 +212,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final XFile? image =
         await _imagePicker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      _sendImage(File(image.path));
+      await _sendImage(File(image.path));
     }
   }
 
@@ -216,165 +227,616 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _scrollToBottom();
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send image: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send image: $e')),
+        );
+      }
     }
   }
 
   Future<void> _pickDocument() async {
     // Implement document picking
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Document picking not implemented yet')),
+    );
+  }
+
+  // Selection mode methods
+  void _enterSelectionMode(String messageId) {
+    setState(() {
+      _isInSelectionMode = true;
+      _selectedMessageIds = [messageId];
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isInSelectionMode = false;
+      _selectedMessageIds = [];
+    });
+  }
+
+  void _toggleMessageSelection(String messageId) {
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        if (_selectedMessageIds.isEmpty) {
+          _exitSelectionMode();
+        }
+      } else {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  bool _isSelected(String messageId) {
+    return _selectedMessageIds.contains(messageId);
+  }
+
+  // Method to select all messages (both yours and the other user's)
+  void _selectAllMessages() {
+    final messageProvider =
+        Provider.of<MessageProvider>(context, listen: false);
+
+    setState(() {
+      _selectedMessageIds = messageProvider.messages.map((m) => m.id).toList();
+    });
+  }
+
+  // Method to select only your messages
+  void _selectOnlyMyMessages() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final messageProvider =
+        Provider.of<MessageProvider>(context, listen: false);
+    final currentUserId = authProvider.user?.id;
+
+    if (currentUserId == null) return;
+
+    setState(() {
+      _selectedMessageIds = messageProvider.messages
+          .where((m) => m.senderId == currentUserId)
+          .map((m) => m.id)
+          .toList();
+    });
+  }
+
+  // Method to select only the other user's messages
+  void _selectOtherUserMessages() {
+    final messageProvider =
+        Provider.of<MessageProvider>(context, listen: false);
+    final otherUserId = widget.otherUser['_id'] ?? widget.otherUser['id'];
+
+    if (otherUserId == null) return;
+
+    setState(() {
+      _selectedMessageIds = messageProvider.messages
+          .where((m) => m.senderId == otherUserId)
+          .map((m) => m.id)
+          .toList();
+    });
+  }
+
+  Future<void> _deleteSelectedMessages() async {
+    if (_selectedMessageIds.isEmpty) return;
+
+    final count = _selectedMessageIds.length;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Messages'),
+        content: Text(
+            'Delete ${count == 1 ? 'this message' : 'these $count messages'}?'),
+        actions: [
+          TextButton(
+            child: Text('CANCEL'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          TextButton(
+            child: Text(
+              'DELETE',
+              style: TextStyle(color: Colors.red),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Delete each selected message
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      List<Future<void>> deleteFutures = [];
+
+      for (final messageId in _selectedMessageIds) {
+        deleteFutures.add(messageProvider.deleteMessage(messageId));
+      }
+
+      await Future.wait(deleteFutures);
+
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('${count == 1 ? 'Message' : '$count messages'} deleted'),
+          ),
+        );
+      }
+
+      // Exit selection mode
+      _exitSelectionMode();
+    } catch (e) {
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting messages: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showClearChatDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Clear Chat'),
+        content: Text(
+            'Are you sure you want to delete all messages in this chat? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            child: Text('CANCEL'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          TextButton(
+            child: Text(
+              'CLEAR',
+              style: TextStyle(color: Colors.red),
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+
+              try {
+                // Show loading indicator
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+
+                // Clear chat logic - for now we'll just select and delete all messages
+                final messageProvider =
+                    Provider.of<MessageProvider>(context, listen: false);
+                setState(() {
+                  _selectedMessageIds =
+                      messageProvider.messages.map((m) => m.id).toList();
+                });
+                await _deleteSelectedMessages();
+
+                // Close loading indicator
+                if (mounted) Navigator.pop(context);
+
+                // Show success message
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Chat cleared'),
+                    ),
+                  );
+                }
+
+                _exitSelectionMode();
+              } catch (e) {
+                // Close loading indicator
+                if (mounted) Navigator.pop(context);
+
+                // Show error
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error clearing chat: $e'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Method to show WhatsApp-style reaction popup
+  void _showReactionPopup(
+      BuildContext context, Message message, bool isCurrentUser) {
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    final Offset position = box.localToGlobal(Offset.zero);
+    final Size size = box.size;
+
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy - 60, // Position above the message
+        position.dx + size.width,
+        position.dy,
+      ),
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      items: [
+        PopupMenuItem(
+          padding: EdgeInsets.zero,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            height: 50,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: _reactionEmojis.map((emoji) {
+                final isSelected = message.hasUserReacted(
+                  Provider.of<AuthProvider>(context, listen: false).user!.id,
+                  emoji,
+                );
+
+                return InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    _handleReaction(message, emoji);
+                  },
+                  child: Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).primaryColor.withOpacity(0.2)
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      emoji,
+                      style: TextStyle(fontSize: 24),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        // Add quick action buttons below the emojis
+        PopupMenuItem(
+          height: 40,
+          padding: EdgeInsets.zero,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              if (isCurrentUser && message.messageType == 'text')
+                IconButton(
+                  icon: Icon(Icons.edit, color: Theme.of(context).primaryColor),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    final messageProvider =
+                        Provider.of<MessageProvider>(context, listen: false);
+                    messageProvider.setMessageForEditing(message);
+                  },
+                  tooltip: 'Edit',
+                ),
+              IconButton(
+                icon: Icon(Icons.reply, color: Colors.blue),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _replyToMessage(message);
+                },
+                tooltip: 'Reply',
+              ),
+              IconButton(
+                icon: Icon(Icons.forward, color: Colors.green),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showForwardDialog(message);
+                },
+                tooltip: 'Forward',
+              ),
+              if (isCurrentUser)
+                IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showDeleteDialog(message);
+                  },
+                  tooltip: 'Delete',
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _replyToMessage(Message message) {
+    final messageProvider =
+        Provider.of<MessageProvider>(context, listen: false);
+    messageProvider.setReplyMessage(message);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Consumer<MessageProvider>(
-                  builder: (context, messageProvider, child) {
-                    if (messageProvider.isLoading && !_isInitialized) {
-                      return Center(child: CircularProgressIndicator());
+    final Widget screenContent = Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              Consumer<MessageProvider>(
+                builder: (context, messageProvider, child) {
+                  if (messageProvider.isLoading && !_isInitialized) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  // Get messages in chronological order (oldest first)
+                  final messages = messageProvider.messages;
+
+                  if (messages.isEmpty) {
+                    return const Center(child: Text('No messages yet'));
+                  }
+
+                  // Group messages by date
+                  Map<String, List<Message>> messagesByDate = {};
+                  for (var message in messages) {
+                    final date = DateFormatter.formatMessageDate(
+                        message.createdAt.toLocal());
+                    if (!messagesByDate.containsKey(date)) {
+                      messagesByDate[date] = [];
                     }
+                    messagesByDate[date]!.add(message);
+                  }
 
-                    // Get messages in chronological order (oldest first)
-                    final messages = messageProvider.messages;
+                  // Build a list of widgets with date headers and messages
+                  List<Widget> messageWidgets = [];
 
-                    if (messages.isEmpty) {
-                      return Center(child: Text('No messages yet'));
-                    }
-
-                    // Group messages by date
-                    Map<String, List<Message>> messagesByDate = {};
-                    for (var message in messages) {
-                      final date = DateFormatter.formatMessageDate(
-                          message.createdAt.toLocal());
-                      if (!messagesByDate.containsKey(date)) {
-                        messagesByDate[date] = [];
-                      }
-                      messagesByDate[date]!.add(message);
-                    }
-
-                    // Build a list of widgets with date headers and messages
-                    List<Widget> messageWidgets = [];
-
-                    // Add loading indicator at the top if loading more messages
-                    if (messageProvider.isLoading) {
-                      messageWidgets.add(
-                        Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      );
-                    }
-
-                    // Process each date group
-                    messagesByDate.forEach((date, messagesForDate) {
-                      // Add date header
-                      messageWidgets.add(
-                        Container(
-                          alignment: Alignment.center,
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              date,
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-
-                      // Add messages for this date
-                      for (var message in messagesForDate) {
-                        final authProvider =
-                            Provider.of<AuthProvider>(context, listen: false);
-                        final isCurrentUser =
-                            message.senderId == authProvider.user?.id;
-
-                        messageWidgets.add(
-                          MessageBubble(
-                            message: message,
-                            isCurrentUser: isCurrentUser,
-                            otherUser: widget.otherUser,
-                            onLongPress: () =>
-                                _showMessageOptions(message, isCurrentUser),
-                            onReactionTap: (emoji) =>
-                                _handleReaction(message, emoji),
-                          ),
-                        );
-                      }
-                    });
-
-                    return ListView(
-                      controller: _scrollController,
-                      padding: EdgeInsets.all(16),
-                      children: messageWidgets,
+                  // Add loading indicator at the top if loading more messages
+                  if (messageProvider.isLoading) {
+                    messageWidgets.add(
+                      const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
                     );
-                  },
-                ),
-                if (_showScrollToBottom)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: FloatingActionButton(
-                      mini: true,
-                      child: Icon(Icons.arrow_downward),
-                      onPressed: _scrollToBottom,
-                    ),
+                  }
+
+                  // Process each date group
+                  messagesByDate.forEach((date, messagesForDate) {
+                    // Add date header
+                    messageWidgets.add(
+                      Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            date,
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+
+                    // Add messages for this date
+                    for (var message in messagesForDate) {
+                      final authProvider =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      final isCurrentUser =
+                          message.senderId == authProvider.user?.id;
+
+                      // Check if message is selected
+                      final isSelected = _isSelected(message.id);
+
+                      // Create the bubble with selection support
+                      Widget messageWidget = _buildMessageBubble(
+                        message,
+                        isCurrentUser,
+                        isSelected,
+                      );
+
+                      messageWidgets.add(messageWidget);
+                    }
+                  });
+
+                  return ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    children: messageWidgets,
+                  );
+                },
+              ),
+              if (_showScrollToBottom && !_isInSelectionMode)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton(
+                    mini: true,
+                    onPressed: _scrollToBottom,
+                    child: const Icon(Icons.arrow_downward),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
+        ),
+        if (!_isInSelectionMode)
           Consumer<MessageProvider>(
             builder: (context, messageProvider, _) {
               return MessageInput(
                 message: messageProvider.messageBeingEdited,
+                replyToMessage: messageProvider.replyToMessage,
+                otherUser: widget.otherUser,
                 onSend: (content) async {
                   if (messageProvider.messageBeingEdited != null) {
                     await messageProvider.editMessage(
                       messageProvider.messageBeingEdited!.id,
                       content,
                     );
+                  } else if (messageProvider.replyToMessage != null) {
+                    await messageProvider.sendMessageWithReply(content);
                   } else {
                     await messageProvider.sendMessage(content);
-
-                    // Scroll to bottom after sending a message
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _scrollToBottom();
-                    });
                   }
+
+                  // Scroll to bottom after sending a message
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
                 },
                 onAttach: _showAttachmentOptions,
                 onTypingStatusChanged: messageProvider.sendTypingStatus,
                 onCancelEdit: messageProvider.cancelEditing,
+                onCancelReply: messageProvider.cancelReply,
               );
             },
           ),
-          // SocketStatusWidget(),
-        ],
-      ),
+      ],
+    );
+
+    // For web, wrap with keyboard listener for shortcuts
+    if (kIsWeb) {
+      return RawKeyboardListener(
+        focusNode: _keyboardListenerNode,
+        onKey: (RawKeyEvent event) {
+          if (event is RawKeyDownEvent) {
+            final messageProvider =
+                Provider.of<MessageProvider>(context, listen: false);
+            final authProvider =
+                Provider.of<AuthProvider>(context, listen: false);
+            final currentUserId = authProvider.user?.id;
+
+            // Find user's messages
+            final userMessages = messageProvider.messages
+                .where((m) => m.senderId == currentUserId)
+                .toList();
+
+            if (userMessages.isEmpty) return;
+
+            // Get the most recent message
+            final latestMessage = userMessages.last;
+
+            // Edit with Ctrl+E or Cmd+E
+            if ((event.isControlPressed || event.isMetaPressed) &&
+                event.logicalKey == LogicalKeyboardKey.keyE) {
+              if (latestMessage.messageType == 'text') {
+                messageProvider.setMessageForEditing(latestMessage);
+              }
+            }
+
+            // Delete with Ctrl+D or Cmd+D
+            if ((event.isControlPressed || event.isMetaPressed) &&
+                event.logicalKey == LogicalKeyboardKey.keyD) {
+              _showDeleteDialog(latestMessage);
+            }
+          }
+        },
+        child: Scaffold(
+          appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
+          body: screenContent,
+        ),
+      );
+    } else {
+      return Scaffold(
+        appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
+        body: screenContent,
+      );
+    }
+  }
+
+  // Helper method to build message bubble with selection support
+  Widget _buildMessageBubble(
+      Message message, bool isCurrentUser, bool isSelected) {
+    return Builder(
+      builder: (context) {
+        Widget bubble = Stack(
+          children: [
+            GestureDetector(
+              // Single tap to show reactions popup
+              onTap: _isInSelectionMode
+                  ? () => _toggleMessageSelection(message.id)
+                  : () => _showReactionPopup(context, message, isCurrentUser),
+              child: MessageBubble(
+                message: message,
+                isCurrentUser: isCurrentUser,
+                otherUser: widget.otherUser,
+                onLongPress: _isInSelectionMode
+                    ? () => _toggleMessageSelection(message.id)
+                    : () => _enterSelectionMode(message.id),
+                onReactionTap: (emoji) => _handleReaction(message, emoji),
+              ),
+            ),
+            if (isSelected)
+              Positioned(
+                top: 0,
+                right: isCurrentUser ? 0 : null,
+                left: isCurrentUser ? null : 0,
+                child: Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+          ],
+        );
+
+        // In selection mode, we need another wrapper to handle taps
+        if (_isInSelectionMode) {
+          return GestureDetector(
+            onTap: () => _toggleMessageSelection(message.id),
+            onLongPress: null,
+            child: bubble,
+          );
+        }
+
+        return bubble;
+      },
     );
   }
 
-  // The rest of your methods remain the same
   PreferredSizeWidget _buildAppBar() {
-    // Your existing implementation
     return AppBar(
       titleSpacing: 0,
       title: Row(
@@ -387,26 +849,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             child: widget.otherUser['profilePicture'] == null
                 ? Text(
                     '${widget.otherUser['firstName']?[0] ?? ''}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   )
                 : null,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '${widget.otherUser['firstName'] ?? ''} ${widget.otherUser['lastName'] ?? ''}',
-                  style: TextStyle(fontSize: 16),
+                  style: const TextStyle(fontSize: 16),
                 ),
                 Consumer<MessageProvider>(
                   builder: (context, provider, _) {
                     if (provider.isTyping) {
-                      return Text(
+                      return const Text(
                         'Typing...',
                         style: TextStyle(fontSize: 12),
                       );
@@ -415,7 +877,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       widget.otherUser['role'] == 'doctor'
                           ? 'Doctor'
                           : 'Patient',
-                      style: TextStyle(fontSize: 12),
+                      style: const TextStyle(fontSize: 12),
                     );
                   },
                 ),
@@ -426,31 +888,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       actions: [
         IconButton(
-          icon: Icon(Icons.search),
+          icon: const Icon(Icons.search),
           onPressed: () {
             // Navigate to message search screen for this conversation
           },
         ),
-        // IconButton(
-        //   icon: Icon(Icons.bug_report),
-        //   onPressed: () {
-        //     Navigator.of(context).pushNamed(SocketTestScreen.routeName);
-        //   },
-        // ),
+        IconButton(
+          icon: const Icon(Icons.select_all),
+          onPressed: () => _enterSelectionMode(
+            Provider.of<MessageProvider>(context, listen: false)
+                .messages
+                .first
+                .id,
+          ),
+          tooltip: 'Select messages',
+        ),
         PopupMenuButton<String>(
           onSelected: (value) {
             // Handle option selected
+            if (value == 'view_profile') {
+              // Implement view profile
+            } else if (value == 'clear_chat') {
+              _showClearChatDialog();
+            }
           },
           itemBuilder: (context) => [
-            // PopupMenuItem(
-            //   value: 'socket_test',
-            //   child: Text('Socket Test Tool'),
-            // ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'view_profile',
               child: Text('View Profile'),
             ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'clear_chat',
               child: Text('Clear Chat'),
             ),
@@ -460,83 +927,341 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _showMessageOptions(Message message, bool isCurrentUser) {
-    // Your existing implementation
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  // Build selection mode app bar with options to select all, select my messages, or select other user's messages
+  PreferredSizeWidget _buildSelectionAppBar() {
+    return AppBar(
+      backgroundColor: Theme.of(context).primaryColor,
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: _exitSelectionMode,
       ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isCurrentUser && message.messageType == 'text')
-              ListTile(
-                leading: Icon(Icons.edit),
-                title: Text('Edit Message'),
-                onTap: () {
-                  Navigator.pop(context);
-                  final provider =
-                      Provider.of<MessageProvider>(context, listen: false);
-                  provider.setMessageForEditing(message);
-                },
+      title: Text('${_selectedMessageIds.length} selected'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.delete),
+          onPressed:
+              _selectedMessageIds.isEmpty ? null : _deleteSelectedMessages,
+          tooltip: 'Delete selected',
+        ),
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'select_all') {
+              _selectAllMessages();
+            } else if (value == 'select_my') {
+              _selectOnlyMyMessages();
+            } else if (value == 'select_other') {
+              _selectOtherUserMessages();
+            } else if (value == 'unselect_all') {
+              _exitSelectionMode();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'select_all',
+              child: ListTile(
+                leading: Icon(Icons.select_all),
+                title: Text('Select all messages'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
               ),
-            ListTile(
-              leading: Icon(Icons.reply),
-              title: Text('Reply'),
-              onTap: () {
-                Navigator.pop(context);
-                // Implement reply functionality
-              },
             ),
-            ListTile(
-              leading: Icon(Icons.forward),
-              title: Text('Forward'),
-              onTap: () {
-                Navigator.pop(context);
-                _showForwardDialog(message);
-              },
+            const PopupMenuItem(
+              value: 'select_my',
+              child: ListTile(
+                leading: Icon(Icons.person),
+                title: Text('Select only my messages'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
             ),
-            Divider(),
-            ListTile(
-              leading: Icon(Icons.delete, color: Colors.red),
-              title: Text('Delete', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteDialog(message);
-              },
+            const PopupMenuItem(
+              value: 'select_other',
+              child: ListTile(
+                leading: Icon(Icons.person_outline),
+                title: Text('Select only their messages'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'unselect_all',
+              child: ListTile(
+                leading: Icon(Icons.deselect),
+                title: Text('Unselect all'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  void _showMessageOptions(Message message, bool isCurrentUser) {
+    if (kIsWeb) {
+      // For web, show a dialog instead of bottom sheet for better experience
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Message Options'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isCurrentUser && message.messageType == 'text')
+                  ListTile(
+                    leading:
+                        Icon(Icons.edit, color: Theme.of(context).primaryColor),
+                    title: const Text('Edit Message'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      final messageProvider =
+                          Provider.of<MessageProvider>(context, listen: false);
+                      messageProvider.setMessageForEditing(message);
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.reply),
+                  title: const Text('Reply'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _replyToMessage(message);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.forward),
+                  title: const Text('Forward'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showForwardDialog(message);
+                  },
+                ),
+                if (isCurrentUser)
+                  ListTile(
+                    leading: const Icon(Icons.delete, color: Colors.red),
+                    title: const Text('Delete',
+                        style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showDeleteDialog(message);
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.select_all),
+                  title: const Text('Select Messages'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _enterSelectionMode(message.id);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Original bottom sheet implementation for mobile
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Show reactions at the top
+              Container(
+                height: 70,
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: _reactionEmojis.map((emoji) {
+                    final isSelected = message.hasUserReacted(
+                      Provider.of<AuthProvider>(context, listen: false)
+                          .user!
+                          .id,
+                      emoji,
+                    );
+
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _handleReaction(message, emoji);
+                      },
+                      borderRadius: BorderRadius.circular(30),
+                      child: Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Theme.of(context).primaryColor.withOpacity(0.2)
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          emoji,
+                          style: TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const Divider(),
+              if (isCurrentUser && message.messageType == 'text')
+                ListTile(
+                  leading:
+                      Icon(Icons.edit, color: Theme.of(context).primaryColor),
+                  title: const Text('Edit Message'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    final provider =
+                        Provider.of<MessageProvider>(context, listen: false);
+                    provider.setMessageForEditing(message);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Implement reply functionality
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.forward),
+                title: const Text('Forward'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showForwardDialog(message);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.select_all),
+                title: const Text('Select Messages'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enterSelectionMode(message.id);
+                },
+              ),
+              const Divider(),
+              if (isCurrentUser)
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title:
+                      const Text('Delete', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteDialog(message);
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showDeleteDialog(Message message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteMessage(message);
+            },
+            child: const Text(
+              'DELETE',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  Future<void> _deleteMessage(Message message) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Delete message
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      await messageProvider.deleteMessage(message.id);
+
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting message: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   void _showAttachmentOptions() {
-    // Your existing implementation
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.photo),
-              title: Text('Image'),
+              leading: const Icon(Icons.photo),
+              title: const Text('Image'),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage();
               },
             ),
             ListTile(
-              leading: Icon(Icons.attach_file),
-              title: Text('Document'),
+              leading: const Icon(Icons.attach_file),
+              title: const Text('Document'),
               onTap: () {
                 Navigator.pop(context);
                 _pickDocument();
@@ -548,42 +1273,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _showDeleteDialog(Message message) {
-    // Your existing implementation
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Message'),
-        content: Text('Are you sure you want to delete this message?'),
-        actions: [
-          TextButton(
-            child: Text('Cancel'),
-            onPressed: () => Navigator.pop(context),
-          ),
-          TextButton(
-            child: Text('Delete'),
-            onPressed: () {
-              Navigator.pop(context);
-              final provider =
-                  Provider.of<MessageProvider>(context, listen: false);
-              provider.deleteMessage(message.id);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showForwardDialog(Message message) {
-    // Your existing implementation
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Forward Message'),
-        content: Text('Select a user to forward this message to.'),
+        title: const Text('Forward Message'),
+        content: const Text('Select a user to forward this message to.'),
         actions: [
           TextButton(
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
             onPressed: () => Navigator.pop(context),
           ),
         ],
@@ -592,7 +1290,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _handleReaction(Message message, String emoji) {
-    // Your existing implementation
     final provider = Provider.of<MessageProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.user!.id;

@@ -17,7 +17,6 @@ import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
 import 'package:mediconnect/features/messages/screens/chat_list_screen.dart';
 import 'package:mediconnect/features/messages/screens/doctor_selection_screen.dart';
-import 'package:mediconnect/features/messages/screens/socket_test_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
 import 'package:mediconnect/features/review/providers/review_provider.dart';

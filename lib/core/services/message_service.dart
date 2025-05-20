@@ -97,46 +97,93 @@ class MessageService extends BaseApiService {
   }
 
   // Send a text message
-  Future<Map<String, dynamic>> sendMessage({
-    required String receiverId,
-    required String content,
-    String category = 'general',
-    String priority = 'normal',
-    String relatedTo = 'none',
-    String? referenceId,
-  }) async {
-    try {
-      // Check if we have a token
-      if (!hasValidToken()) {
-        print('MessageService: No valid token for sendMessage');
-        return {'success': false, 'message': 'Not authorized'};
+Future<Map<String, dynamic>> sendMessage({
+  required String receiverId,
+  required String content,
+  String category = 'general',
+  String priority = 'normal',
+  String relatedTo = 'none',
+  String? referenceId,
+  Map<String, dynamic>? metadata,
+}) async {
+  try {
+    // Check if we have a token
+    if (!hasValidToken()) {
+      print('MessageService: No valid token for sendMessage');
+      return {'success': false, 'message': 'Not authorized'};
+    }
+
+    // Create the base data object without metadata
+    final Map<String, dynamic> data = {
+      'receiverId': receiverId,
+      'content': content,
+      'category': category,
+      'priority': priority,
+      'relatedTo': relatedTo,
+    };
+
+    if (referenceId != null) {
+      data['referenceId'] = referenceId;
+    }
+
+    if (metadata != null) {
+      try {
+        // First attempt - pass metadata directly as an object
+        data['metadata'] = metadata;
+        
+        print('MessageService: Sending message with object metadata: $data');
+        final response = await post(
+          '/messages',
+          data: data,
+        );
+        
+        print('MessageService: Send message response: $response');
+        return response;
+      } catch (objectError) {
+        // If that fails, try serializing metadata as a string
+        print('Error sending with object metadata: $objectError');
+        print('Attempting to send with serialized metadata instead...');
+        
+        // Create a new data object with serialized metadata
+        final fallbackData = {
+          'receiverId': receiverId,
+          'content': content,
+          'category': category,
+          'priority': priority,
+          'relatedTo': relatedTo,
+        };
+        
+        if (referenceId != null) {
+          fallbackData['referenceId'] = referenceId;
+        }
+        
+        fallbackData['metadata'] = jsonEncode(metadata);
+        
+        print('MessageService: Sending message with serialized metadata: $fallbackData');
+        final fallbackResponse = await post(
+          '/messages',
+          data: fallbackData,
+        );
+        
+        print('MessageService: Send message response (fallback): $fallbackResponse');
+        return fallbackResponse;
       }
-
-      final data = {
-        'receiverId': receiverId,
-        'content': content,
-        'category': category,
-        'priority': priority,
-        'relatedTo': relatedTo,
-      };
-
-      if (referenceId != null) {
-        data['referenceId'] = referenceId;
-      }
-
-      print('MessageService: Sending message: $data');
+    } else {
+      // No metadata to worry about
+      print('MessageService: Sending message without metadata: $data');
       final response = await post(
         '/messages',
         data: data,
       );
-
+      
       print('MessageService: Send message response: $response');
       return response;
-    } catch (e) {
-      print('Error sending message: $e');
-      return {'success': false, 'message': e.toString()};
     }
+  } catch (e) {
+    print('Error sending message: $e');
+    return {'success': false, 'message': e.toString()};
   }
+}
 
   // Send a file message (image or document)
   Future<Map<String, dynamic>> sendFileMessage({
@@ -224,11 +271,6 @@ class MessageService extends BaseApiService {
   Future<Map<String, dynamic>> editMessage(
       String messageId, String content) async {
     try {
-      if (!hasValidToken()) {
-        print('MessageService: No valid token for editMessage');
-        return {'success': false, 'message': 'Not authorized'};
-      }
-
       final response = await put(
         '/messages/$messageId',
         data: {'content': content},
@@ -371,12 +413,25 @@ class MessageService extends BaseApiService {
   }
 
   // Delete message
-  Future<void> deleteMessage(String messageId) async {
+  Future<Map<String, dynamic>> deleteMessage(String messageId) async {
     try {
-      await delete('/messages/$messageId');
+      final response = await delete('/messages/$messageId');
+
+      return response;
     } catch (e) {
       print('Error deleting message: $e');
-      throw Exception('Failed to delete message: $e');
+      throw e;
+    }
+  }
+
+  // Clear conversation
+  Future<Map<String, dynamic>> clearConversation(String conversationId) async {
+    try {
+      final response = await delete('/conversations/$conversationId/messages');
+      return response;
+    } catch (e) {
+      print('Error clearing conversation: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 }
