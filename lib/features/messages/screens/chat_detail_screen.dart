@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/core/models/message.dart';
+import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/utils/date_formatter.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
+import 'package:mediconnect/features/messages/widgets/document_picker.dart';
 import 'package:mediconnect/features/messages/widgets/message_bubble.dart';
 import 'package:mediconnect/features/messages/widgets/message_input.dart';
 import 'package:provider/provider.dart';
@@ -209,18 +212,49 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _pickImage() async {
-    final XFile? image =
-        await _imagePicker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      await _sendImage(File(image.path));
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (image != null) {
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sending image...')),
+          );
+        }
+
+        // Use the image directly without converting to File for web compatibility
+        await _sendFileWithUploader(image);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _sendImage(File image) async {
+  Future<void> _sendFileWithUploader(dynamic file) async {
     try {
       final messageProvider =
           Provider.of<MessageProvider>(context, listen: false);
-      await messageProvider.sendFileMessage(file: image);
+
+      // Handle the case where we're passing a custom file object from document picker
+      if (file is Map && file.containsKey('bytes')) {
+        // For web document files from FilePicker
+        await messageProvider.sendWebFileBytes(
+          bytes: file['bytes'],
+          fileName: file['name'],
+          mimeType: file['mimeType'],
+        );
+      } else {
+        // For XFile objects from image picker
+        await messageProvider.sendWebSafeFile(file: file);
+      }
 
       // Scroll to bottom after sending a message
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -229,17 +263,123 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send image: $e')),
+          SnackBar(content: Text('Failed to send file: $e')),
+        );
+      }
+    }
+  }
+
+  String _getMimeTypeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+      case 'docx':
+        return 'application/msword';
+      case 'xls':
+      case 'xlsx':
+        return 'application/vnd.ms-excel';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  Future<void> _sendFile(File file) async {
+    try {
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      await messageProvider.sendFileMessage(file: file);
+
+      // Scroll to bottom after sending a message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send file: $e')),
         );
       }
     }
   }
 
   Future<void> _pickDocument() async {
-    // Implement document picking
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Document picking not implemented yet')),
-    );
+    try {
+      final pickedDocument = await DocumentPicker.pickDocument(context);
+
+      if (pickedDocument != null && pickedDocument.isValid) {
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sending document...')),
+          );
+        }
+
+        // Handle the document based on platform
+        if (kIsWeb && pickedDocument.bytes != null) {
+          // For web with bytes
+          await _handleWebDocument(pickedDocument);
+        } else if (pickedDocument.file != null) {
+          // For mobile with file
+          await _sendFile(pickedDocument.file!);
+        } else {
+          throw Exception('Invalid document data for current platform');
+        }
+      }
+    } catch (e) {
+      print('Error picking document: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick document: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleWebDocument(PickedDocument document) async {
+    try {
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+
+      // Send the document bytes
+      await messageProvider.sendWebFileBytes(
+        bytes: document.bytes!,
+        fileName: document.name,
+        mimeType: document.mimeType,
+      );
+
+      // Scroll to bottom after sending
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send document: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendDocument(File file) async {
+    try {
+      final messageProvider =
+          Provider.of<MessageProvider>(context, listen: false);
+      await messageProvider.sendFileMessage(file: file);
+
+      // Scroll to bottom after sending a message
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send document: $e')),
+        );
+      }
+    }
   }
 
   // Selection mode methods

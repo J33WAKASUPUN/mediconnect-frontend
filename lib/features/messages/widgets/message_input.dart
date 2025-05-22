@@ -4,7 +4,6 @@ import 'package:mediconnect/core/models/message.dart';
 import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
-import 'package:flutter/foundation.dart' as foundation;
 
 class MessageInput extends StatefulWidget {
   final Message? message;

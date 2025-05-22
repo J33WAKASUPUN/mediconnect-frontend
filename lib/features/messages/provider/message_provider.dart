@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:mediconnect/core/models/message.dart';
 import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/services/auth_service.dart';
+import 'package:mediconnect/features/messages/widgets/web_file_uploader.dart';
 
 class MessageProvider with ChangeNotifier {
   final MessageService _messageService;
@@ -255,13 +258,36 @@ class MessageProvider with ChangeNotifier {
     if (_currentConversationId == null || _otherUserId == null) return;
 
     try {
-      await _messageService.sendFileMessage(
+      final response = await _messageService.sendFileMessage(
         receiverId: _otherUserId!,
         file: file,
         category: category,
         priority: priority,
       );
+
+      print('MessageProvider: File message response: $response');
+
+      if (response['success'] == true && response['data'] != null) {
+        // If socket doesn't deliver the message, add it directly
+        final newMessage = Message.fromJson(response['data']);
+
+        print('MessageProvider: File data in response: ${newMessage.file}');
+
+        // Check if this message is already in our list (perhaps delivered via socket)
+        final exists = _messages.any((m) => m.id == newMessage.id);
+
+        if (!exists) {
+          print('MessageProvider: Adding file message to list');
+          _messages = [..._messages, newMessage];
+          notifyListeners();
+        }
+      } else {
+        print(
+            'MessageProvider: Failed to send file message: ${response['message']}');
+        throw Exception(response['message'] ?? 'Failed to send file');
+      }
     } catch (e) {
+      print('MessageProvider: Error sending file message: $e');
       throw Exception('Failed to send file message: $e');
     }
   }
@@ -965,6 +991,130 @@ class MessageProvider with ChangeNotifier {
     } catch (e) {
       print('MessageProvider: Error sending reply message: $e');
       throw Exception('Failed to send reply message: $e');
+    }
+  }
+
+  // Send a file using the web-safe uploader
+  Future<void> sendWebSafeFile({
+    required dynamic file,
+    String category = 'general',
+    String priority = 'normal',
+    String relatedTo = 'none',
+  }) async {
+    if (_currentConversationId == null || _otherUserId == null) return;
+
+    try {
+      // Get token from the MessageService instead
+      final token = _messageService.getAuthToken();
+      final url = '${_messageService.baseUrl}/messages/file';
+
+      print('MessageProvider: Preparing to send file to $url');
+
+      // Prepare fields
+      Map<String, String> fields = {
+        'receiverId': _otherUserId!,
+        'category': category,
+        'priority': priority,
+        'relatedTo': relatedTo,
+      };
+
+      // Use web-safe uploader
+      final response = await WebSafeFileUploader.uploadFile(
+        url: url,
+        token: token,
+        file: file,
+        fields: fields,
+      );
+
+      print('MessageProvider: Web-safe file message response: $response');
+
+      if (response['success'] == true && response['data'] != null) {
+        // If socket doesn't deliver the message, add it directly
+        final newMessage = Message.fromJson(response['data']);
+
+        // Check if this message is already in our list (perhaps delivered via socket)
+        final exists = _messages.any((m) => m.id == newMessage.id);
+
+        if (!exists) {
+          print('MessageProvider: Adding file message to list');
+          _messages = [..._messages, newMessage];
+          notifyListeners();
+        }
+      } else {
+        print(
+            'MessageProvider: Failed to send file message: ${response['message']}');
+        throw Exception(response['message'] ?? 'Failed to send file');
+      }
+    } catch (e) {
+      print('MessageProvider: Error sending file message: $e');
+      throw Exception('Failed to send file message: $e');
+    }
+  }
+
+  // Send a file bytes directly (for web platform)
+  Future<void> sendWebFileBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    if (_currentConversationId == null || _otherUserId == null) return;
+
+    try {
+      print(
+          'MessageProvider: Preparing to send file bytes, size: ${bytes.length}');
+
+      // Create form data
+      final formData = FormData.fromMap({
+        'receiverId': _otherUserId!,
+        'category': 'general',
+        'priority': 'normal',
+        'relatedTo': 'none',
+      });
+
+      // Add file as bytes
+      formData.files.add(
+        MapEntry(
+          'file',
+          MultipartFile.fromBytes(
+            bytes,
+            filename: fileName,
+            contentType: MediaType.parse(mimeType),
+          ),
+        ),
+      );
+
+      // Create a dio instance
+      final dio = Dio();
+      final token = _messageService.getAuthToken();
+      dio.options.headers['Authorization'] = 'Bearer $token';
+
+      // Send the request
+      final response = await dio.post(
+        '${_messageService.baseUrl}/messages/file',
+        data: formData,
+      );
+
+      print('MessageProvider: Response: ${response.statusCode}');
+
+      if (response.statusCode == 201) {
+        // Success - add message
+        final newMessage = Message.fromJson(response.data['data']);
+
+        // Check if this message is already in our list (perhaps delivered via socket)
+        final exists = _messages.any((m) => m.id == newMessage.id);
+
+        if (!exists) {
+          print('MessageProvider: Adding file message to list');
+          _messages = [..._messages, newMessage];
+          notifyListeners();
+        }
+      } else {
+        print('MessageProvider: Failed to send file message: ${response.data}');
+        throw Exception('Failed to send file: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('MessageProvider: Error sending file bytes: $e');
+      throw Exception('Failed to send file: $e');
     }
   }
 }

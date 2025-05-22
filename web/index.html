@@ -33,6 +33,20 @@
 
   <title>mediconnect</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // Required for file picker to work properly on web
+    window.flutterWebRenderer = "html";
+  </script>
+
+  <!-- Add below the flutter.js script -->
+  <script>
+  // For file picker
+  window.addEventListener('flutter-first-frame', function () {
+    // Initialize any browser APIs here
+    // This helps with file operations
+  });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -1,13 +1,16 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:mediconnect/config/api_endpoints.dart';
 import 'package:mediconnect/core/services/api_service.dart';
+import 'package:mediconnect/features/messages/widgets/cross_platform_file_uploader.dart';
 import 'base_api_service.dart';
 
 class MessageService extends BaseApiService {
   final ApiService? _apiService;
+  String get baseUrl => ApiEndpoints.baseUrl;
 
   // Constructor to receive dependencies
   MessageService({ApiService? apiService}) : _apiService = apiService {
@@ -97,93 +100,95 @@ class MessageService extends BaseApiService {
   }
 
   // Send a text message
-Future<Map<String, dynamic>> sendMessage({
-  required String receiverId,
-  required String content,
-  String category = 'general',
-  String priority = 'normal',
-  String relatedTo = 'none',
-  String? referenceId,
-  Map<String, dynamic>? metadata,
-}) async {
-  try {
-    // Check if we have a token
-    if (!hasValidToken()) {
-      print('MessageService: No valid token for sendMessage');
-      return {'success': false, 'message': 'Not authorized'};
-    }
+  Future<Map<String, dynamic>> sendMessage({
+    required String receiverId,
+    required String content,
+    String category = 'general',
+    String priority = 'normal',
+    String relatedTo = 'none',
+    String? referenceId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      // Check if we have a token
+      if (!hasValidToken()) {
+        print('MessageService: No valid token for sendMessage');
+        return {'success': false, 'message': 'Not authorized'};
+      }
 
-    // Create the base data object without metadata
-    final Map<String, dynamic> data = {
-      'receiverId': receiverId,
-      'content': content,
-      'category': category,
-      'priority': priority,
-      'relatedTo': relatedTo,
-    };
+      // Create the base data object without metadata
+      final Map<String, dynamic> data = {
+        'receiverId': receiverId,
+        'content': content,
+        'category': category,
+        'priority': priority,
+        'relatedTo': relatedTo,
+      };
 
-    if (referenceId != null) {
-      data['referenceId'] = referenceId;
-    }
+      if (referenceId != null) {
+        data['referenceId'] = referenceId;
+      }
 
-    if (metadata != null) {
-      try {
-        // First attempt - pass metadata directly as an object
-        data['metadata'] = metadata;
-        
-        print('MessageService: Sending message with object metadata: $data');
+      if (metadata != null) {
+        try {
+          // First attempt - pass metadata directly as an object
+          data['metadata'] = metadata;
+
+          print('MessageService: Sending message with object metadata: $data');
+          final response = await post(
+            '/messages',
+            data: data,
+          );
+
+          print('MessageService: Send message response: $response');
+          return response;
+        } catch (objectError) {
+          // If that fails, try serializing metadata as a string
+          print('Error sending with object metadata: $objectError');
+          print('Attempting to send with serialized metadata instead...');
+
+          // Create a new data object with serialized metadata
+          final fallbackData = {
+            'receiverId': receiverId,
+            'content': content,
+            'category': category,
+            'priority': priority,
+            'relatedTo': relatedTo,
+          };
+
+          if (referenceId != null) {
+            fallbackData['referenceId'] = referenceId;
+          }
+
+          fallbackData['metadata'] = jsonEncode(metadata);
+
+          print(
+              'MessageService: Sending message with serialized metadata: $fallbackData');
+          final fallbackResponse = await post(
+            '/messages',
+            data: fallbackData,
+          );
+
+          print(
+              'MessageService: Send message response (fallback): $fallbackResponse');
+          return fallbackResponse;
+        }
+      } else {
+        // No metadata to worry about
+        print('MessageService: Sending message without metadata: $data');
         final response = await post(
           '/messages',
           data: data,
         );
-        
+
         print('MessageService: Send message response: $response');
         return response;
-      } catch (objectError) {
-        // If that fails, try serializing metadata as a string
-        print('Error sending with object metadata: $objectError');
-        print('Attempting to send with serialized metadata instead...');
-        
-        // Create a new data object with serialized metadata
-        final fallbackData = {
-          'receiverId': receiverId,
-          'content': content,
-          'category': category,
-          'priority': priority,
-          'relatedTo': relatedTo,
-        };
-        
-        if (referenceId != null) {
-          fallbackData['referenceId'] = referenceId;
-        }
-        
-        fallbackData['metadata'] = jsonEncode(metadata);
-        
-        print('MessageService: Sending message with serialized metadata: $fallbackData');
-        final fallbackResponse = await post(
-          '/messages',
-          data: fallbackData,
-        );
-        
-        print('MessageService: Send message response (fallback): $fallbackResponse');
-        return fallbackResponse;
       }
-    } else {
-      // No metadata to worry about
-      print('MessageService: Sending message without metadata: $data');
-      final response = await post(
-        '/messages',
-        data: data,
-      );
-      
-      print('MessageService: Send message response: $response');
-      return response;
+    } catch (e) {
+      print('Error sending message: $e');
+      return {'success': false, 'message': e.toString()};
     }
-  } catch (e) {
-    print('Error sending message: $e');
-    return {'success': false, 'message': e.toString()};
   }
-}
 
   // Send a file message (image or document)
   Future<Map<String, dynamic>> sendFileMessage({
@@ -202,67 +207,31 @@ Future<Map<String, dynamic>> sendMessage({
       }
 
       final token = getAuthToken();
-      final uri = Uri.parse('${ApiEndpoints.baseUrl}/api/messages/file');
+      final url = '${ApiEndpoints.baseUrl}${ApiEndpoints.fileMessages}';
 
-      // Create multipart request
-      final request = http.MultipartRequest('POST', uri);
+      print('MessageService: Preparing to send file to $url');
 
-      // Add auth header
-      request.headers['Authorization'] = 'Bearer $token';
-
-      // Determine file type and content type
-      String fileName = file.path.split('/').last;
-      String extension = fileName.split('.').last.toLowerCase();
-      String contentType;
-
-      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension)) {
-        contentType = 'image/$extension';
-      } else if (extension == 'pdf') {
-        contentType = 'application/pdf';
-      } else if (['doc', 'docx'].contains(extension)) {
-        contentType = 'application/msword';
-      } else if (['xls', 'xlsx'].contains(extension)) {
-        contentType = 'application/vnd.ms-excel';
-      } else {
-        contentType = 'application/octet-stream';
-      }
-
-      // Add file
-      request.files.add(
-        http.MultipartFile(
-          'file',
-          file.readAsBytes().asStream(),
-          file.lengthSync(),
-          filename: fileName,
-          contentType: MediaType.parse(contentType),
-        ),
-      );
-
-      // Add text fields
-      request.fields['receiverId'] = receiverId;
-      request.fields['category'] = category;
-      request.fields['priority'] = priority;
-      request.fields['relatedTo'] = relatedTo;
+      // Prepare fields
+      Map<String, String> fields = {
+        'receiverId': receiverId,
+        'category': category,
+        'priority': priority,
+        'relatedTo': relatedTo,
+      };
 
       if (referenceId != null) {
-        request.fields['referenceId'] = referenceId;
+        fields['referenceId'] = referenceId;
       }
 
-      // Send request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 201) {
-        return {'success': true, 'data': json.decode(response.body)['data']};
-      } else {
-        return {
-          'success': false,
-          'message': 'Failed to send file: ${response.statusCode}',
-          'details': response.body
-        };
-      }
+      // Use cross-platform uploader
+      return await CrossPlatformFileUploader.uploadFile(
+        url: url,
+        token: token,
+        file: file,
+        fields: fields,
+      );
     } catch (e) {
-      print('Error sending file message: $e');
+      print('MessageService: Error sending file message: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
