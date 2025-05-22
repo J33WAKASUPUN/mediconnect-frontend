@@ -1,7 +1,4 @@
 import 'dart:io';
-import 'package:dio/dio.dart';
-import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:mediconnect/config/api_endpoints.dart';
 import 'package:mediconnect/core/services/api_service.dart';

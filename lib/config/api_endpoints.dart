@@ -7,6 +7,11 @@ class ApiEndpoints {
   static const String login = '/auth/login';
   static const String doctors = '/auth/users';
 
+  // User endpoints
+  static const String users = '/users';
+  static const String patientsWhoMessaged = '/users/patients/messaged';
+  static const String allDoctors = '/users?role=doctor'; 
+
   // Profile endpoints
   static const String profile = '/profile';
   static const String patientProfile = '/profile/patient';
@@ -51,7 +56,10 @@ class ApiEndpoints {
   static const String conversations = '/messages/conversations';
   static const String unreadCount = '/messages/unread/count';
   static const String searchMessages = '/messages/search';
-  
+  static const String messageReactions = '/messages/:id/reactions';
+  static const String messageForward = '/messages/:id/forward';
+  static const String messageRead = '/messages/:id/read'; 
   // File upload
   static const String fileMessages = '/messages/file';
+  static const String fileMessagesBase64 = '/messages/file/base64';
 }

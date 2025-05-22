@@ -13,6 +13,7 @@ import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/messages/widgets/document_picker.dart';
 import 'package:mediconnect/features/messages/widgets/message_bubble.dart';
 import 'package:mediconnect/features/messages/widgets/message_input.dart';
+import 'package:mediconnect/shared/constants/colors.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -215,7 +216,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 70,
+        imageQuality: 80,
       );
 
       if (image != null) {
@@ -653,7 +654,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     padding: EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? Theme.of(context).primaryColor.withOpacity(0.2)
+                          ? AppColors.primary.withOpacity(0.2)
                           : Colors.transparent,
                       shape: BoxShape.circle,
                     ),
@@ -676,7 +677,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             children: [
               if (isCurrentUser && message.messageType == 'text')
                 IconButton(
-                  icon: Icon(Icons.edit, color: Theme.of(context).primaryColor),
+                  icon: Icon(Icons.edit, color: AppColors.primary),
                   onPressed: () {
                     Navigator.pop(context);
                     final messageProvider =
@@ -723,418 +724,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     messageProvider.setReplyMessage(message);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final Widget screenContent = Column(
-      children: [
-        Expanded(
-          child: Stack(
-            children: [
-              Consumer<MessageProvider>(
-                builder: (context, messageProvider, child) {
-                  if (messageProvider.isLoading && !_isInitialized) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  // Get messages in chronological order (oldest first)
-                  final messages = messageProvider.messages;
-
-                  if (messages.isEmpty) {
-                    return const Center(child: Text('No messages yet'));
-                  }
-
-                  // Group messages by date
-                  Map<String, List<Message>> messagesByDate = {};
-                  for (var message in messages) {
-                    final date = DateFormatter.formatMessageDate(
-                        message.createdAt.toLocal());
-                    if (!messagesByDate.containsKey(date)) {
-                      messagesByDate[date] = [];
-                    }
-                    messagesByDate[date]!.add(message);
-                  }
-
-                  // Build a list of widgets with date headers and messages
-                  List<Widget> messageWidgets = [];
-
-                  // Add loading indicator at the top if loading more messages
-                  if (messageProvider.isLoading) {
-                    messageWidgets.add(
-                      const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    );
-                  }
-
-                  // Process each date group
-                  messagesByDate.forEach((date, messagesForDate) {
-                    // Add date header
-                    messageWidgets.add(
-                      Container(
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            date,
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-
-                    // Add messages for this date
-                    for (var message in messagesForDate) {
-                      final authProvider =
-                          Provider.of<AuthProvider>(context, listen: false);
-                      final isCurrentUser =
-                          message.senderId == authProvider.user?.id;
-
-                      // Check if message is selected
-                      final isSelected = _isSelected(message.id);
-
-                      // Create the bubble with selection support
-                      Widget messageWidget = _buildMessageBubble(
-                        message,
-                        isCurrentUser,
-                        isSelected,
-                      );
-
-                      messageWidgets.add(messageWidget);
-                    }
-                  });
-
-                  return ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    children: messageWidgets,
-                  );
-                },
-              ),
-              if (_showScrollToBottom && !_isInSelectionMode)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton(
-                    mini: true,
-                    onPressed: _scrollToBottom,
-                    child: const Icon(Icons.arrow_downward),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        if (!_isInSelectionMode)
-          Consumer<MessageProvider>(
-            builder: (context, messageProvider, _) {
-              return MessageInput(
-                message: messageProvider.messageBeingEdited,
-                replyToMessage: messageProvider.replyToMessage,
-                otherUser: widget.otherUser,
-                onSend: (content) async {
-                  if (messageProvider.messageBeingEdited != null) {
-                    await messageProvider.editMessage(
-                      messageProvider.messageBeingEdited!.id,
-                      content,
-                    );
-                  } else if (messageProvider.replyToMessage != null) {
-                    await messageProvider.sendMessageWithReply(content);
-                  } else {
-                    await messageProvider.sendMessage(content);
-                  }
-
-                  // Scroll to bottom after sending a message
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToBottom();
-                  });
-                },
-                onAttach: _showAttachmentOptions,
-                onTypingStatusChanged: messageProvider.sendTypingStatus,
-                onCancelEdit: messageProvider.cancelEditing,
-                onCancelReply: messageProvider.cancelReply,
-              );
-            },
-          ),
-      ],
-    );
-
-    // For web, wrap with keyboard listener for shortcuts
-    if (kIsWeb) {
-      return RawKeyboardListener(
-        focusNode: _keyboardListenerNode,
-        onKey: (RawKeyEvent event) {
-          if (event is RawKeyDownEvent) {
-            final messageProvider =
-                Provider.of<MessageProvider>(context, listen: false);
-            final authProvider =
-                Provider.of<AuthProvider>(context, listen: false);
-            final currentUserId = authProvider.user?.id;
-
-            // Find user's messages
-            final userMessages = messageProvider.messages
-                .where((m) => m.senderId == currentUserId)
-                .toList();
-
-            if (userMessages.isEmpty) return;
-
-            // Get the most recent message
-            final latestMessage = userMessages.last;
-
-            // Edit with Ctrl+E or Cmd+E
-            if ((event.isControlPressed || event.isMetaPressed) &&
-                event.logicalKey == LogicalKeyboardKey.keyE) {
-              if (latestMessage.messageType == 'text') {
-                messageProvider.setMessageForEditing(latestMessage);
-              }
-            }
-
-            // Delete with Ctrl+D or Cmd+D
-            if ((event.isControlPressed || event.isMetaPressed) &&
-                event.logicalKey == LogicalKeyboardKey.keyD) {
-              _showDeleteDialog(latestMessage);
-            }
-          }
-        },
-        child: Scaffold(
-          appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
-          body: screenContent,
-        ),
-      );
-    } else {
-      return Scaffold(
-        appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
-        body: screenContent,
-      );
-    }
-  }
-
-  // Helper method to build message bubble with selection support
-  Widget _buildMessageBubble(
-      Message message, bool isCurrentUser, bool isSelected) {
-    return Builder(
-      builder: (context) {
-        Widget bubble = Stack(
-          children: [
-            GestureDetector(
-              // Single tap to show reactions popup
-              onTap: _isInSelectionMode
-                  ? () => _toggleMessageSelection(message.id)
-                  : () => _showReactionPopup(context, message, isCurrentUser),
-              child: MessageBubble(
-                message: message,
-                isCurrentUser: isCurrentUser,
-                otherUser: widget.otherUser,
-                onLongPress: _isInSelectionMode
-                    ? () => _toggleMessageSelection(message.id)
-                    : () => _enterSelectionMode(message.id),
-                onReactionTap: (emoji) => _handleReaction(message, emoji),
-              ),
-            ),
-            if (isSelected)
-              Positioned(
-                top: 0,
-                right: isCurrentUser ? 0 : null,
-                left: isCurrentUser ? null : 0,
-                child: Container(
-                  padding: EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ),
-          ],
-        );
-
-        // In selection mode, we need another wrapper to handle taps
-        if (_isInSelectionMode) {
-          return GestureDetector(
-            onTap: () => _toggleMessageSelection(message.id),
-            onLongPress: null,
-            child: bubble,
-          );
-        }
-
-        return bubble;
-      },
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      titleSpacing: 0,
-      title: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundImage: widget.otherUser['profilePicture'] != null
-                ? NetworkImage(widget.otherUser['profilePicture'])
-                : null,
-            child: widget.otherUser['profilePicture'] == null
-                ? Text(
-                    '${widget.otherUser['firstName']?[0] ?? ''}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${widget.otherUser['firstName'] ?? ''} ${widget.otherUser['lastName'] ?? ''}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Consumer<MessageProvider>(
-                  builder: (context, provider, _) {
-                    if (provider.isTyping) {
-                      return const Text(
-                        'Typing...',
-                        style: TextStyle(fontSize: 12),
-                      );
-                    }
-                    return Text(
-                      widget.otherUser['role'] == 'doctor'
-                          ? 'Doctor'
-                          : 'Patient',
-                      style: const TextStyle(fontSize: 12),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.search),
-          onPressed: () {
-            // Navigate to message search screen for this conversation
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.select_all),
-          onPressed: () => _enterSelectionMode(
-            Provider.of<MessageProvider>(context, listen: false)
-                .messages
-                .first
-                .id,
-          ),
-          tooltip: 'Select messages',
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            // Handle option selected
-            if (value == 'view_profile') {
-              // Implement view profile
-            } else if (value == 'clear_chat') {
-              _showClearChatDialog();
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'view_profile',
-              child: Text('View Profile'),
-            ),
-            const PopupMenuItem(
-              value: 'clear_chat',
-              child: Text('Clear Chat'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // Build selection mode app bar with options to select all, select my messages, or select other user's messages
-  PreferredSizeWidget _buildSelectionAppBar() {
-    return AppBar(
-      backgroundColor: Theme.of(context).primaryColor,
-      leading: IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: _exitSelectionMode,
-      ),
-      title: Text('${_selectedMessageIds.length} selected'),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.delete),
-          onPressed:
-              _selectedMessageIds.isEmpty ? null : _deleteSelectedMessages,
-          tooltip: 'Delete selected',
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'select_all') {
-              _selectAllMessages();
-            } else if (value == 'select_my') {
-              _selectOnlyMyMessages();
-            } else if (value == 'select_other') {
-              _selectOtherUserMessages();
-            } else if (value == 'unselect_all') {
-              _exitSelectionMode();
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'select_all',
-              child: ListTile(
-                leading: Icon(Icons.select_all),
-                title: Text('Select all messages'),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'select_my',
-              child: ListTile(
-                leading: Icon(Icons.person),
-                title: Text('Select only my messages'),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'select_other',
-              child: ListTile(
-                leading: Icon(Icons.person_outline),
-                title: Text('Select only their messages'),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'unselect_all',
-              child: ListTile(
-                leading: Icon(Icons.deselect),
-                title: Text('Unselect all'),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ],
-        ),
-      ],
+  void _showForwardDialog(Message message) {
+    // Implementation will be added later
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Forward functionality will be implemented soon')),
     );
   }
 
@@ -1220,7 +813,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo),
+              leading: const Icon(Icons.photo, color: AppColors.primary),
               title: const Text('Image'),
               onTap: () {
                 Navigator.pop(context);
@@ -1228,7 +821,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.attach_file),
+              leading: const Icon(Icons.attach_file, color: AppColors.primary),
               title: const Text('Document'),
               onTap: () {
                 Navigator.pop(context);
@@ -1237,22 +830,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showForwardDialog(Message message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Forward Message'),
-        content: const Text('Select a user to forward this message to.'),
-        actions: [
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
       ),
     );
   }
@@ -1268,6 +845,517 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } else {
       provider.addReaction(message.id, emoji);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget screenContent = Container(
+      decoration: BoxDecoration(
+        // Light pattern background
+        color: Colors.grey[100],
+        image: DecorationImage(
+          image: AssetImage('assets/images/chat_background.png'),
+          repeat: ImageRepeat.repeat,
+          opacity: 0.2, // Subtle background
+        ),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                Consumer<MessageProvider>(
+                  builder: (context, messageProvider, child) {
+                    if (messageProvider.isLoading && !_isInitialized) {
+                      return const Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.primary));
+                    }
+
+                    // Get messages in chronological order (oldest first)
+                    final messages = messageProvider.messages;
+
+                    if (messages.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No messages yet',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Say hi to start the conversation',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Group messages by date
+                    Map<String, List<Message>> messagesByDate = {};
+                    for (var message in messages) {
+                      final date = DateFormatter.formatMessageDate(
+                          message.createdAt.toLocal());
+                      if (!messagesByDate.containsKey(date)) {
+                        messagesByDate[date] = [];
+                      }
+                      messagesByDate[date]!.add(message);
+                    }
+
+                    // Build a list of widgets with date headers and messages
+                    List<Widget> messageWidgets = [];
+
+                    // Add loading indicator at the top if loading more messages
+                    if (messageProvider.isLoading) {
+                      messageWidgets.add(
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Center(
+                              child: CircularProgressIndicator(
+                                  color: AppColors.primary)),
+                        ),
+                      );
+                    }
+
+                    // Process each date group
+                    messagesByDate.forEach((date, messagesForDate) {
+                      // Add date header
+                      messageWidgets.add(
+                        Container(
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              date,
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+
+                      // Add messages for this date
+                      for (var message in messagesForDate) {
+                        final authProvider =
+                            Provider.of<AuthProvider>(context, listen: false);
+                        final isCurrentUser =
+                            message.senderId == authProvider.user?.id;
+
+                        // Check if message is selected
+                        final isSelected = _isSelected(message.id);
+
+                        // Create the bubble with selection support
+                        Widget messageWidget = _buildMessageBubble(
+                          message,
+                          isCurrentUser,
+                          isSelected,
+                        );
+
+                        messageWidgets.add(messageWidget);
+                      }
+                    });
+
+                    return ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      children: messageWidgets,
+                    );
+                  },
+                ),
+                if (_showScrollToBottom && !_isInSelectionMode)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton(
+                      mini: true,
+                      backgroundColor: AppColors.primary,
+                      onPressed: _scrollToBottom,
+                      child:
+                          const Icon(Icons.arrow_downward, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (!_isInSelectionMode)
+            Consumer<MessageProvider>(
+              builder: (context, messageProvider, _) {
+                return MessageInput(
+                  message: messageProvider.messageBeingEdited,
+                  replyToMessage: messageProvider.replyToMessage,
+                  otherUser: widget.otherUser,
+                  onSend: (content) async {
+                    if (messageProvider.messageBeingEdited != null) {
+                      await messageProvider.editMessage(
+                        messageProvider.messageBeingEdited!.id,
+                        content,
+                      );
+                    } else if (messageProvider.replyToMessage != null) {
+                      await messageProvider.sendMessageWithReply(content);
+                    } else {
+                      await messageProvider.sendMessage(content);
+                    }
+
+                    // Scroll to bottom after sending a message
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom();
+                    });
+                  },
+                  onAttach: _showAttachmentOptions,
+                  onTypingStatusChanged: messageProvider.sendTypingStatus,
+                  onCancelEdit: messageProvider.cancelEditing,
+                  onCancelReply: messageProvider.cancelReply,
+                );
+              },
+            ),
+        ],
+      ),
+    );
+
+    // For web, wrap with keyboard listener for shortcuts
+    if (kIsWeb) {
+      return RawKeyboardListener(
+        focusNode: _keyboardListenerNode,
+        onKey: (RawKeyEvent event) {
+          if (event is RawKeyDownEvent) {
+            final messageProvider =
+                Provider.of<MessageProvider>(context, listen: false);
+            final authProvider =
+                Provider.of<AuthProvider>(context, listen: false);
+            final currentUserId = authProvider.user?.id;
+
+            // Find user's messages
+            final userMessages = messageProvider.messages
+                .where((m) => m.senderId == currentUserId)
+                .toList();
+
+            if (userMessages.isEmpty) return;
+
+            // Get the most recent message
+            final latestMessage = userMessages.last;
+
+            // Edit with Ctrl+E or Cmd+E
+            if ((event.isControlPressed || event.isMetaPressed) &&
+                event.logicalKey == LogicalKeyboardKey.keyE) {
+              if (latestMessage.messageType == 'text') {
+                messageProvider.setMessageForEditing(latestMessage);
+              }
+            }
+
+            // Delete with Ctrl+D or Cmd+D
+            if ((event.isControlPressed || event.isMetaPressed) &&
+                event.logicalKey == LogicalKeyboardKey.keyD) {
+              _showDeleteDialog(latestMessage);
+            }
+          }
+        },
+        child: Scaffold(
+          appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
+          body: screenContent,
+        ),
+      );
+    } else {
+      return Scaffold(
+        appBar: _isInSelectionMode ? _buildSelectionAppBar() : _buildAppBar(),
+        body: screenContent,
+      );
+    }
+  }
+
+  // Helper method to build message bubble with selection support
+  Widget _buildMessageBubble(
+      Message message, bool isCurrentUser, bool isSelected) {
+    return Builder(
+      builder: (context) {
+        Widget bubble = Stack(
+          children: [
+            GestureDetector(
+              // Single tap to show reactions popup
+              onTap: _isInSelectionMode
+                  ? () => _toggleMessageSelection(message.id)
+                  : () => _showReactionPopup(context, message, isCurrentUser),
+              child: MessageBubble(
+                message: message,
+                isCurrentUser: isCurrentUser,
+                otherUser: widget.otherUser,
+                isSelected: isSelected,
+                onLongPress: _isInSelectionMode
+                    ? () => _toggleMessageSelection(message.id)
+                    : () => _enterSelectionMode(message.id),
+                onReactionTap: (emoji) => _handleReaction(message, emoji),
+              ),
+            ),
+            if (isSelected)
+              Positioned(
+                top: 0,
+                right: isCurrentUser ? 0 : null,
+                left: isCurrentUser ? null : 0,
+                child: Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+          ],
+        );
+
+        // In selection mode, we need another wrapper to handle taps
+        if (_isInSelectionMode) {
+          return GestureDetector(
+            onTap: () => _toggleMessageSelection(message.id),
+            onLongPress: null,
+            child: bubble,
+          );
+        }
+
+        return bubble;
+      },
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.primary,
+      titleSpacing: 0,
+      elevation: 0,
+      title: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1),
+            ),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.primary.withOpacity(0.3),
+              backgroundImage: widget.otherUser['profilePicture'] != null
+                  ? NetworkImage(widget.otherUser['profilePicture'])
+                  : null,
+              child: widget.otherUser['profilePicture'] == null
+                  ? Text(
+                      '${widget.otherUser['firstName']?[0] ?? ''}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.otherUser['role'] == 'doctor'
+                      ? 'Dr. ${widget.otherUser['firstName'] ?? ''} ${widget.otherUser['lastName'] ?? ''}'
+                      : '${widget.otherUser['firstName'] ?? ''} ${widget.otherUser['lastName'] ?? ''}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                Consumer<MessageProvider>(
+                  builder: (context, provider, _) {
+                    if (provider.isTyping) {
+                      return const Text(
+                        'Typing...',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                      );
+                    }
+                    return Text(
+                      widget.otherUser['role'] == 'doctor'
+                          ? widget.otherUser['specialty'] ?? 'Doctor'
+                          : 'Patient',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.white70,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white, size: 20),
+          onPressed: () {
+            // Navigate to message search screen for this conversation
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              builder: (context) => Container(
+                child: Wrap(
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.select_all, color: AppColors.primary),
+                      title: Text('Select messages',
+                          style: TextStyle(fontSize: 14)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _enterSelectionMode(
+                          Provider.of<MessageProvider>(context, listen: false)
+                              .messages
+                              .first
+                              .id,
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.person, color: AppColors.primary),
+                      title:
+                          Text('View profile', style: TextStyle(fontSize: 14)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        // Implement view profile
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.delete_sweep, color: Colors.red),
+                      title: Text('Clear chat', style: TextStyle(fontSize: 14)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showClearChatDialog();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Build selection mode app bar with options to select all, select my messages, or select other user's messages
+  PreferredSizeWidget _buildSelectionAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.primary,
+      leading: IconButton(
+        icon: const Icon(Icons.close, color: Colors.white),
+        onPressed: _exitSelectionMode,
+      ),
+      title: Text(
+        '${_selectedMessageIds.length} selected',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.delete, color: Colors.white, size: 20),
+          onPressed:
+              _selectedMessageIds.isEmpty ? null : _deleteSelectedMessages,
+          tooltip: 'Delete selected',
+        ),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: Colors.white, size: 20),
+          onSelected: (value) {
+            if (value == 'select_all') {
+              _selectAllMessages();
+            } else if (value == 'select_my') {
+              _selectOnlyMyMessages();
+            } else if (value == 'select_other') {
+              _selectOtherUserMessages();
+            } else if (value == 'unselect_all') {
+              _exitSelectionMode();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'select_all',
+              child: ListTile(
+                leading:
+                    Icon(Icons.select_all, color: AppColors.primary, size: 18),
+                title:
+                    Text('Select all messages', style: TextStyle(fontSize: 14)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'select_my',
+              child: ListTile(
+                leading: Icon(Icons.person, color: AppColors.primary, size: 18),
+                title: Text('Select only my messages',
+                    style: TextStyle(fontSize: 14)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'select_other',
+              child: ListTile(
+                leading: Icon(Icons.person_outline,
+                    color: AppColors.primary, size: 18),
+                title: Text('Select only their messages',
+                    style: TextStyle(fontSize: 14)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'unselect_all',
+              child: ListTile(
+                leading:
+                    Icon(Icons.deselect, color: AppColors.primary, size: 18),
+                title: Text('Unselect all', style: TextStyle(fontSize: 14)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 

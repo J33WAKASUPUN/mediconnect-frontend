@@ -73,7 +73,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # assets:
-  #   - assets/images/
+  assets:
+  - assets/images/chat_background.png
   #   - assets/icons/
 

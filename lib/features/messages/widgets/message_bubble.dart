@@ -6,6 +6,7 @@ import 'package:mediconnect/features/auth/providers/auth_provider.dart';
 import 'package:mediconnect/features/messages/widgets/document_handler.dart';
 import 'package:mediconnect/features/messages/widgets/message_file_viewer.dart';
 import 'package:mediconnect/features/messages/widgets/reaction_display.dart';
+import 'package:mediconnect/shared/constants/colors.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -31,96 +32,206 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Align(
-        alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: EdgeInsets.only(
-            top: 4,
-            bottom: 4,
-            left: isCurrentUser ? 80 : 0,
-            right: isCurrentUser ? 0 : 80,
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Row(
+        mainAxisAlignment: isCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Left spacer for sent messages
+          if (isCurrentUser) 
+            SizedBox(width: MediaQuery.of(context).size.width * 0.25),
+          
+          // Message content
+          Flexible(
+            child: GestureDetector(
+              onTap: onTap,
+              onLongPress: onLongPress,
+              child: Column(
+                crossAxisAlignment: isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (message.forwardedFrom != null) _buildForwardedHeader(),
+                  
+                  // Main message bubble
+                  IntrinsicWidth(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        minWidth: 0,
+                      ),
+                      child: _buildMessageContent(context),
+                    ),
+                  ),
+                  
+                  if (message.hasReactions)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: 2, 
+                        right: isCurrentUser ? 8 : 0,
+                        left: isCurrentUser ? 0 : 8,
+                      ),
+                      child: ReactionDisplay(
+                        reactions: message.reactions,
+                        onTap: onReactionTap,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: isCurrentUser
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              if (message.forwardedFrom != null) _buildForwardedHeader(),
+          
+          // Right spacer for received messages
+          if (!isCurrentUser) 
+            SizedBox(width: MediaQuery.of(context).size.width * 0.25),
+        ],
+      ),
+    );
+  }
 
-              // Add reply info if this is a reply
-              if (message.metadata.containsKey('replyTo'))
-                _buildReplyInfo(context),
-
-              _buildMessageContent(context),
-              if (message.hasReactions)
-                ReactionDisplay(
-                  reactions: message.reactions,
-                  onTap: onReactionTap,
-                ),
-            ],
+  Widget _buildForwardedHeader() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.forward,
+            size: 12,
+            color: Colors.grey,
           ),
-        ),
+          SizedBox(width: 2),
+          Text(
+            'Forwarded',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(BuildContext context) {
+    // Get colors for the bubbles with slight transparency
+    final senderBubbleColor = AppColors.primary.withOpacity(0.9); 
+    final receiverBubbleColor = Colors.white.withOpacity(0.9); 
+    
+    // Configure the bubble shape with one sharp corner
+    BorderRadius borderRadius = isCurrentUser 
+        ? BorderRadius.only(
+            topLeft: Radius.circular(16), 
+            topRight: Radius.circular(16), 
+            bottomLeft: Radius.circular(16),
+            bottomRight: Radius.circular(4), // Sharper corner
+          )
+        : BorderRadius.only(
+            topLeft: Radius.circular(4), // Sharper corner
+            topRight: Radius.circular(16), 
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16), 
+          );
+    
+    // Configure the container for the message bubble
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 1),
+      decoration: BoxDecoration(
+        color: isCurrentUser ? senderBubbleColor : receiverBubbleColor,
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // If this is a reply message, add the reply info at the top
+          if (message.metadata.containsKey('replyTo') && message.metadata['replyTo'] != null)
+            _buildReplyInfo(context),
+            
+          // Main message content
+          _buildMainMessageContent(context),
+          
+          // Time and status indicators
+          Align(
+            alignment: isCurrentUser ? Alignment.bottomRight : Alignment.bottomLeft,
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: isCurrentUser ? 6 : 0,
+                left: isCurrentUser ? 0 : 6,
+                bottom: 2,
+                top: 1,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    DateFormatter.formatMessageTime(message.createdAt),
+                    style: TextStyle(
+                      color: isCurrentUser ? Colors.white70 : Colors.black45,
+                      fontSize: 9,
+                    ),
+                  ),
+                  if (isCurrentUser) ...[
+                    SizedBox(width: 2),
+                    Icon(
+                      message.metadata['status'] == 'read' ? Icons.done_all : Icons.done,
+                      size: 10,
+                      color: message.metadata['status'] == 'read' ? Colors.blue : Colors.white70,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildReplyInfo(BuildContext context) {
-    print('Message metadata for reply check: ${message.metadata}');
+    final replyData = message.metadata['replyTo'];
+    if (replyData == null) return SizedBox.shrink();
 
-    // Check if replyTo exists in metadata
-    if (!message.metadata.containsKey('replyTo')) {
-      print('No replyTo found in message metadata');
-      return SizedBox.shrink();
-    }
-
-    final replyToData = message.metadata['replyTo'];
-    if (replyToData == null) {
-      print('replyTo data is null');
-      return SizedBox.shrink();
-    }
-
-    print('Found replyTo data: $replyToData');
-
-    // Extract reply information
-    final replySenderId = replyToData['senderId']?.toString();
-    final replyContent = replyToData['content']?.toString() ?? '';
-    final replyMessageType = replyToData['messageType']?.toString() ?? 'text';
+    final replySenderId = replyData['senderId']?.toString();
+    final replyContent = replyData['content']?.toString() ?? '';
+    final replyMessageType = replyData['messageType']?.toString() ?? 'text';
 
     // Skip if missing critical data
-    if (replySenderId == null) {
-      print('Missing required sender ID in reply data');
-      return SizedBox.shrink();
-    }
+    if (replySenderId == null) return SizedBox.shrink();
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final isReplyFromCurrentUser = replySenderId == authProvider.user?.id;
-    final replySenderName =
-        isReplyFromCurrentUser ? 'You' : otherUser['firstName'];
+    final replySenderName = isReplyFromCurrentUser ? 'You' : otherUser['firstName'];
 
-    // WhatsApp-style reply display
+    // WhatsApp-style reply display with border and background
     return Container(
-      margin: EdgeInsets.only(bottom: 2),
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: 0, top: 4, left: 4, right: 4),
       decoration: BoxDecoration(
-        color: isCurrentUser
-            ? Theme.of(context).primaryColor.withOpacity(0.7)
-            : Colors.grey.shade200,
+        color: isCurrentUser 
+            ? Colors.white.withOpacity(0.1)
+            : Colors.grey.shade200.withOpacity(0.5),
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-          bottomLeft: isCurrentUser ? Radius.circular(8) : Radius.circular(0),
-          bottomRight: isCurrentUser ? Radius.circular(0) : Radius.circular(8),
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
         ),
         border: Border(
           left: BorderSide(
             color: isReplyFromCurrentUser ? Colors.blue : Colors.green,
-            width: 4,
+            width: 3,
           ),
         ),
       ),
-      padding: EdgeInsets.fromLTRB(8, 6, 8, 6),
+      padding: EdgeInsets.fromLTRB(6, 4, 6, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -129,22 +240,22 @@ class MessageBubble extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: isReplyFromCurrentUser
-                  ? (isCurrentUser ? Colors.white : Colors.blue)
-                  : (isCurrentUser ? Colors.white : Colors.green),
-              fontSize: 12,
+                  ? Colors.blue
+                  : Colors.green,
+              fontSize: 10,
             ),
           ),
-          SizedBox(height: 2),
+          SizedBox(height: 1),
           if (replyMessageType == 'text')
             Text(
               replyContent,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 color: isCurrentUser
-                    ? Colors.white.withOpacity(0.9)
-                    : Colors.grey.shade700,
+                    ? Colors.white
+                    : Colors.grey[700],
               ),
             )
           else
@@ -155,19 +266,19 @@ class MessageBubble extends StatelessWidget {
                   replyMessageType == 'image'
                       ? Icons.image
                       : Icons.insert_drive_file,
-                  size: 12,
+                  size: 10,
                   color: isCurrentUser
-                      ? Colors.white.withOpacity(0.9)
-                      : Colors.grey.shade700,
+                      ? Colors.white
+                      : Colors.grey[700],
                 ),
-                SizedBox(width: 4),
+                SizedBox(width: 2),
                 Text(
                   replyMessageType == 'image' ? 'Photo' : 'Document',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 10,
                     color: isCurrentUser
-                        ? Colors.white.withOpacity(0.9)
-                        : Colors.grey.shade700,
+                        ? Colors.white
+                        : Colors.grey[700],
                   ),
                 ),
               ],
@@ -176,79 +287,36 @@ class MessageBubble extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildForwardedHeader() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.forward,
-            size: 14,
-            color: Colors.grey,
-          ),
-          SizedBox(width: 4),
-          Text(
-            'Forwarded',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageContent(BuildContext context) {
-    // Common container styling based on user
-    final bubbleDecoration = BoxDecoration(
-      color: isCurrentUser
-          ? Theme.of(context).primaryColor.withOpacity(0.8)
-          : Theme.of(context).primaryColor.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(16.0),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 3,
-          offset: const Offset(0, 1),
-        ),
-      ],
-    );
-
+  
+  Widget _buildMainMessageContent(BuildContext context) {
     // Handle different message types
     if (message.messageType == 'text') {
       // Text message
-      return Container(
-        padding: EdgeInsets.all(12),
-        decoration: bubbleDecoration,
+      return Padding(
+        padding: EdgeInsets.fromLTRB(10, 6, 10, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Add reply preview if message is a reply
-            if (_isReplyMessage()) _buildReplyPreview(context),
-
-            // Main message text
             Text(
               message.content ?? '',
               style: TextStyle(
-                color: isCurrentUser ? Colors.white : Colors.black,
+                color: isCurrentUser ? Colors.white : Colors.black87,
+                fontSize: 13,
               ),
             ),
 
             // Edit indicator
             if (message.isEdited)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: 1),
                 child: Text(
                   'Edited',
                   style: TextStyle(
                     color: isCurrentUser
                         ? Colors.white.withOpacity(0.7)
                         : Colors.black.withOpacity(0.5),
-                    fontSize: 10,
+                    fontSize: 9,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -258,286 +326,151 @@ class MessageBubble extends StatelessWidget {
       );
     } else if (message.messageType == 'image') {
       // Image message
-      return Container(
-        padding: EdgeInsets.all(4),
-        decoration: bubbleDecoration,
-        child: MessageFileViewer(message: message, isPreview: true),
-      );
+      return _buildImageMessage(context);
     } else if (message.messageType == 'document') {
       // Document message
-      return Container(
-        padding: EdgeInsets.all(4),
-        decoration: bubbleDecoration,
-        child: MessageFileViewer(message: message, isPreview: true),
-      );
+      return _buildDocumentMessage(context);
     } else {
       // Default/unknown type
-      return Container(
-        padding: EdgeInsets.all(12),
-        decoration: bubbleDecoration,
+      return Padding(
+        padding: EdgeInsets.all(8),
         child: Text(
           'Unsupported message type: ${message.messageType}',
           style: TextStyle(
             color: isCurrentUser ? Colors.white : Colors.black,
             fontStyle: FontStyle.italic,
+            fontSize: 12,
           ),
         ),
       );
     }
-  }
-
-  // Check if this is a reply message
-  bool _isReplyMessage() {
-    return message.metadata.containsKey('replyTo') &&
-        message.metadata['replyTo'] != null &&
-        message.metadata['replyTo']['messageId'] != null;
-  }
-
-  // Build a preview of the message being replied to
-  Widget _buildReplyPreview(BuildContext context) {
-    final replyData = message.metadata['replyTo'];
-    final replyContent = replyData['content'] ?? '';
-    final replyType = replyData['messageType'] ?? 'text';
-
-    // Don't show anything if no valid reply data
-    if (replyContent.isEmpty &&
-        replyType != 'image' &&
-        replyType != 'document') {
-      return SizedBox();
-    }
-
-    return Container(
-      padding: EdgeInsets.all(8),
-      margin: EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isCurrentUser
-            ? Colors.white.withOpacity(0.2)
-            : Theme.of(context).primaryColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isCurrentUser
-              ? Colors.white.withOpacity(0.3)
-              : Theme.of(context).primaryColor.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Show reply type indicator
-          if (replyType == 'text' && replyContent.isNotEmpty)
-            Text(
-              replyContent,
-              style: TextStyle(
-                color: isCurrentUser ? Colors.white70 : Colors.black54,
-                fontSize: 12,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            )
-          else if (replyType == 'image')
-            Row(
-              children: [
-                Icon(
-                  Icons.image,
-                  size: 14,
-                  color: isCurrentUser ? Colors.white70 : Colors.black54,
-                ),
-                SizedBox(width: 4),
-                Text(
-                  'Image',
-                  style: TextStyle(
-                    color: isCurrentUser ? Colors.white70 : Colors.black54,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            )
-          else if (replyType == 'document')
-            Row(
-              children: [
-                Icon(
-                  Icons.insert_drive_file,
-                  size: 14,
-                  color: isCurrentUser ? Colors.white70 : Colors.black54,
-                ),
-                SizedBox(width: 4),
-                Text(
-                  'Document',
-                  style: TextStyle(
-                    color: isCurrentUser ? Colors.white70 : Colors.black54,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimeAndStatus() {
-    final time = DateFormat('HH:mm').format(message.createdAt.toLocal());
-    final isRead = message.metadata['status'] == 'read';
-    
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, right: 4, left: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            time,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[600],
-            ),
-          ),
-          if (isCurrentUser) ...[
-            SizedBox(width: 4),
-            Icon(
-              isRead ? Icons.done_all : Icons.done,
-              size: 12,
-              color: isRead ? Colors.blue : Colors.grey[600],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextMessage(BuildContext context) {
-    return Text(
-      message.content ?? '',
-      style: TextStyle(
-        color: isCurrentUser ? Colors.white : Colors.black87,
-        fontSize: 16,
-      ),
-    );
   }
 
   Widget _buildImageMessage(BuildContext context) {
     // Make sure we have file data
     if (message.file == null || message.file!['url'] == null) {
-      print('No valid image URL in message: ${message.id}');
       return Container(
-        height: 150,
-        width: 150,
-        color: Colors.grey[300],
-        child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+        height: 120,
+        width: 120,
+        color: Colors.grey[200],
+        child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
       );
     }
 
     String imageUrl = message.file!['url'];
-    print('Displaying image from URL: $imageUrl'); // Debug log
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: () {
-            // Show full image
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Image'),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.download),
-                        onPressed: () {
-                          // Implement image download if needed
-                        },
-                      ),
-                    ],
-                  ),
-                  body: Center(
-                    child: InteractiveViewer(
-                      minScale: 0.5,
-                      maxScale: 4.0,
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        placeholder: (context, url) => Container(
-                          height: MediaQuery.of(context).size.height * 0.3,
-                          width: MediaQuery.of(context).size.width * 0.8,
-                          color: Colors.grey[300],
-                          child:
-                              const Center(child: CircularProgressIndicator()),
-                        ),
-                        errorWidget: (context, url, error) {
-                          print('Error loading image: $error');
-                          return Container(
-                            height: MediaQuery.of(context).size.height * 0.3,
-                            width: MediaQuery.of(context).size.width * 0.8,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 50,
-                                color: Colors.grey,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: GestureDetector(
+        onTap: () {
+          // Show full-screen image when tapped
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(
+                  backgroundColor: Colors.black,
+                  iconTheme: IconThemeData(color: Colors.white),
+                  elevation: 0,
+                ),
+                body: Center(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 3.0,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / 
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: AppColors.primary,
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.error, color: Colors.red, size: 40),
+                              SizedBox(height: 8),
+                              Text(
+                                'Failed to load image',
+                                style: TextStyle(color: Colors.white),
                               ),
-                            ),
-                          );
-                        },
-                        fit: BoxFit.contain,
-                      ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
-            );
-          },
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.65,
-                maxHeight: 250,
-              ),
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                placeholder: (context, url) => Container(
+            ),
+          );
+        },
+        child: Padding(
+          padding: EdgeInsets.all(2),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 200,
+              maxHeight: 200,
+            ),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Container(
+                  width: 200,
                   height: 150,
-                  width: 150,
-                  color: Colors.grey[200],
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                errorWidget: (context, url, error) {
-                  print('Error loading image thumbnail: $error');
-                  return Container(
-                    height: 150,
-                    width: 150,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.broken_image, color: Colors.grey),
+                  color: Colors.grey[100],
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / 
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                      color: AppColors.primary,
                     ),
-                  );
-                },
-                fit: BoxFit.cover,
-              ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 120,
+                  height: 120,
+                  color: Colors.grey[100],
+                  child: Icon(Icons.broken_image, color: Colors.grey),
+                );
+              },
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildDocumentMessage(BuildContext context) {
     if (message.file == null) {
       return Container(
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(8),
-        ),
+        padding: EdgeInsets.all(8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error, color: Colors.red),
-            SizedBox(width: 8),
+            Icon(Icons.error, color: Colors.red, size: 14),
+            SizedBox(width: 4),
             Text("Document unavailable",
                 style: TextStyle(
-                    color: isCurrentUser ? Colors.white : Colors.black87)),
+                    color: isCurrentUser ? Colors.white : Colors.black87,
+                    fontSize: 12)
+            ),
           ],
         ),
       );
@@ -549,30 +482,29 @@ class MessageBubble extends StatelessWidget {
     final fileType = _getFileTypeIcon(fileName);
     final formattedSize = _formatFileSize(fileSize);
 
+    // Truncate long file names
+    final displayName = fileName.length > 20 
+        ? fileName.substring(0, 15) + '...' + fileName.split('.').last
+        : fileName;
+
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isCurrentUser
-              ? Colors.white.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: EdgeInsets.all(12),
+      margin: EdgeInsets.all(4),
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           fileType,
-          SizedBox(width: 8),
+          SizedBox(width: 6),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  fileName,
+                  displayName,
                   style: TextStyle(
                     color: isCurrentUser ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -583,27 +515,26 @@ class MessageBubble extends StatelessWidget {
                     color: isCurrentUser
                         ? Colors.white.withOpacity(0.7)
                         : Colors.grey,
-                    fontSize: 12,
+                    fontSize: 9,
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(width: 8),
+          SizedBox(width: 6),
           IconButton(
             icon: Icon(
               Icons.download,
-              color:
-                  isCurrentUser ? Colors.white : Theme.of(context).primaryColor,
-              size: 20,
+              color: isCurrentUser ? Colors.white : AppColors.primary,
+              size: 16,
             ),
+            constraints: BoxConstraints(),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
             onPressed: fileUrl == null
                 ? null
                 : () => DocumentHandler.downloadAndOpenDocument(
-                    context, fileUrl, fileName),
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(),
-            visualDensity: VisualDensity.compact,
+                      context, fileUrl, fileName),
           ),
         ],
       ),
@@ -618,90 +549,35 @@ class MessageBubble extends StatelessWidget {
         return Icon(
           Icons.picture_as_pdf,
           color: isCurrentUser ? Colors.white : Colors.red,
-          size: 24,
+          size: 16,
         );
       case 'doc':
       case 'docx':
         return Icon(
           Icons.description,
           color: isCurrentUser ? Colors.white : Colors.blue,
-          size: 24,
+          size: 16,
         );
       case 'xls':
       case 'xlsx':
         return Icon(
           Icons.insert_chart,
           color: isCurrentUser ? Colors.white : Colors.green,
-          size: 24,
+          size: 16,
         );
       case 'txt':
         return Icon(
           Icons.subject,
           color: isCurrentUser ? Colors.white : Colors.grey,
-          size: 24,
-        );
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icon(
-          Icons.image,
-          color: isCurrentUser ? Colors.white : Colors.purple,
-          size: 24,
-        );
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-        return Icon(
-          Icons.video_file,
-          color: isCurrentUser ? Colors.white : Colors.orange,
-          size: 24,
+          size: 16,
         );
       default:
         return Icon(
           Icons.insert_drive_file,
           color: isCurrentUser ? Colors.white : Colors.grey,
-          size: 24,
+          size: 16,
         );
     }
-  }
-
-  Widget _buildMessageFooter(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (message.isEdited)
-          Padding(
-            padding: const EdgeInsets.only(right: 4.0),
-            child: Text(
-              'Edited',
-              style: TextStyle(
-                color:
-                    isCurrentUser ? Colors.white.withOpacity(0.7) : Colors.grey,
-                fontSize: 10,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        Text(
-          DateFormatter.formatMessageTime(message.createdAt),
-          style: TextStyle(
-            color: isCurrentUser ? Colors.white.withOpacity(0.7) : Colors.grey,
-            fontSize: 10,
-          ),
-        ),
-        if (isCurrentUser) ...[
-          SizedBox(width: 4),
-          Icon(
-            message.metadata['status'] == 'read' ? Icons.done_all : Icons.done,
-            size: 14,
-            color: message.metadata['status'] == 'read'
-                ? Colors.blue
-                : Colors.white.withOpacity(0.7),
-          ),
-        ],
-      ],
-    );
   }
 
   String _formatFileSize(dynamic bytes) {

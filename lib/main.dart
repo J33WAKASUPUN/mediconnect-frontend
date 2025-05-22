@@ -16,6 +16,7 @@ import 'package:mediconnect/features/messages/provider/conversation_provider.dar
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/messages/screens/chat_detail_screen.dart';
 import 'package:mediconnect/features/messages/screens/chat_list_screen.dart';
+import 'package:mediconnect/features/messages/screens/doctor_contacts_screen.dart';
 import 'package:mediconnect/features/messages/screens/doctor_selection_screen.dart';
 import 'package:mediconnect/features/patient/screens/medical_records_screen.dart';
 import 'package:mediconnect/features/payment/screens/payment_receipt_screen.dart';
@@ -445,7 +446,19 @@ class _MyAppState extends State<MyApp> {
             otherUser: args['otherUser'],
           );
         },
-        '/messages/doctor-selection': (context) => DoctorSelectionScreen(),
+        '/messages/doctor-selection': (context) {
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
+          final userRole = authProvider.user?.role.toLowerCase() ?? '';
+
+          if (userRole == 'doctor') {
+            // For doctors - show contacts with both doctors and patients tabs
+            return DoctorContactsScreen();
+          } else {
+            // For patients - show only doctor selection
+            return DoctorSelectionScreen();
+          }
+        },
       },
       onGenerateRoute: (settings) {
         // Handle socket test
