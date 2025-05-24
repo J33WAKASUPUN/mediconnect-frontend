@@ -1,4 +1,3 @@
-// lib/features/patient/widgets/doctor_action_dialog.dart
 import 'package:flutter/material.dart';
 import '../../../core/models/user_model.dart';
 import '../../../shared/constants/colors.dart';
@@ -108,12 +107,7 @@ class DoctorActionDialog extends StatelessWidget {
               subtitle: const Text('Start a conversation'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Implement messaging
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Messaging feature coming soon!'),
-                  ),
-                );
+                Navigator.pushNamed(context, '/messages');
               },
             ),
             const SizedBox(height: 8),

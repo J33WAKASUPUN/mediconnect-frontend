@@ -118,11 +118,13 @@ class DoctorProfileScreen extends StatelessWidget {
               ],
 
               // Hospital Affiliations
-              if (doctor.doctorProfile?.hospitalAffiliations.isNotEmpty ?? false) ...[
+              if (doctor.doctorProfile?.hospitalAffiliations.isNotEmpty ??
+                  false) ...[
                 const SizedBox(height: 16),
                 _buildSection(
                   title: 'Hospital Affiliations',
-                  children: doctor.doctorProfile!.hospitalAffiliations.map((hospital) {
+                  children: doctor.doctorProfile!.hospitalAffiliations
+                      .map((hospital) {
                     return _buildInfoRow(
                       hospital.hospitalName,
                       hospital.role,
@@ -140,7 +142,8 @@ class DoctorProfileScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: doctor.doctorProfile!.expertise.map((expertise) {
+                      children:
+                          doctor.doctorProfile!.expertise.map((expertise) {
                         return Chip(
                           label: Text(expertise),
                           backgroundColor: AppColors.primary.withOpacity(0.1),
@@ -188,22 +191,25 @@ class DoctorProfileScreen extends StatelessWidget {
                           // If we have calendar data, use that
                           if (provider.calendar != null) {
                             // If there are no working days, show a message
-                            final workingDays = provider.calendar!.defaultWorkingHours
-                                .where((day) => day.isWorking && day.slots.isNotEmpty)
+                            final workingDays = provider
+                                .calendar!.defaultWorkingHours
+                                .where((day) =>
+                                    day.isWorking && day.slots.isNotEmpty)
                                 .toList();
-                                
+
                             if (workingDays.isEmpty) {
                               return const Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(16.0),
                                   child: Text(
                                     'This doctor has not set their working hours yet.',
-                                    style: TextStyle(fontStyle: FontStyle.italic),
+                                    style:
+                                        TextStyle(fontStyle: FontStyle.italic),
                                   ),
                                 ),
                               );
                             }
-                            
+
                             return Column(
                               children: [
                                 // Weekly schedule
@@ -213,7 +219,8 @@ class DoctorProfileScreen extends StatelessWidget {
                                     child: Padding(
                                       padding: const EdgeInsets.all(12),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             day.day,
@@ -229,9 +236,12 @@ class DoctorProfileScreen extends StatelessWidget {
                                               return Chip(
                                                 label: Text(
                                                   '${time.startTime} - ${time.endTime}',
-                                                  style: const TextStyle(fontSize: 12),
+                                                  style: const TextStyle(
+                                                      fontSize: 12),
                                                 ),
-                                                backgroundColor: AppColors.primary.withOpacity(0.1),
+                                                backgroundColor: AppColors
+                                                    .primary
+                                                    .withOpacity(0.1),
                                                 labelStyle: const TextStyle(
                                                   color: AppColors.primary,
                                                 ),
@@ -249,38 +259,46 @@ class DoctorProfileScreen extends StatelessWidget {
                                     .where((day) =>
                                         day.isHoliday &&
                                         day.date.isAfter(DateTime.now()) &&
-                                        day.date.isBefore(DateTime.now().add(const Duration(days: 30))))
+                                        day.date.isBefore(DateTime.now()
+                                            .add(const Duration(days: 30))))
                                     .isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 16.0),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Upcoming Unavailable Dates',
-                                          style: TextStyle(fontWeight: FontWeight.bold),
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
                                         ),
                                         const SizedBox(height: 8),
                                         ...provider.calendar!.schedule
                                             .where((day) =>
                                                 day.isHoliday &&
-                                                day.date.isAfter(DateTime.now()) &&
-                                                day.date.isBefore(DateTime.now().add(const Duration(days: 30))))
+                                                day.date
+                                                    .isAfter(DateTime.now()) &&
+                                                day.date.isBefore(DateTime.now()
+                                                    .add(const Duration(
+                                                        days: 30))))
                                             .map((holiday) {
-                                              final dateStr =
-                                                  '${holiday.date.day}/${holiday.date.month}/${holiday.date.year}';
-                                              return Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(Icons.event_busy,
-                                                        color: Colors.red, size: 16),
-                                                    const SizedBox(width: 8),
-                                                    Text(dateStr),
-                                                  ],
-                                                ),
-                                              );
-                                            }),
+                                          final dateStr =
+                                              '${holiday.date.day}/${holiday.date.month}/${holiday.date.year}';
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 2.0),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.event_busy,
+                                                    color: Colors.red,
+                                                    size: 16),
+                                                const SizedBox(width: 8),
+                                                Text(dateStr),
+                                              ],
+                                            ),
+                                          );
+                                        }),
                                       ],
                                     ),
                                   ),
@@ -316,7 +334,8 @@ class DoctorProfileScreen extends StatelessWidget {
             FloatingActionButton.extended(
               heroTag: 'message',
               onPressed: () {
-                _safeShowSnackBar(context, 'Messaging feature coming soon!');
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/messages');
               },
               icon: const Icon(Icons.message_outlined),
               label: const Text('Message'),

@@ -7,7 +7,7 @@ import 'package:mediconnect/features/doctor/providers/doctor_provider.dart';
 import 'package:mediconnect/features/doctor/screens/doctor_appointments_screen.dart';
 import 'package:mediconnect/features/doctor/widgets/doctor_drawer.dart';
 import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
-import 'package:mediconnect/features/messages/screens/message_screen.dart';
+import 'package:mediconnect/features/messages/screens/chat_list_screen.dart';
 import 'package:mediconnect/features/notification/providers/notification_provider.dart';
 import 'package:mediconnect/features/profile/providers/profile_provider.dart';
 import 'package:mediconnect/features/profile/screens/profile_screen.dart';
@@ -36,8 +36,8 @@ class DoctorDashboardState extends State<DoctorDashboard> {
   late final List<Widget> _screens = [
     const DoctorDashboardContent(),
     const DoctorScheduleScreen(),
-    const ProfileScreen(),
-    const MessagesScreen(),
+    const ProfileScreen(userData: {},),
+    const ChatListScreen(),
     const DoctorAppointmentsScreen(),
   ];
 

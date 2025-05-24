@@ -34,14 +34,14 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4), // <- MODIFY THIS LINE
       child: Row(
         mainAxisAlignment: isCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Left spacer for sent messages
           if (isCurrentUser) 
-            SizedBox(width: MediaQuery.of(context).size.width * 0.25),
+            SizedBox(width: MediaQuery.of(context).size.width * 0.10),
           
           // Message content
           Flexible(
@@ -84,7 +84,7 @@ class MessageBubble extends StatelessWidget {
           
           // Right spacer for received messages
           if (!isCurrentUser) 
-            SizedBox(width: MediaQuery.of(context).size.width * 0.25),
+            SizedBox(width: MediaQuery.of(context).size.width * 0.10),
         ],
       ),
     );
@@ -106,7 +106,7 @@ class MessageBubble extends StatelessWidget {
             'Forwarded',
             style: TextStyle(
               color: Colors.grey,
-              fontSize: 10,
+              fontSize: 12, // <- MODIFY THIS to 12
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -117,22 +117,22 @@ class MessageBubble extends StatelessWidget {
 
   Widget _buildMessageContent(BuildContext context) {
     // Get colors for the bubbles with slight transparency
-    final senderBubbleColor = AppColors.primary.withOpacity(0.9); 
-    final receiverBubbleColor = Colors.white.withOpacity(0.9); 
+    final senderBubbleColor = const Color.fromARGB(255, 66, 68, 214).withOpacity(1); 
+    final receiverBubbleColor = const Color.fromARGB(255, 255, 255, 255).withOpacity(1); 
     
     // Configure the bubble shape with one sharp corner
     BorderRadius borderRadius = isCurrentUser 
         ? BorderRadius.only(
-            topLeft: Radius.circular(16), 
-            topRight: Radius.circular(16), 
-            bottomLeft: Radius.circular(16),
-            bottomRight: Radius.circular(4), // Sharper corner
+            topLeft: Radius.circular(12), 
+            topRight: Radius.circular(12), 
+            bottomLeft: Radius.circular(12),
+            bottomRight: Radius.circular(1), // Sharper corner
           )
         : BorderRadius.only(
-            topLeft: Radius.circular(4), // Sharper corner
-            topRight: Radius.circular(16), 
-            bottomRight: Radius.circular(16),
-            bottomLeft: Radius.circular(16), 
+            topLeft: Radius.circular(1), // Sharper corner
+            topRight: Radius.circular(12), 
+            bottomRight: Radius.circular(12),
+            bottomLeft: Radius.circular(12), 
           );
     
     // Configure the container for the message bubble
@@ -177,7 +177,7 @@ class MessageBubble extends StatelessWidget {
                     DateFormatter.formatMessageTime(message.createdAt),
                     style: TextStyle(
                       color: isCurrentUser ? Colors.white70 : Colors.black45,
-                      fontSize: 9,
+                      fontSize: 11,
                     ),
                   ),
                   if (isCurrentUser) ...[
@@ -185,7 +185,7 @@ class MessageBubble extends StatelessWidget {
                     Icon(
                       message.metadata['status'] == 'read' ? Icons.done_all : Icons.done,
                       size: 10,
-                      color: message.metadata['status'] == 'read' ? Colors.blue : Colors.white70,
+                      color: message.metadata['status'] == 'read' ? const Color.fromARGB(255, 45, 217, 252) : const Color.fromARGB(179, 255, 255, 255),
                     ),
                   ],
                 ],
@@ -231,7 +231,7 @@ class MessageBubble extends StatelessWidget {
           ),
         ),
       ),
-      padding: EdgeInsets.fromLTRB(6, 4, 6, 4),
+      padding: EdgeInsets.fromLTRB(12, 4, 6, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -242,7 +242,7 @@ class MessageBubble extends StatelessWidget {
               color: isReplyFromCurrentUser
                   ? Colors.blue
                   : Colors.green,
-              fontSize: 10,
+              fontSize: 12, // <- MODIFY THIS to 12
             ),
           ),
           SizedBox(height: 1),
@@ -252,7 +252,7 @@ class MessageBubble extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12, // <- MODIFY THIS to 12
                 color: isCurrentUser
                     ? Colors.white
                     : Colors.grey[700],
@@ -275,7 +275,7 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   replyMessageType == 'image' ? 'Photo' : 'Document',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12, // <- MODIFY THIS to 12
                     color: isCurrentUser
                         ? Colors.white
                         : Colors.grey[700],
@@ -293,7 +293,7 @@ class MessageBubble extends StatelessWidget {
     if (message.messageType == 'text') {
       // Text message
       return Padding(
-        padding: EdgeInsets.fromLTRB(10, 6, 10, 8),
+        padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -302,7 +302,7 @@ class MessageBubble extends StatelessWidget {
               message.content ?? '',
               style: TextStyle(
                 color: isCurrentUser ? Colors.white : Colors.black87,
-                fontSize: 13,
+                fontSize: 15, // <- MODIFY THIS to 15
               ),
             ),
 
@@ -316,7 +316,7 @@ class MessageBubble extends StatelessWidget {
                     color: isCurrentUser
                         ? Colors.white.withOpacity(0.7)
                         : Colors.black.withOpacity(0.5),
-                    fontSize: 9,
+                    fontSize: 11, // <- MODIFY THIS to 11
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -339,7 +339,7 @@ class MessageBubble extends StatelessWidget {
           style: TextStyle(
             color: isCurrentUser ? Colors.white : Colors.black,
             fontStyle: FontStyle.italic,
-            fontSize: 12,
+            fontSize: 14, // <- MODIFY THIS to 14
           ),
         ),
       );
@@ -360,7 +360,7 @@ class MessageBubble extends StatelessWidget {
     String imageUrl = message.file!['url'];
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(18),
       child: GestureDetector(
         onTap: () {
           // Show full-screen image when tapped
@@ -419,8 +419,8 @@ class MessageBubble extends StatelessWidget {
           padding: EdgeInsets.all(2),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: 200,
-              maxHeight: 200,
+              maxWidth: 250,
+              maxHeight: 250,
             ),
             child: Image.network(
               imageUrl,
@@ -428,8 +428,8 @@ class MessageBubble extends StatelessWidget {
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
                 return Container(
-                  width: 200,
-                  height: 150,
+                  width: 250,
+                  height: 200,
                   color: Colors.grey[100],
                   child: Center(
                     child: CircularProgressIndicator(
@@ -504,7 +504,7 @@ class MessageBubble extends StatelessWidget {
                   style: TextStyle(
                     color: isCurrentUser ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.w500,
-                    fontSize: 11,
+                    fontSize: 13, // <- MODIFY THIS to 13
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -515,7 +515,7 @@ class MessageBubble extends StatelessWidget {
                     color: isCurrentUser
                         ? Colors.white.withOpacity(0.7)
                         : Colors.grey,
-                    fontSize: 9,
+                    fontSize: 11, // <- MODIFY THIS to 11
                   ),
                 ),
               ],

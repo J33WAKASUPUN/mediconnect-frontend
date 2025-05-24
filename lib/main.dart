@@ -408,7 +408,7 @@ class _MyAppState extends State<MyApp> {
         '/register': (context) => const RegisterScreen(),
 
         // Shared routes
-        '/profile': (context) => const ProfileScreen(),
+        '/profile': (context) => const ProfileScreen(userData: {},),
         '/notifications': (context) => const NotificationScreen(),
 
         // Patient routes

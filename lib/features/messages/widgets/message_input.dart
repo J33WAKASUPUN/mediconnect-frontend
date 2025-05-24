@@ -37,6 +37,7 @@ class _MessageInputState extends State<MessageInput> {
   bool _showEmojiPicker = false;
   bool _isTyping = false;
   Timer? _typingTimer;
+  static const Color primary = Color.fromARGB(255, 66, 68, 214);
 
   @override
   void initState() {
@@ -98,6 +99,7 @@ class _MessageInputState extends State<MessageInput> {
     });
   }
 
+
   void _handleSend() {
     if (_controller.text.trim().isEmpty) return;
 
@@ -121,83 +123,126 @@ class _MessageInputState extends State<MessageInput> {
         // Show reply header
         if (widget.replyToMessage != null) _buildReplyHeader(),
 
-        // Message input
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            boxShadow: [
-              BoxShadow(
-                offset: Offset(0, -1),
-                blurRadius: 5,
-                color: Colors.black.withOpacity(0.05),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.attach_file),
-                onPressed: widget.onAttach,
-              ),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          _showEmojiPicker
-                              ? Icons.keyboard
-                              : Icons.emoji_emotions_outlined,
-                          color: Theme.of(context).primaryColor,
+        // Message input - WhatsApp style
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Input field with rounded corners and attachments inside
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          offset: Offset(0, 1),
+                          blurRadius: 3,
+                          color: Colors.black.withOpacity(0.1),
                         ),
-                        onPressed: _toggleEmojiPicker,
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          maxLines: null,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            hintText: widget.message != null
-                                ? 'Edit message'
-                                : widget.replyToMessage != null
-                                    ? 'Reply to message'
-                                    : 'Type a message',
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        // Emoji button inside field
+                        IconButton(
+                          icon: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard
+                                : Icons.emoji_emotions_outlined,
+                            color: primary,
+                            size: 24,
+                          ),
+                          onPressed: _toggleEmojiPicker,
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
                           ),
                         ),
+                        
+                        // Text field - no border or highlight when focused
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            maxLines: 5, // Allow multiple lines but cap at 5
+                            minLines: 1, // Start with 1 line
+                            textCapitalization: TextCapitalization.sentences,
+                            style: TextStyle(fontSize: 15),
+                            decoration: InputDecoration(
+                              border: InputBorder.none, // Remove border
+                              focusedBorder: InputBorder.none, // Remove focus border
+                              enabledBorder: InputBorder.none, // Remove enabled border
+                              errorBorder: InputBorder.none, // Remove error border
+                              disabledBorder: InputBorder.none, // Remove disabled border
+                              contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              hintText: widget.message != null
+                                  ? 'Edit message'
+                                  : widget.replyToMessage != null
+                                      ? 'Reply to message'
+                                      : 'Message',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                            ),
+                          ),
+                        ),
+                        
+                        // Attachment button inside field
+                        IconButton(
+                          icon: Icon(
+                            Icons.attach_file,
+                            color: primary,
+                            size: 24,
+                          ),
+                          onPressed: widget.onAttach,
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Send button - slight gap from input field
+                SizedBox(width: 4),
+                Container(
+                  height: 48,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        offset: Offset(0, 1),
+                        blurRadius: 3,
+                        color: Colors.black.withOpacity(0.1),
                       ),
                     ],
                   ),
-                ),
-              ),
-              SizedBox(width: 8),
-              CircleAvatar(
-                backgroundColor: Theme.of(context).primaryColor,
-                radius: 24,
-                child: IconButton(
-                  icon: Icon(
-                    widget.message != null ? Icons.check : Icons.send,
-                    color: Colors.white,
+                  child: IconButton(
+                    icon: Icon(
+                      widget.message != null ? Icons.check : Icons.send,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    onPressed: _handleSend,
+                    padding: EdgeInsets.zero,
                   ),
-                  onPressed: _handleSend,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         
         // Emoji picker
         if (_showEmojiPicker)
           SizedBox(
-            height: 350,
+            height: 300,
             child: EmojiPicker(
               onEmojiSelected: (category, emoji) {
                 // Get current text and selection
@@ -217,29 +262,29 @@ class _MessageInputState extends State<MessageInput> {
               },
               textEditingController: _controller,
               config: Config(
-                height: 150,
+                height: 280,
                 emojiViewConfig: EmojiViewConfig(
-                  emojiSizeMax: 25.0,
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  emojiSizeMax: 28.0,
+                  backgroundColor: Colors.grey[100]!,
                 ),
                 skinToneConfig: SkinToneConfig(
                   indicatorColor: Colors.grey,
                 ),
                 categoryViewConfig: CategoryViewConfig(
                   initCategory: Category.RECENT,
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  iconColorSelected: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.white,
+                  iconColorSelected: primary,
                   iconColor: Colors.grey,
-                  indicatorColor: Theme.of(context).primaryColor,
+                  indicatorColor: primary,
                   recentTabBehavior: RecentTabBehavior.RECENT,
                 ),
                 bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  buttonColor: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.white,
+                  buttonColor: primary,
                 ),
                 searchViewConfig: SearchViewConfig(
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  buttonIconColor: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.white,
+                  buttonIconColor: primary,
                 ),
               ),
             ),
@@ -256,22 +301,34 @@ class _MessageInputState extends State<MessageInput> {
     final isCurrentUser = message.senderId == authProvider.user?.id;
     
     return Container(
-      padding: EdgeInsets.all(8),
-      color: Colors.grey.shade100,
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: EdgeInsets.only(bottom: 4, left: 8, right: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: Offset(0, 1),
+            blurRadius: 3,
+            color: Colors.black.withOpacity(0.1),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           Container(
-            width: 4,
-            height: 40,
+            width: 3,
+            height: 36,
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               color: isCurrentUser ? Colors.blue : Colors.green,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(1.5),
             ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Reply to ${isCurrentUser ? 'yourself' : widget.otherUser['firstName']}',
@@ -288,7 +345,7 @@ class _MessageInputState extends State<MessageInput> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Colors.grey.shade700,
                     ),
                   )
@@ -299,7 +356,7 @@ class _MessageInputState extends State<MessageInput> {
                         message.messageType == 'image'
                             ? Icons.image
                             : Icons.insert_drive_file,
-                        size: 16,
+                        size: 14,
                         color: Colors.grey.shade700,
                       ),
                       SizedBox(width: 4),
@@ -308,7 +365,7 @@ class _MessageInputState extends State<MessageInput> {
                             ? 'Photo'
                             : 'Document',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.grey.shade700,
                         ),
                       ),
@@ -318,7 +375,7 @@ class _MessageInputState extends State<MessageInput> {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close, size: 18),
+            icon: Icon(Icons.close, size: 16),
             constraints: BoxConstraints(),
             padding: EdgeInsets.all(4),
             onPressed: widget.onCancelReply,
@@ -330,28 +387,41 @@ class _MessageInputState extends State<MessageInput> {
   
   Widget _buildEditingHeader() {
     return Container(
-      padding: EdgeInsets.all(8),
-      color: Theme.of(context).primaryColor.withOpacity(0.1),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: EdgeInsets.only(bottom: 4, left: 8, right: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            offset: Offset(0, 1),
+            blurRadius: 3,
+            color: Colors.black.withOpacity(0.1),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           Container(
-            width: 4,
-            height: 40,
+            width: 3,
+            height: 36,
             margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor,
-              borderRadius: BorderRadius.circular(2),
+              color: primary,
+              borderRadius: BorderRadius.circular(1.5),
             ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Editing Message',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
+                    color: primary,
+                    fontSize: 12,
                   ),
                 ),
                 Text(
@@ -359,7 +429,7 @@ class _MessageInputState extends State<MessageInput> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: Colors.grey,
                   ),
                 ),
@@ -367,7 +437,9 @@ class _MessageInputState extends State<MessageInput> {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.close),
+            icon: Icon(Icons.close, size: 16),
+            constraints: BoxConstraints(),
+            padding: EdgeInsets.all(4),
             onPressed: widget.onCancelEdit,
           ),
         ],

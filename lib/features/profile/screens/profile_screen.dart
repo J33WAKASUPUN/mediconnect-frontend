@@ -21,7 +21,7 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     this.hideAppBar = false,
-    this.readOnly = false,
+    this.readOnly = false, required Map<String, dynamic> userData,
   });
 
   @override

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/core/models/message.dart';
+import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/utils/date_formatter.dart';
@@ -13,6 +14,7 @@ import 'package:mediconnect/features/messages/provider/message_provider.dart';
 import 'package:mediconnect/features/messages/widgets/document_picker.dart';
 import 'package:mediconnect/features/messages/widgets/message_bubble.dart';
 import 'package:mediconnect/features/messages/widgets/message_input.dart';
+import 'package:mediconnect/features/profile/screens/profile_screen.dart';
 import 'package:mediconnect/shared/constants/colors.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,11 +22,13 @@ import 'package:image_picker/image_picker.dart';
 class ChatDetailScreen extends StatefulWidget {
   final String conversationId;
   final Map<String, dynamic> otherUser;
+  // final User doctor;
 
   const ChatDetailScreen({
     super.key,
     required this.conversationId,
     required this.otherUser,
+    // required this.doctor,
   });
 
   @override
@@ -808,21 +812,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 16),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             ListTile(
-              leading: const Icon(Icons.photo, color: AppColors.primary),
-              title: const Text('Image'),
+              leading: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.photo, color: AppColors.primary),
+              ),
+              title: Text('Image', style: TextStyle(fontSize: 16)),
+              subtitle: Text('Send a photo from gallery',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage();
               },
             ),
+            SizedBox(height: 4),
             ListTile(
-              leading: const Icon(Icons.attach_file, color: AppColors.primary),
-              title: const Text('Document'),
+              leading: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.attach_file, color: AppColors.primary),
+              ),
+              title: Text('Document', style: TextStyle(fontSize: 16)),
+              subtitle: Text('Send a file or document',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               onTap: () {
                 Navigator.pop(context);
                 _pickDocument();
@@ -856,7 +890,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         image: DecorationImage(
           image: AssetImage('assets/images/chat_background.png'),
           repeat: ImageRepeat.repeat,
-          opacity: 0.2, // Subtle background
+          opacity: 0.1, // Subtle background
         ),
       ),
       child: Column(
@@ -1229,13 +1263,40 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onPressed: () {
             showModalBottomSheet(
               context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
               builder: (context) => Container(
-                child: Wrap(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
                     ListTile(
-                      leading: Icon(Icons.select_all, color: AppColors.primary),
+                      leading: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.select_all, color: AppColors.primary),
+                      ),
                       title: Text('Select messages',
-                          style: TextStyle(fontSize: 14)),
+                          style: TextStyle(fontSize: 16)),
+                      subtitle: Text('Select multiple messages',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
                       onTap: () {
                         Navigator.pop(context);
                         _enterSelectionMode(
@@ -1246,18 +1307,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         );
                       },
                     ),
+                    SizedBox(height: 4), // Small space instead of divider
                     ListTile(
-                      leading: Icon(Icons.person, color: AppColors.primary),
-                      title:
-                          Text('View profile', style: TextStyle(fontSize: 14)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        // Implement view profile
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.delete_sweep, color: Colors.red),
-                      title: Text('Clear chat', style: TextStyle(fontSize: 14)),
+                      leading: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.delete_sweep, color: Colors.red),
+                      ),
+                      title: Text('Clear chat', style: TextStyle(fontSize: 16)),
+                      subtitle: Text('Delete all messages',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
                       onTap: () {
                         Navigator.pop(context);
                         _showClearChatDialog();
