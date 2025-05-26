@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mediconnect/core/services/auth_service.dart';
+import 'package:mediconnect/core/services/health_ai_service.dart';
 import 'package:mediconnect/core/services/message_service.dart';
 import 'package:mediconnect/core/services/socket_service.dart';
 import 'package:mediconnect/core/services/user_service.dart';
@@ -11,6 +12,8 @@ import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.
 import 'package:mediconnect/features/doctor_calendar/provider/todo_provider.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/doctor_calendar.dart';
 import 'package:mediconnect/features/doctor_calendar/screens/working_hours_settings.dart';
+import 'package:mediconnect/features/health_ai/providers/health_ai_provider.dart';
+import 'package:mediconnect/features/health_ai/screens/health_sessions_screen.dart';
 import 'package:mediconnect/features/medication_reminder/provider/medication_reminder_provider.dart';
 import 'package:mediconnect/features/messages/provider/conversation_provider.dart';
 import 'package:mediconnect/features/messages/provider/message_provider.dart';
@@ -276,6 +279,23 @@ void main() async {
             apiService: context.read<ApiService>(),
           ),
         ),
+        Provider<HealthAIService>(
+          create: (context) {
+            final healthService = HealthAIService();
+            // Set auth token if available
+            final authProvider = context.read<AuthProvider>();
+            if (authProvider.isAuthenticated && authProvider.token != null) {
+              healthService.setAuthToken(authProvider.token!);
+            }
+            return healthService;
+          },
+        ),
+        // Add HealthAIProvider
+        ChangeNotifierProvider(
+          create: (context) => HealthAIProvider(
+            context.read<HealthAIService>(),
+          ),
+        ),
         // Add MessageProvider
         ChangeNotifierProvider(
           create: (context) => MessageProvider(
@@ -408,7 +428,9 @@ class _MyAppState extends State<MyApp> {
         '/register': (context) => const RegisterScreen(),
 
         // Shared routes
-        '/profile': (context) => const ProfileScreen(userData: {},),
+        '/profile': (context) => const ProfileScreen(
+              userData: {},
+            ),
         '/notifications': (context) => const NotificationScreen(),
 
         // Patient routes
@@ -434,6 +456,9 @@ class _MyAppState extends State<MyApp> {
         '/doctor/calendar': (context) => const DoctorCalendarScreen(),
         '/doctor/calendar/working-hours': (context) =>
             const WorkingHoursSettingsScreen(),
+
+        // Health AI routes
+        '/health-assistant': (context) => const HealthSessionsScreen(),
 
         // Add message routes
         '/messages': (context) => ChatListScreen(),

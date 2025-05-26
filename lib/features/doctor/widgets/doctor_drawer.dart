@@ -255,6 +255,14 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.health_and_safety),
+                  title: const Text('Health Assistant'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/health-assistant');
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.settings),
                   title: const Text('Settings'),
                   onTap: () {

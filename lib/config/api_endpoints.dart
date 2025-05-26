@@ -10,7 +10,7 @@ class ApiEndpoints {
   // User endpoints
   static const String users = '/users';
   static const String patientsWhoMessaged = '/users/patients/messaged';
-  static const String allDoctors = '/users?role=doctor'; 
+  static const String allDoctors = '/users?role=doctor';
 
   // Profile endpoints
   static const String profile = '/profile';
@@ -58,8 +58,19 @@ class ApiEndpoints {
   static const String searchMessages = '/messages/search';
   static const String messageReactions = '/messages/:id/reactions';
   static const String messageForward = '/messages/:id/forward';
-  static const String messageRead = '/messages/:id/read'; 
+  static const String messageRead = '/messages/:id/read';
+
   // File upload
   static const String fileMessages = '/messages/file';
   static const String fileMessagesBase64 = '/messages/file/base64';
+
+  // AI Health Assistant endpoints
+  static const String healthInsightsSessions = '/health-insights/sessions';
+  static const String healthInsightsMessages = '/health-insights/messages';
+  static const String healthInsightsSampleTopics =
+      '/health-insights/sample-topics';
+  static const String healthInsightsAnalyzeImage =
+      '/health-insights/analyze-image';
+  static const String healthInsightsAnalyzeDocument =
+      '/health-insights/analyze-document';
 }

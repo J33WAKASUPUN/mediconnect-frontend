@@ -9,6 +9,18 @@ class AppStyles {
     color: AppColors.textPrimary,
   );
 
+  static const TextStyle heading3 = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.bold,
+    color: AppColors.textPrimary,
+  );
+
+  static const TextStyle heading4 = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+  );
+
   static const TextStyle heading2 = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.bold,
@@ -54,6 +66,11 @@ class AppStyles {
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(8),
     ),
+  );
+
+  static const TextStyle caption = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
   );
 
   // Input Decoration

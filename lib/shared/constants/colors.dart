@@ -30,4 +30,5 @@ class AppColors {
   static const Color disabled = Color(0xFFE0E0E0);
   static const Color overlay = Color(0x80000000);
   static const Color border = Color(0xFFDDDDDD);
+
 }
