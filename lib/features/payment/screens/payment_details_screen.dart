@@ -4,7 +4,6 @@ import 'package:mediconnect/features/appointment/providers/appointment_provider.
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../providers/payment_provider.dart';
@@ -36,8 +35,17 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F6),
       appBar: AppBar(
-        title: const Text('Payment Details'),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        title: const Text(
+          'Payment Details',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: Consumer<PaymentProvider>(
         builder: (context, provider, child) {
@@ -59,115 +67,163 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
             );
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildStatusHeader(payment.status, payment.formattedAmount),
-                const SizedBox(height: 24),
-
-                // Payment Information
-                _buildSection(
-                  title: 'Payment Information',
+          return Column(
+            children: [
+              // Header section
+              Container(
+                color: AppColors.primary,
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildInfoRow('Payment ID', payment.id),
-                    _buildInfoRow('Date', payment.formattedDate),
-                    _buildInfoRow('Amount', payment.formattedAmount),
-                    _buildInfoRow('Status', payment.statusText),
-                    if (payment.paypalOrderId != null)
-                      _buildInfoRow('PayPal Order ID', payment.paypalOrderId!),
+                    Text(
+                      payment.isSuccessful 
+                          ? 'Payment Completed Successfully' 
+                          : payment.isRefunded 
+                              ? 'Payment Refunded' 
+                              : 'Payment Details',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      payment.formattedAmount,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
-
-                const SizedBox(height: 24),
-
-                // Appointment Information
-                _buildSection(
-                  title: 'Appointment Information',
-                  children: [
-                    _buildInfoRow('Doctor', payment.doctorName),
-                    _buildInfoRow('Patient', payment.patientName),
-                    if (payment.appointmentDate != null)
-                      _buildInfoRow('Date', payment.appointmentDateFormatted),
-                    if (payment.appointmentData != null &&
-                        payment.appointmentData!['timeSlot'] != null)
-                      _buildInfoRow(
-                          'Time', payment.appointmentData!['timeSlot']),
-                    if (payment.appointmentData != null &&
-                        payment.appointmentData!['reason'] != null)
-                      _buildInfoRow(
-                          'Reason', payment.appointmentData!['reason']),
-                  ],
+              ),
+              
+              // Main content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildStatusCard(payment),
+                      const SizedBox(height: 20),
+                      
+                      // Payment Information
+                      _buildSection(
+                        title: 'Payment Information',
+                        icon: Icons.payment,
+                        iconColor: Colors.blue,
+                        children: [
+                          _buildInfoRow('Payment ID', payment.id),
+                          _buildInfoRow('Date', payment.formattedDate),
+                          _buildInfoRow('Amount', payment.formattedAmount),
+                          _buildInfoRow('Status', payment.statusText),
+                          if (payment.paypalOrderId != null)
+                            _buildInfoRow('PayPal Order ID', payment.paypalOrderId!),
+                        ],
+                      ),
+                
+                      const SizedBox(height: 20),
+                
+                      // Appointment Information
+                      _buildSection(
+                        title: 'Appointment Information',
+                        icon: Icons.calendar_today,
+                        iconColor: Colors.green,
+                        children: [
+                          _buildInfoRow('Doctor', payment.doctorName),
+                          _buildInfoRow('Patient', payment.patientName),
+                          if (payment.appointmentDate != null)
+                            _buildInfoRow('Date', payment.appointmentDateFormatted),
+                          if (payment.appointmentData != null &&
+                              payment.appointmentData!['timeSlot'] != null)
+                            _buildInfoRow(
+                                'Time', payment.appointmentData!['timeSlot']),
+                          if (payment.appointmentData != null &&
+                              payment.appointmentData!['reason'] != null)
+                            _buildInfoRow(
+                                'Reason', payment.appointmentData!['reason']),
+                        ],
+                      ),
+                
+                      const SizedBox(height: 20),
+                
+                      // Transaction Details (if available)
+                      if (payment.transactionDetails != null) ...[
+                        _buildSection(
+                          title: 'Transaction Details',
+                          icon: Icons.article,
+                          iconColor: Colors.orange,
+                          children: [
+                            if (payment.transactionDetails!['captureId'] != null)
+                              _buildInfoRow('Transaction ID',
+                                  payment.transactionDetails!['captureId']),
+                            if (payment.transactionDetails!['paymentMethod'] != null)
+                              _buildInfoRow('Payment Method',
+                                  payment.transactionDetails!['paymentMethod']),
+                            if (payment.transactionDetails!['processorResponse'] !=
+                                    null &&
+                                payment.transactionDetails!['processorResponse']
+                                        ['message'] !=
+                                    null)
+                              _buildInfoRow(
+                                  'Status Message',
+                                  payment.transactionDetails!['processorResponse']
+                                      ['message']),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                
+                      // Refund Details (if available)
+                      if (payment.isRefunded && payment.refundDetails != null) ...[
+                        _buildSection(
+                          title: 'Refund Information',
+                          icon: Icons.replay,
+                          iconColor: Colors.purple,
+                          children: [
+                            if (payment.refundDetails!['refundId'] != null)
+                              _buildInfoRow(
+                                  'Refund ID', payment.refundDetails!['refundId']),
+                            if (payment.refundDetails!['amount'] != null)
+                              _buildInfoRow('Refund Amount',
+                                  '${payment.currency} ${payment.refundDetails!['amount']}'),
+                            if (payment.refundDetails!['reason'] != null)
+                              _buildInfoRow(
+                                  'Reason', payment.refundDetails!['reason']),
+                            if (payment.refundDetails!['refundedAt'] != null)
+                              _buildInfoRow(
+                                  'Date',
+                                  DateTime.parse(payment.refundDetails!['refundedAt'])
+                                      .toString()),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                
+                      // Actions
+                      _buildActionButtons(payment),
+                    ],
+                  ),
                 ),
-
-                const SizedBox(height: 24),
-
-                // Transaction Details (if available)
-                if (payment.transactionDetails != null) ...[
-                  _buildSection(
-                    title: 'Transaction Details',
-                    children: [
-                      if (payment.transactionDetails!['captureId'] != null)
-                        _buildInfoRow('Transaction ID',
-                            payment.transactionDetails!['captureId']),
-                      if (payment.transactionDetails!['paymentMethod'] != null)
-                        _buildInfoRow('Payment Method',
-                            payment.transactionDetails!['paymentMethod']),
-                      if (payment.transactionDetails!['processorResponse'] !=
-                              null &&
-                          payment.transactionDetails!['processorResponse']
-                                  ['message'] !=
-                              null)
-                        _buildInfoRow(
-                            'Status Message',
-                            payment.transactionDetails!['processorResponse']
-                                ['message']),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Refund Details (if available)
-                if (payment.isRefunded && payment.refundDetails != null) ...[
-                  _buildSection(
-                    title: 'Refund Information',
-                    children: [
-                      if (payment.refundDetails!['refundId'] != null)
-                        _buildInfoRow(
-                            'Refund ID', payment.refundDetails!['refundId']),
-                      if (payment.refundDetails!['amount'] != null)
-                        _buildInfoRow('Refund Amount',
-                            '${payment.currency} ${payment.refundDetails!['amount']}'),
-                      if (payment.refundDetails!['reason'] != null)
-                        _buildInfoRow(
-                            'Reason', payment.refundDetails!['reason']),
-                      if (payment.refundDetails!['refundedAt'] != null)
-                        _buildInfoRow(
-                            'Date',
-                            DateTime.parse(payment.refundDetails!['refundedAt'])
-                                .toString()),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Actions
-                _buildActionButtons(payment),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildStatusHeader(String status, String amount) {
+  Widget _buildStatusCard(Payment payment) {
     Color color;
     IconData icon;
     String message;
 
-    switch (status) {
+    switch (payment.status) {
       case 'COMPLETED':
         color = Colors.green;
         icon = Icons.check_circle;
@@ -201,56 +257,122 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 48),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon, 
+              color: color, 
+              size: 36,
+            ),
+          ),
           const SizedBox(height: 12),
           Text(
             message,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            amount,
-            style: AppStyles.heading1,
-          ),
+          if (payment.isRefunded)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Original Amount: ${payment.formattedAmount}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildSection(
-      {required String title, required List<Widget> children}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: AppStyles.heading2,
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-          child: Column(
-            children: children,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: iconColor),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+          
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: children,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -261,11 +383,11 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 100,
             child: Text(
               label,
-              style: AppStyles.bodyText1.copyWith(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: Colors.grey.shade600,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -273,7 +395,9 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
           Expanded(
             child: Text(
               value,
-              style: AppStyles.bodyText1,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -293,7 +417,11 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
               onPressed: () => _downloadReceipt(payment.id),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -309,7 +437,7 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.cancel, color: AppColors.error),
+              icon: const Icon(Icons.cancel),
               label: const Text('Cancel Appointment & Request Refund'),
               onPressed: () =>
                   _showRefundConfirmation(payment.id, payment.appointmentId),
@@ -317,6 +445,9 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -328,11 +459,31 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
   void _downloadReceipt(String paymentId) async {
     final provider = Provider.of<PaymentProvider>(context, listen: false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Downloading receipt...')),
+    // Show a loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 24),
+              const Expanded(
+                child: Text('Downloading your receipt...'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     final filePath = await provider.downloadReceipt(paymentId);
+
+    // Close the loading dialog
+    Navigator.of(context).pop();
 
     if (filePath != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -344,11 +495,23 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
               OpenFile.open(filePath);
             },
           ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.green,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.error ?? 'Failed to download receipt')),
+        SnackBar(
+          content: Text(provider.error ?? 'Failed to download receipt'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -357,7 +520,16 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Appointment & Request Refund'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Cancel & Request Refund'),
+          ],
+        ),
         content: const Text(
           'Are you sure you want to cancel this appointment and request a refund? '
           'This action cannot be undone.',
@@ -372,11 +544,11 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
             label: const Text('Yes, Request Refund'),
             onPressed: () {
               Navigator.pop(context);
-              // Implement refund request
               _requestRefund(paymentId, appointmentId);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -391,14 +563,19 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text('Processing Refund'),
           content: Row(
             children: [
-              CircularProgressIndicator(),
+              CircularProgressIndicator(color: AppColors.primary),
               SizedBox(width: 20),
               Expanded(
-                  child: Text(
-                      'Please wait while we process your refund request...')),
+                child: Text(
+                  'Please wait while we process your refund request...'
+                ),
+              ),
             ],
           ),
         ),
@@ -422,6 +599,9 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Text('Refund Processed'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -429,11 +609,12 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
                 Icon(Icons.check_circle, color: Colors.green, size: 48),
                 SizedBox(height: 16),
                 Text(
-                    'Your appointment has been cancelled and a refund has been initiated.'),
+                  'Your appointment has been cancelled and a refund has been initiated.',
+                ),
                 SizedBox(height: 8),
                 Text(
                   'The refund will be processed to your original payment method and may take 3-5 business days to appear in your account.',
-                  style: TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                 ),
               ],
             ),

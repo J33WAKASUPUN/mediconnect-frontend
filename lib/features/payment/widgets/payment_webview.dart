@@ -1,7 +1,6 @@
-// lib/features/payment/widgets/payment_webview.dart
-
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../../shared/constants/colors.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 
 class PaymentWebView extends StatefulWidget {
@@ -151,50 +150,86 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   Widget build(BuildContext context) {
     if (_hasError) {
       // Show error view with retry option
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text(
-                'Failed to load payment page',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _errorMessage,
-                style: const TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _hasError = false;
-                    _errorMessage = '';
-                    _isLoading = true;
-                  });
-                  try {
-                    _initWebView();
-                  } catch (e) {
+      return Container(
+        color: Colors.white,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.error_outline, 
+                    size: 64, 
+                    color: Colors.red
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Failed to load payment page',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Text(
+                    _errorMessage,
+                    style: TextStyle(color: Colors.grey.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
                     setState(() {
-                      _hasError = true;
-                      _errorMessage = e.toString();
+                      _hasError = false;
+                      _errorMessage = '';
+                      _isLoading = true;
                     });
-                  }
-                },
-                child: const Text('Retry'),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: widget.onPaymentCancelled,
-                child: const Text('Cancel Payment'),
-              ),
-            ],
+                    try {
+                      _initWebView();
+                    } catch (e) {
+                      setState(() {
+                        _hasError = true;
+                        _errorMessage = e.toString();
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Cancel Payment'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  onPressed: widget.onPaymentCancelled,
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -205,16 +240,46 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         // Only show WebViewWidget if we've properly initialized
         if (!_hasError) WebViewWidget(controller: _controller),
         if (_isLoading)
-          const LoadingIndicator(message: 'Loading PayPal checkout...'),
+          Container(
+            color: Colors.white,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Loading PayPal checkout...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         Positioned(
           top: 10,
           right: 10,
           child: SafeArea(
-            child: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: widget.onPaymentCancelled,
-              color: Colors.grey[800],
-              tooltip: 'Cancel Payment',
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: widget.onPaymentCancelled,
+                color: Colors.grey[800],
+                tooltip: 'Cancel Payment',
+              ),
             ),
           ),
         ),

@@ -27,9 +27,9 @@ class DoctorProfileScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFF6F6F6),
       body: CustomScrollView(
         slivers: [
-          // Sliver app bar with doctor profile
+          // Redesigned sliver app bar with side-by-side layout
           SliverAppBar(
-            expandedHeight: 280.0,
+            expandedHeight: 200.0,
             pinned: true,
             backgroundColor: primaryColor,
             flexibleSpace: FlexibleSpaceBar(
@@ -37,53 +37,131 @@ class DoctorProfileScreen extends StatelessWidget {
                 decoration: const BoxDecoration(
                   color: primaryColor,
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 60),
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      backgroundImage: doctor.profilePicture != null
-                          ? NetworkImage(doctor.profilePicture!)
-                          : null,
-                      child: doctor.profilePicture == null
-                          ? Text(
-                              'Dr. ${doctor.firstName[0]}${doctor.lastName[0]}',
-                              style: const TextStyle(
-                                fontSize: 32,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Dr. ${doctor.firstName} ${doctor.lastName}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    if (doctor.doctorProfile?.specialization != null)
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(50, 30, 10, 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Profile picture with border and corner styling
                       Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          doctor.doctorProfile!.specialization!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(1),
+                            width: 3,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundImage: doctor.profilePicture != null
+                              ? NetworkImage(doctor.profilePicture!)
+                              : null,
+                          child: doctor.profilePicture == null
+                              ? Text(
+                                  'Dr. ${doctor.firstName[0]}${doctor.lastName[0]}',
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
-                  ],
+                      
+                      const SizedBox(width: 20),
+                      
+                      // Doctor information
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Dr. ${doctor.firstName} ${doctor.lastName}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (doctor.doctorProfile?.specialization != null) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  doctor.doctorProfile!.specialization!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            // Additional info chips
+                            Row(
+                              children: [
+                                if (doctor.doctorProfile?.yearsOfExperience != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${doctor.doctorProfile!.yearsOfExperience} yrs',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                if (doctor.doctorProfile?.consultationFees != null) ...[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'Rs. ${doctor.doctorProfile!.consultationFees}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

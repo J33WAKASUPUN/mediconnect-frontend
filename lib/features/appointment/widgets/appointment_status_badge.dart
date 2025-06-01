@@ -13,48 +13,67 @@ class AppointmentStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color statusColor;
     String displayText = status.toUpperCase();
+    IconData? statusIcon;
 
     // Map status values to display text and colors
     switch (status.toLowerCase()) {
       case 'pending_payment':
         statusColor = Colors.orange;
         displayText = 'PAYMENT NEEDED';
+        statusIcon = Icons.payment;
         break;
       case 'pending':
-        statusColor = AppColors.warning;
+        statusColor = Colors.orange;
+        statusIcon = Icons.schedule;
         break;
       case 'confirmed':
         statusColor = AppColors.primary;
+        statusIcon = Icons.check_circle_outline;
         break;
       case 'completed':
-        statusColor = AppColors.success;
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
         break;
       case 'cancelled':
-        statusColor = AppColors.error;
+        statusColor = Colors.red;
+        statusIcon = Icons.cancel;
         break;
       case 'no-show':
       case 'no_show':
         statusColor = Colors.grey;
         displayText = 'NO SHOW';
+        statusIcon = Icons.person_off;
         break;
       default:
-        statusColor = AppColors.textSecondary;
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
-      child: Text(
-        displayText,
-        style: TextStyle(
-          color: statusColor,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            color: statusColor,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            displayText,
+            style: TextStyle(
+              color: statusColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }

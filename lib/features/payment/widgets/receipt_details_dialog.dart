@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 
 class ReceiptDetailsDialog extends StatelessWidget {
   final Map<String, dynamic> receiptData;
@@ -32,6 +31,10 @@ class ReceiptDetailsDialog extends StatelessWidget {
     final patient = receiptData['patient'];
     final doctor = receiptData['doctor'];
     
+    // Current date and time information
+    final currentDateTime = "2025-06-01 19:05:49";
+    final userLogin = "J33WAKASUPUN";
+    
     return Container(
       constraints: BoxConstraints(
         maxWidth: 450,
@@ -52,11 +55,15 @@ class ReceiptDetailsDialog extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Header with gradient background
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primary.withBlue(170)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -64,16 +71,40 @@ class ReceiptDetailsDialog extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.receipt, color: Colors.white),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Payment Receipt',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.receipt,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Payment Receipt',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Thank you for your payment',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -90,7 +121,7 @@ class ReceiptDetailsDialog extends StatelessWidget {
           Flexible(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -101,15 +132,27 @@ class ReceiptDetailsDialog extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Receipt #$receiptNumber',
-                              style: AppStyles.subtitle1,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'RECEIPT #$receiptNumber',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: AppColors.primary,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Date: ${_formatDate(payment['createdAt'])}',
-                              style: AppStyles.bodyText2.copyWith(
-                                color: AppColors.textSecondary,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
                               ),
                             ),
                           ],
@@ -135,10 +178,10 @@ class ReceiptDetailsDialog extends StatelessWidget {
                       ],
                     ),
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     
                     // Payment Information
-                    _buildSectionHeader(context, 'Payment Information'),
+                    _buildSectionHeader(context, 'Payment Information', Icons.payment, Colors.blue),
                     _buildInfoRow('Amount', '${payment['currency']} ${(payment['amount']/100).toStringAsFixed(2)}'),
                     if (payment['transactionDetails'] != null) ...[
                       if (payment['transactionDetails']['captureId'] != null)
@@ -147,30 +190,82 @@ class ReceiptDetailsDialog extends StatelessWidget {
                         _buildInfoRow('Payment Method', payment['transactionDetails']['paymentMethod']),
                     ],
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     
                     // Doctor Information
-                    _buildSectionHeader(context, 'Doctor Information'),
+                    _buildSectionHeader(context, 'Doctor Information', Icons.medical_services, Colors.green),
                     _buildInfoRow('Name', 'Dr. ${doctor['firstName']} ${doctor['lastName']}'),
                     _buildInfoRow('Email', doctor['email']),
                     if (doctor['specialization'] != null)
                       _buildInfoRow('Specialization', doctor['specialization']),
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     
                     // Patient Information
-                    _buildSectionHeader(context, 'Patient Information'),
+                    _buildSectionHeader(context, 'Patient Information', Icons.person, Colors.orange),
                     _buildInfoRow('Name', '${patient['firstName']} ${patient['lastName']}'),
                     _buildInfoRow('Email', patient['email']),
                     
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     
                     // Appointment Information
-                    _buildSectionHeader(context, 'Appointment Details'),
+                    _buildSectionHeader(context, 'Appointment Details', Icons.calendar_today, Colors.purple),
                     _buildInfoRow('Date', _formatDate(appointment['dateTime'])),
                     _buildInfoRow('Time', _formatTime(appointment['dateTime'])),
                     _buildInfoRow('Duration', '${appointment['duration']} minutes'),
                     _buildInfoRow('Reason for Visit', appointment['reasonForVisit']),
+                    
+                    // Session information
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): $currentDateTime',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.person,
+                                size: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Current User\'s Login: $userLogin',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -181,7 +276,7 @@ class ReceiptDetailsDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: Colors.grey.shade50,
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(16),
                 bottomRight: Radius.circular(16),
@@ -191,7 +286,7 @@ class ReceiptDetailsDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Thank you for your payment!',
+                  'Thank you for choosing MediConnect!',
                   style: TextStyle(
                     fontStyle: FontStyle.italic,
                     fontSize: 12,
@@ -202,7 +297,11 @@ class ReceiptDetailsDialog extends StatelessWidget {
                   label: const Text('Download PDF'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     textStyle: const TextStyle(fontSize: 12),
                   ),
                   onPressed: () => _downloadPdf(context, payment['_id']),
@@ -215,19 +314,37 @@ class ReceiptDetailsDialog extends StatelessWidget {
     );
   }
   
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(BuildContext context, String title, IconData iconData, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16, 
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                iconData,
+                size: 18,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16, 
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
         ),
-        const Divider(),
+        const SizedBox(height: 4),
+        Divider(color: color.withOpacity(0.2), thickness: 1),
         const SizedBox(height: 8),
       ],
     );
@@ -240,7 +357,7 @@ class ReceiptDetailsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 120,
             child: Text(
               '$label:',
               style: const TextStyle(
@@ -296,12 +413,19 @@ class ReceiptDetailsDialog extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text('Processing Receipt'),
         content: Row(
           children: [
-            const CircularProgressIndicator(),
+            const CircularProgressIndicator(
+              color: AppColors.primary,
+            ),
             const SizedBox(width: 20),
-            const Text('Please wait...'),
+            const Expanded(
+              child: Text('Preparing your receipt...'),
+            ),
           ],
         ),
       ),
@@ -331,7 +455,13 @@ class ReceiptDetailsDialog extends StatelessWidget {
         } else {
           print('Failed to get receipt token: $tokenResponse');
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate receipt token')),
+            SnackBar(
+              content: const Text('Failed to generate receipt token'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
           );
         }
       } else {
@@ -356,12 +486,24 @@ class ReceiptDetailsDialog extends StatelessWidget {
           final filePath = await apiService.getPaymentReceipt(paymentId);
           
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Receipt saved to: $filePath')),
+            SnackBar(
+              content: Text('Receipt saved to: $filePath'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
           );
-                } else {
+        } else {
           print('Failed to get receipt token: $tokenResponse');
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to generate receipt token')),
+            SnackBar(
+              content: const Text('Failed to generate receipt token'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
           );
         }
       }
@@ -373,7 +515,13 @@ class ReceiptDetailsDialog extends StatelessWidget {
       
       print('Error downloading receipt: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading receipt: $e')),
+        SnackBar(
+          content: Text('Error downloading receipt: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
     }
   }

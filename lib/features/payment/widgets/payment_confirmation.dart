@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 import '../../../core/models/appointment_model.dart';
 
 class PaymentConfirmationSheet extends StatefulWidget {
@@ -42,7 +41,7 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
         : 'Doctor';
         
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -51,8 +50,10 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle bar for dragging
           Center(
             child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
               height: 4,
               width: 40,
               decoration: BoxDecoration(
@@ -61,70 +62,197 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
           
-          Text('Payment Confirmation', style: AppStyles.heading1),
+          // Header
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.payment,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Payment Confirmation',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 8),
-          Text('Complete payment for your appointment with $doctorName', 
-              style: AppStyles.bodyText1),
+          
+          Text(
+            'Complete payment for your appointment with $doctorName',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
+            ),
+          ),
+            
           const SizedBox(height: 24),
           
           // Payment Summary
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
               children: [
-                _buildInfoRow('Date', widget.appointment.formattedAppointmentDate),
-                _buildInfoRow('Time', widget.appointment.timeSlot),
-                _buildInfoRow('Doctor', doctorName),
-                const Divider(),
-                _buildInfoRow('Amount', 'Rs. ${widget.appointment.amount.toStringAsFixed(2)}',
-                    isTotal: true),
+                _buildInfoRow(
+                  'Date',
+                  widget.appointment.formattedAppointmentDate,
+                  Icons.calendar_today,
+                ),
+                const SizedBox(height: 12),
+                
+                _buildInfoRow(
+                  'Time',
+                  widget.appointment.timeSlot,
+                  Icons.access_time,
+                ),
+                const SizedBox(height: 12),
+                
+                _buildInfoRow(
+                  'Doctor',
+                  doctorName,
+                  Icons.person,
+                ),
+                
+                const Divider(height: 24),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Amount',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      'Rs. ${widget.appointment.amount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+          
           const SizedBox(height: 24),
           
           // Payment Method Selection
-          Text('Select Payment Method', style: AppStyles.subtitle1),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _selectedPaymentMethod,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          const Text(
+            'Select Payment Method',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
-            items: _paymentMethods.map((String method) {
-              return DropdownMenuItem<String>(
-                value: method,
-                child: Text(method),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedPaymentMethod = newValue;
-                });
-              }
-            },
           ),
+          
+          const SizedBox(height: 12),
+          
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: _selectedPaymentMethod,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+              icon: const Icon(Icons.keyboard_arrow_down),
+              items: _paymentMethods.map((String method) {
+                return DropdownMenuItem<String>(
+                  value: method,
+                  child: Row(
+                    children: [
+                      Icon(
+                        method == 'Credit Card'
+                            ? Icons.credit_card
+                            : method == 'Bank Transfer'
+                                ? Icons.account_balance
+                                : method == 'Mobile Wallet'
+                                    ? Icons.smartphone
+                                    : Icons.payments,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(method),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedPaymentMethod = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+          
           const SizedBox(height: 16),
           
           // Transaction Details (not visible for cash)
           if (_selectedPaymentMethod != 'Cash') ...[
-            Text('Transaction Reference (Optional)', style: AppStyles.subtitle1),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _transactionController,
-              decoration: const InputDecoration(
-                hintText: 'Enter reference number or transaction ID',
-                border: OutlineInputBorder(),
+            const Text(
+              'Transaction Reference (Optional)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            
+            const SizedBox(height: 12),
+            
+            TextField(
+              controller: _transactionController,
+              decoration: InputDecoration(
+                hintText: 'Enter reference number or transaction ID',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+            ),
+            
             const SizedBox(height: 24),
           ],
           
@@ -147,38 +275,75 @@ class _PaymentConfirmationSheetState extends State<PaymentConfirmationSheet> {
                       );
                     },
               style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
               ),
               child: _isProcessing 
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20, 
+                          height: 20, 
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('Processing...'),
+                      ],
+                    )
                   : const Text('Confirm Payment'),
             ),
           ),
+          
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
   
-  Widget _buildInfoRow(String label, String value, {bool isTotal = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: isTotal 
-                ? AppStyles.bodyText1.copyWith(fontWeight: FontWeight.bold)
-                : AppStyles.bodyText2,
+  Widget _buildInfoRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            shape: BoxShape.circle,
           ),
-          Text(
-            value,
-            style: isTotal 
-                ? AppStyles.subtitle1
-                : AppStyles.bodyText1,
+          child: Icon(
+            icon,
+            size: 16,
+            color: Colors.grey.shade700,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

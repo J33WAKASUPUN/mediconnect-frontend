@@ -3,7 +3,6 @@ import 'package:mediconnect/features/review/screens/review_form_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/appointment_model.dart';
 import '../../../shared/constants/colors.dart';
-import '../../../shared/constants/styles.dart';
 import '../../doctor/widgets/doctor_appointment_action_dialog.dart';
 import '../providers/appointment_provider.dart';
 import 'appointment_cancellation_dialog.dart';
@@ -15,7 +14,7 @@ class AppointmentCard extends StatelessWidget {
   final bool isCompact;
   final VoidCallback? onTap;
   final VoidCallback? onCancelPressed;
-  final Function(String)? onConfirmPressed; // Updated to accept a reason
+  final Function(String)? onConfirmPressed;
   final VoidCallback? onCompletePressed;
   final VoidCallback? onReviewPressed;
   final VoidCallback? onViewMedicalRecord;
@@ -43,7 +42,6 @@ class AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get the name depending on view
     final String name;
     if (isPatientView) {
       name = appointment.doctorDetails != null
@@ -55,153 +53,563 @@ class AppointmentCard extends StatelessWidget {
           : 'Patient';
     }
 
-    // Get specialty/info
     final String subtitle = isPatientView
         ? appointment.doctorDetails?['doctorProfile']?['specialization'] ?? ''
         : appointment.reason;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: appointment.statusColor.withOpacity(0.3),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withOpacity(0.08),
+            offset: const Offset(0, 8),
+            blurRadius: 24,
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            spreadRadius: 0,
+          ),
+        ],
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
           width: 1,
         ),
       ),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with name and status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: AppStyles.subtitle1,
-                                overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          splashColor: const Color(0xFF6366F1).withOpacity(0.1),
+          highlightColor: const Color(0xFF6366F1).withOpacity(0.05),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Enhanced Header Section
+                Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withOpacity(0.3),
+                            offset: const Offset(0, 4),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isPatientView ? Icons.medical_services_rounded : Icons.person_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.5,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                            if (!isPatientView && onViewPatientProfile != null)
-                              IconButton(
-                                icon: const Icon(Icons.person, size: 18),
-                                tooltip: 'View Patient Profile',
-                                onPressed: onViewPatientProfile,
-                              ),
                           ],
+                        ],
+                      ),
+                    ),
+                    if (!isPatientView && onViewPatientProfile != null)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        if (subtitle.isNotEmpty)
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.person_outline_rounded,
+                            size: 20,
+                            color: Color(0xFF6366F1),
+                          ),
+                          tooltip: 'View Patient Profile',
+                          onPressed: onViewPatientProfile,
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Enhanced Status Section
+                Row(
+                  children: [
+                    AppointmentStatusBadge(status: appointment.status),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _getPaymentStatusColor(context).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _getPaymentStatusColor(context).withOpacity(0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _getPaymentStatusIcon(),
+                            size: 14,
+                            color: _getPaymentStatusColor(context),
+                          ),
+                          const SizedBox(width: 6),
                           Text(
-                            subtitle,
-                            style: AppStyles.bodyText2.copyWith(
-                              color: AppColors.textSecondary,
+                            _getPaymentStatusText(context),
+                            style: TextStyle(
+                              color: _getPaymentStatusColor(context),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Enhanced Details Section
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFF8FAFC),
+                        const Color(0xFFF1F5F9).withOpacity(0.5),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildModernInfoRow(
+                        Icons.calendar_today_rounded,
+                        'Date',
+                        appointment.formattedAppointmentDate,
+                        const Color(0xFF10B981),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildModernInfoRow(
+                        Icons.access_time_rounded,
+                        'Time',
+                        appointment.timeSlot,
+                        const Color(0xFF3B82F6),
+                      ),
+                      if (!isCompact) ...[
+                        const SizedBox(height: 16),
+                        _buildModernInfoRow(
+                          Icons.subject_rounded,
+                          'Reason',
+                          appointment.reason,
+                          const Color(0xFF8B5CF6),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      _buildModernInfoRow(
+                        Icons.payments_rounded,
+                        'Amount',
+                        _getAmountText(context),
+                        const Color(0xFFF59E0B),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Enhanced Cancellation Info
+                if (appointment.cancelledBy != null && appointment.cancelledBy!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFFFEF2F2),
+                          const Color(0xFFFEE2E2).withOpacity(0.5),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildModernInfoRow(
+                          Icons.cancel_rounded,
+                          'Cancelled by',
+                          getCancelledByText(appointment, isPatientView),
+                          const Color(0xFFEF4444),
+                        ),
+                        if (appointment.cancellationReason != null &&
+                            appointment.cancellationReason!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _buildModernInfoRow(
+                            Icons.info_outline_rounded,
+                            'Reason',
+                            appointment.cancellationReason!,
+                            const Color(0xFFEF4444),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  Row(
-                    children: [
-                      // Show payment status badge
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color:
-                              _getPaymentStatusColor(context).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _getPaymentStatusText(context),
-                          style: TextStyle(
-                            color: _getPaymentStatusColor(context),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                ],
+
+                // Enhanced Medical Record Indicator
+                if (!isCompact &&
+                    appointment.status.toLowerCase() == 'completed' &&
+                    appointment.medicalRecord != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFFF0FDF4),
+                          const Color(0xFFDCFCE7).withOpacity(0.5),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.medical_information_rounded,
+                            size: 16,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                      AppointmentStatusBadge(status: appointment.status),
-                    ],
-                  )
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Medical record available',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF065F46),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
 
-              if (!isCompact) const Divider(height: 24),
-
-              // Appointment details
-              _buildInfoRow(
-                  Icons.calendar_today, appointment.formattedAppointmentDate),
-              _buildInfoRow(Icons.access_time, appointment.timeSlot),
-
-              if (!isCompact) _buildInfoRow(Icons.subject, appointment.reason),
-
-              if (appointment.cancelledBy != null &&
-                  appointment.cancelledBy!.isNotEmpty)
-                _buildInfoRow(Icons.cancel,
-                    getCancelledByText(appointment, isPatientView)),
-
-              if (appointment.cancellationReason != null &&
-                  appointment.cancellationReason!.isNotEmpty)
-                _buildInfoRow(Icons.info_outline,
-                    'Reason: ${appointment.cancellationReason}'),
-
-              _buildInfoRow(Icons.payments, _getAmountText(context)),
-
-              // Show indicator if medical record is available
-              if (!isCompact &&
-                  appointment.status.toLowerCase() == 'completed' &&
-                  appointment.medicalRecord != null)
-                _buildInfoRow(
-                    Icons.medical_services, 'Medical record available'),
-
-              // Action buttons
-              if (!isCompact && _shouldShowActions()) ...[
-                const SizedBox(height: 16),
-                _buildActionButtons(context),
+                // Enhanced Action Buttons
+                if (!isCompact && _shouldShowActions()) ...[
+                  const SizedBox(height: 24),
+                  _buildModernActionButtons(context),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildModernInfoRow(IconData icon, String label, String value, Color iconColor) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: iconColor,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '$label:',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF475569),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF1E293B),
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernActionButtons(BuildContext context) {
+    final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.end,
+      children: [
+        // Modern Cancel Button
+        if (onCancelPressed != null)
+          _buildModernButton(
+            icon: Icons.cancel_outlined,
+            label: 'Cancel',
+            onPressed: isPatientView
+                ? () => _showCancellationDialog(context)
+                : () => _showDoctorCancellationDialog(context),
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFFEF4444),
+            borderColor: const Color(0xFFEF4444),
+            isOutlined: true,
+          ),
+
+        // Modern Confirm Button
+        if (onConfirmPressed != null)
+          _buildModernButton(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Confirm',
+            onPressed: () => _showDoctorConfirmationDialog(context),
+            backgroundColor: const Color(0xFF6366F1),
+            foregroundColor: Colors.white,
+          ),
+
+        // Modern Complete Button
+        if (onCompletePressed != null)
+          _buildModernButton(
+            icon: Icons.check_circle_rounded,
+            label: 'Complete',
+            onPressed: onCompletePressed,
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+          ),
+
+        // Modern Review Button
+        if (onReviewPressed != null)
+          _buildModernButton(
+            icon: Icons.star_outline_rounded,
+            label: 'Review',
+            onPressed: () => _showReviewDialog(context),
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFFF59E0B),
+            borderColor: const Color(0xFFF59E0B),
+            isOutlined: true,
+          ),
+
+        // Modern Medical Record Buttons
+        if (onViewMedicalRecord != null)
+          _buildModernButton(
+            icon: Icons.medical_information_outlined,
+            label: 'View Record',
+            onPressed: onViewMedicalRecord,
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF3B82F6),
+            borderColor: const Color(0xFF3B82F6),
+            isOutlined: true,
+          ),
+
+        if (onCreateMedicalRecord != null)
+          _buildModernButton(
+            icon: Icons.add_circle_outline_rounded,
+            label: 'Create Record',
+            onPressed: onCreateMedicalRecord,
+            backgroundColor: const Color(0xFF3B82F6),
+            foregroundColor: Colors.white,
+          ),
+
+        // Modern Payment Button
+        if (_isPaymentNeeded(context) && onPaymentPressed != null)
+          _buildModernButton(
+            icon: Icons.payment_rounded,
+            label: 'Pay Now',
+            onPressed: onPaymentPressed,
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+          ),
+
+        // Modern Paid Status
+        // if ((appointment.paymentId != null || appointmentProvider.isAppointmentPaid(appointment.id)))
+        //   Container(
+        //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        //     decoration: BoxDecoration(
+        //       gradient: LinearGradient(
+        //         colors: [
+        //           const Color(0xFF10B981).withOpacity(0.1),
+        //           const Color(0xFF059669).withOpacity(0.05),
+        //         ],
+        //       ),
+        //       borderRadius: BorderRadius.circular(12),
+        //       border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+        //     ),
+        //     child: Row(
+        //       mainAxisSize: MainAxisSize.min,
+        //       children: [
+        //         Container(
+        //           padding: const EdgeInsets.all(4),
+        //           decoration: BoxDecoration(
+        //             color: const Color(0xFF10B981),
+        //             borderRadius: BorderRadius.circular(6),
+        //           ),
+        //           child: const Icon(
+        //             Icons.check_rounded,
+        //             size: 12,
+        //             color: Colors.white,
+        //           ),
+        //         ),
+        //         const SizedBox(width: 8),
+        //         const Text(
+        //           'Paid',
+        //           style: TextStyle(
+        //             color: Color(0xFF065F46),
+        //             fontWeight: FontWeight.w600,
+        //             fontSize: 14,
+        //           ),
+        //         ),
+        //       ],
+        //     ),
+        //   ),
+      ],
+    );
+  }
+
+  Widget _buildModernButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    required Color backgroundColor,
+    required Color foregroundColor,
+    Color? borderColor,
+    bool isOutlined = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: !isOutlined
+            ? [
+                BoxShadow(
+                  color: backgroundColor.withOpacity(0.3),
+                  offset: const Offset(0, 4),
+                  blurRadius: 12,
+                ),
+              ]
+            : null,
+      ),
+      child: ElevatedButton.icon(
+        icon: Icon(icon, size: 18),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isOutlined ? Colors.white : backgroundColor,
+          foregroundColor: foregroundColor,
+          side: isOutlined ? BorderSide(color: borderColor ?? foregroundColor, width: 1.5) : null,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: isOutlined ? 0 : 2,
+        ),
+      ),
+    );
+  }
+
+  IconData _getPaymentStatusIcon() {
+    final paymentStatus = _getPaymentStatusText(null);
+    switch (paymentStatus) {
+      case 'PAID':
+        return Icons.check_circle_rounded;
+      case 'REFUNDED':
+        return Icons.refresh_rounded;
+      default:
+        return Icons.schedule_rounded;
+    }
+  }
+
+  // Keep all existing methods unchanged
   String getCancelledByText(Appointment appointment, bool isPatientView) {
     if (appointment.cancelledBy == null) {
       return '';
     }
 
-    // When viewed by a patient
     if (isPatientView) {
       if (appointment.cancelledBy == 'patient') {
-        return 'Cancelled by: You';
+        return 'You';
       } else if (appointment.cancelledBy == 'doctor') {
-        return 'Cancelled by: Doctor';
+        return 'Doctor';
       }
-    }
-    // When viewed by a doctor
-    else {
+    } else {
       if (appointment.cancelledBy == 'patient') {
-        return 'Cancelled by: Patient';
+        return 'Patient';
       } else if (appointment.cancelledBy == 'doctor') {
-        return 'Cancelled by: You';
+        return 'You';
       }
     }
 
-    return 'Cancelled by: ${appointment.cancelledBy}';
+    return appointment.cancelledBy!;
   }
 
   String _getAmountText(BuildContext context) {
@@ -216,79 +624,45 @@ class AppointmentCard extends StatelessWidget {
     return amountText;
   }
 
-  String _getPaymentStatusText(BuildContext context) {
-    final appProvider =
-        Provider.of<AppointmentProvider>(context, listen: false);
+  String _getPaymentStatusText(BuildContext? context) {
+    if (context == null) return 'UNPAID';
+    
+    final appProvider = Provider.of<AppointmentProvider>(context, listen: false);
 
-    // For cancelled appointments - check if they were refunded
-    if (appointment.status.toLowerCase() == 'cancelled' &&
-        appointment.paymentId != null) {
+    if (appointment.status.toLowerCase() == 'cancelled' && appointment.paymentId != null) {
       return 'REFUNDED';
     }
 
-    // For cancelled appointments - check refunded in provider tracking
-    if (appointment.status.toLowerCase() == 'cancelled' &&
-        appProvider.isAppointmentRefunded(appointment.id)) {
+    if (appointment.status.toLowerCase() == 'cancelled' && appProvider.isAppointmentRefunded(appointment.id)) {
       return 'REFUNDED';
     }
 
-    // If direct payment ID exists or tracked in provider
-    if (appointment.paymentId != null ||
-        appProvider.isAppointmentPaid(appointment.id)) {
+    if (appointment.paymentId != null || appProvider.isAppointmentPaid(appointment.id)) {
       return 'PAID';
     }
 
-    // Default status
     return 'UNPAID';
   }
 
   Color _getPaymentStatusColor(BuildContext context) {
-    final appProvider =
-        Provider.of<AppointmentProvider>(context, listen: false);
+    final appProvider = Provider.of<AppointmentProvider>(context, listen: false);
 
-    // For cancelled appointments - check if they were refunded
-    if (appointment.status.toLowerCase() == 'cancelled' &&
-        appointment.paymentId != null) {
-      return Colors.purple;
+    if (appointment.status.toLowerCase() == 'cancelled' && appointment.paymentId != null) {
+      return const Color(0xFF8B5CF6);
     }
 
-    // For cancelled appointments - check refunded in provider tracking
-    if (appointment.status.toLowerCase() == 'cancelled' &&
-        appProvider.isAppointmentRefunded(appointment.id)) {
-      return Colors.purple;
+    if (appointment.status.toLowerCase() == 'cancelled' && appProvider.isAppointmentRefunded(appointment.id)) {
+      return const Color(0xFF8B5CF6);
     }
 
-    // If direct payment ID exists or tracked in provider
-    if (appointment.paymentId != null ||
-        appProvider.isAppointmentPaid(appointment.id)) {
-      return Colors.green;
+    if (appointment.paymentId != null || appProvider.isAppointmentPaid(appointment.id)) {
+      return const Color(0xFF10B981);
     }
 
-    // Default color
-    return Colors.orange;
-  }
-
-  Widget _buildInfoRow(IconData icon, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const Color(0xFFF59E0B);
   }
 
   bool _shouldShowActions() {
-    // Check if there are any actions to show
     return onCancelPressed != null ||
         onConfirmPressed != null ||
         onCompletePressed != null ||
@@ -299,21 +673,16 @@ class AppointmentCard extends StatelessWidget {
   }
 
   bool _isPaymentNeeded(BuildContext context) {
-    // Get appointment provider
-    final appointmentProvider =
-        Provider.of<AppointmentProvider>(context, listen: false);
+    final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
 
-    // First, check if the appointment has a payment ID directly
     if (appointment.paymentId != null) {
       return false;
     }
 
-    // Next, check if it's in our paid appointments list
     if (appointmentProvider.isAppointmentPaid(appointment.id)) {
       return false;
     }
 
-    // Only show payment button for pending appointments without payment
     return (appointment.status.toLowerCase() == 'pending_payment' ||
         appointment.status.toLowerCase() == 'pending');
   }
@@ -328,26 +697,24 @@ class AppointmentCard extends StatelessWidget {
             : 'Doctor',
         appointmentDate: appointment.appointmentDate,
         hasPaidPayment: appointment.paymentId != null ||
-            Provider.of<AppointmentProvider>(context, listen: false)
-                .isAppointmentPaid(appointment.id),
+            Provider.of<AppointmentProvider>(context, listen: false).isAppointmentPaid(appointment.id),
       ),
     ).then((result) {
-      // Handle result from dialog if needed
-      if (result != null &&
-          result is Map<String, dynamic> &&
-          result['success'] == true) {
-        // Show success message
+      if (result != null && result is Map<String, dynamic> && result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message']),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     });
   }
 
-  //  doctor confirmation dialog with reason
   void _showDoctorConfirmationDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -360,16 +727,12 @@ class AppointmentCard extends StatelessWidget {
         actionType: AppointmentAction.confirm,
       ),
     ).then((result) {
-      if (result != null &&
-          result is Map<String, dynamic> &&
-          result['confirmed'] == true) {
-        // Call the confirm callback with the reason
+      if (result != null && result is Map<String, dynamic> && result['confirmed'] == true) {
         onConfirmPressed?.call(result['reason'] ?? '');
       }
     });
   }
 
-  // doctor cancellation dialog with reason
   void _showDoctorCancellationDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -382,21 +745,13 @@ class AppointmentCard extends StatelessWidget {
         actionType: AppointmentAction.cancel,
       ),
     ).then((result) {
-      if (result != null &&
-          result is Map<String, dynamic> &&
-          result['confirmed'] == true) {
-        // Use cancelAppointmentWithReason instead of direct onCancelPressed
-        // This ensures the reason is properly passed to the backend
-        final appointmentProvider =
-            Provider.of<AppointmentProvider>(context, listen: false);
-
-        appointmentProvider.cancelAppointmentWithReason(
-            appointment.id, result['reason'] ?? '');
+      if (result != null && result is Map<String, dynamic> && result['confirmed'] == true) {
+        final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
+        appointmentProvider.cancelAppointmentWithReason(appointment.id, result['reason'] ?? '');
       }
     });
   }
 
-  // review functionality
   void _showReviewDialog(BuildContext context) {
     Navigator.push(
       context,
@@ -411,130 +766,18 @@ class AppointmentCard extends StatelessWidget {
         ),
       ),
     ).then((result) {
-      // Handle result from the review form
       if (result == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Thank you for your review!'),
+          SnackBar(
+            content: const Text('Thank you for your review!'),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     });
-  }
-
-  Widget _buildActionButtons(BuildContext context) {
-    final appointmentProvider =
-        Provider.of<AppointmentProvider>(context, listen: false);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.end,
-      children: [
-        // Cancel button for pending/confirmed appointments
-        if (onCancelPressed != null)
-          OutlinedButton(
-            onPressed: isPatientView
-                ? () => _showCancellationDialog(context)
-                : () => _showDoctorCancellationDialog(
-                    context), // Use doctor dialog for doctor view
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-            ),
-            child: const Text('Cancel'),
-          ),
-
-        // Confirm button for doctor (pending appointments)
-        if (onConfirmPressed != null)
-          ElevatedButton(
-            onPressed: () => _showDoctorConfirmationDialog(
-                context), // Use new dialog for confirmation
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-            ),
-            child: const Text('Confirm'),
-          ),
-
-        // Complete button for doctor (confirmed appointments)
-        if (onCompletePressed != null)
-          ElevatedButton(
-            onPressed: onCompletePressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-            ),
-            child: const Text('Complete'),
-          ),
-
-        // Review button for patient (completed appointments)
-        if (onReviewPressed != null)
-          OutlinedButton(
-            onPressed: () => _showReviewDialog(context),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.warning,
-            ),
-            child: const Text('Review'),
-          ),
-
-        // Medical record buttons
-        if (onViewMedicalRecord != null)
-          OutlinedButton.icon(
-            icon: const Icon(Icons.medical_information, size: 16),
-            label: const Text('View Record'),
-            onPressed: onViewMedicalRecord,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.info,
-            ),
-          ),
-
-        if (onCreateMedicalRecord != null)
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add_circle_outline, size: 16),
-            label: const Text('Create Record'),
-            onPressed: onCreateMedicalRecord,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.info,
-            ),
-          ),
-
-        // Payment button - Show different states based on payment status
-        if (_isPaymentNeeded(context) && onPaymentPressed != null)
-          ElevatedButton.icon(
-            icon: const Icon(Icons.payment, size: 16),
-            label: const Text('Pay Now'),
-            onPressed: onPaymentPressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.info,
-              foregroundColor: Colors.white,
-            ),
-          ),
-
-        // Show PAID button if payment is completed
-        if ((appointment.paymentId != null ||
-            appointmentProvider.isAppointmentPaid(appointment.id)))
-          ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle, size: 16),
-            label: const Text('Paid'),
-            onPressed: null, // Disabled button
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: Colors.green,
-              disabledForegroundColor: Colors.white,
-            ),
-          ),
-
-        // View patient profile button (Only shown in doctor view)
-        if (!isPatientView && onViewPatientProfile != null)
-          OutlinedButton.icon(
-            icon: const Icon(Icons.person, size: 16),
-            label: const Text('Profile'),
-            onPressed: onViewPatientProfile,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-            ),
-          ),
-      ],
-    );
   }
 }
