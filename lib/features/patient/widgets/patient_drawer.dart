@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../shared/constants/colors.dart';
 import '../../../shared/constants/styles.dart';
+import '../../../shared/widgets/styled_drawer_item.dart';
 
 class PatientDrawer extends StatefulWidget {
   const PatientDrawer({super.key});
@@ -28,264 +29,302 @@ class _PatientDrawerState extends State<PatientDrawer> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final currentTime = SessionHelper.getCurrentUTC();
     final userLogin = SessionHelper.getUserLogin();
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    return Drawer(
-      child: Column(
-        children: [
-          UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-            ),
-            currentAccountPicture: CircleAvatar(
-              radius: 30,
-              backgroundColor: AppColors.surface,
-              backgroundImage: user?.profilePicture != null
-                  ? NetworkImage(user!.profilePicture!)
-                  : null,
-              child: user?.profilePicture == null
-                  ? const Icon(Icons.person, color: AppColors.primary, size: 35)
-                  : null,
-            ),
-            accountName: Text(
-              '${user?.firstName ?? ''} ${user?.lastName ?? ''}',
-              style: AppStyles.heading2.copyWith(
-                color: AppColors.textLight,
+    final drawerWidth = screenWidth * 0.7;
+
+    return Container(
+      width: drawerWidth, // Set custom width
+      child: Drawer(
+        backgroundColor: Colors.white,
+        child: Column(
+          children: [
+            // Stylized Header - match the screenshot style
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 50, bottom: 30),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Profile Picture with border
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white,
+                      backgroundImage: user?.profilePicture != null
+                          ? NetworkImage(user!.profilePicture!)
+                          : null,
+                      child: user?.profilePicture == null
+                          ? Icon(
+                              Icons.person,
+                              size: 60,
+                              color: AppColors.primary,
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Username
+                  Text(
+                    '${user?.firstName ?? ''} ${user?.lastName ?? ''}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Email
+                  Text(
+                    user?.email ?? '',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
-            accountEmail: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user?.email ?? '',
-                  style: AppStyles.bodyText2.copyWith(
-                    color: AppColors.textLight,
-                  ),
-                ),
-                Text(
-                  'ID: $userLogin',
-                  style: AppStyles.bodyText2.copyWith(
-                    color: AppColors.textLight.withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.dashboard),
-                  title: const Text('Dashboard'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushReplacementNamed(
-                        context, '/patient/dashboard');
-                  },
-                ),
-                const Divider(),
-                // Add Your Doctors option
-                ListTile(
-                  leading: const Icon(Icons.medical_services),
-                  title: const Text('Your Doctors'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/patient/doctors');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.calendar_today),
-                  title: const Text('My Appointments'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/patient/appointments');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.medical_services),
-                  title: const Text('Medical Records'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/medical-records');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person),
-                  title: const Text('Profile'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/profile');
-                  },
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.notifications),
-                  title: const Text('Notifications'),
-                  trailing: Consumer<NotificationProvider>(
-                    builder: (context, provider, _) {
-                      // Only show the badge if there are unread notifications
-                      if (provider.unreadCount > 0) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors
-                                .error, // Change to red to make it stand out more
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            provider.unreadCount.toString(),
-                            style: const TextStyle(
-                              color: AppColors.textLight,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      } else {
-                        // Return an empty widget when there are no unread notifications
-                        return const SizedBox.shrink();
-                      }
-                    },
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // When navigating to notifications, ensure we refresh when coming back
-                    Navigator.pushNamed(context, '/notifications').then((_) {
-                      // This runs when returning from notifications screen
-                      if (mounted) {
-                        context
-                            .read<NotificationProvider>()
-                            .loadNotifications();
-                      }
-                    });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.message),
-                  title: const Text('Messages'),
-                  // Add this badge for unread messages
-                  trailing: Consumer<MessageProvider>(
-                    builder: (context, provider, _) {
-                      try {
-                        final unreadCount = provider.totalUnreadCount;
-                        if (unreadCount > 0) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            constraints: const BoxConstraints(
-                              minWidth: 18,
-                              minHeight: 18,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.error,
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: Text(
-                              unreadCount.toString(),
-                              style: const TextStyle(
-                                color: AppColors.textLight,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+
+            // Scrollable menu items
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    StyledDrawerItem(
+                      icon: Icons.home,
+                      title: 'Dashboard',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushReplacementNamed(
+                            context, '/patient/dashboard');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.medical_services,
+                      title: 'Your Doctors',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/patient/doctors');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.calendar_today,
+                      title: 'My Appointments',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/patient/appointments');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.folder_special,
+                      title: 'Medical Records',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/medical-records');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.person,
+                      title: 'Profile',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/profile');
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(color: AppColors.divider, thickness: 1),
+                    ),
+
+                    const SizedBox(height: 8),
+                    StyledDrawerItem(
+                      icon: Icons.notifications,
+                      title: 'Notifications',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      trailing: Consumer<NotificationProvider>(
+                        builder: (context, provider, _) {
+                          if (provider.unreadCount > 0) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.error,
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        // Silently handle any errors
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/messages');
-                  },
+                              child: Text(
+                                provider.unreadCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            );
+                          } else {
+                            return const SizedBox.shrink();
+                          }
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/notifications')
+                            .then((_) {
+                          if (mounted) {
+                            context
+                                .read<NotificationProvider>()
+                                .loadNotifications();
+                          }
+                        });
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.message,
+                      title: 'Messages',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      trailing: Consumer<MessageProvider>(
+                        builder: (context, provider, _) {
+                          try {
+                            final unreadCount = provider.totalUnreadCount;
+                            if (unreadCount > 0) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  unreadCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            // Silently handle any errors
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/messages');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.payments,
+                      title: 'Billing & Payments',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/payment/history');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.health_and_safety,
+                      title: 'Health Assistant',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/health-assistant');
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.settings,
+                      title: 'Settings',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        // TODO: Navigate to settings
+                      },
+                    ),
+                    StyledDrawerItem(
+                      icon: Icons.help,
+                      title: 'Help & Support',
+                      backgroundColor: const Color(0xFFF0F0FF),
+                      textColor: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        // TODO: Navigate to help
+                      },
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: const Icon(Icons.payments),
-                  title: const Text('Billing & Payments'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/payment/history');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.health_and_safety),
-                  title: const Text('Health Assistant'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/health-assistant');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text('Settings'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // TODO: Navigate to settings
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.help),
-                  title: const Text('Help & Support'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // TODO: Navigate to help
-                  },
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: AppColors.error),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: AppColors.error),
-                  ),
+              ),
+            ),
+
+            // Bottom section with logout and version
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logout button
+                StyledDrawerItem(
+                  icon: Icons.logout,
+                  title: 'Logout',
+                  backgroundColor: const Color(0xFFFFEBEE),
+                  textColor: Colors.red,
                   onTap: () async {
                     final navigator = Navigator.of(context);
                     await context.read<AuthProvider>().logout();
                     navigator.pushReplacementNamed('/login');
                   },
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Divider(),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: AppColors.textSecondary,
+
+                // Version text (small and centered)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16, top: 4),
+                  child: Text(
+                    'MediConnect v2.5.0',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      currentTime,
-                      style: AppStyles.bodyText2.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'MediConnect v1.0.0',
-                  style: AppStyles.bodyText2.copyWith(
-                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

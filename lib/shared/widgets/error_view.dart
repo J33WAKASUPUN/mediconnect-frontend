@@ -48,6 +48,7 @@ class ErrorView extends StatelessWidget {
                 text: buttonText ?? 'Try Again',
                 onPressed: onRetry,
                 icon: Icons.refresh,
+                height: 48, // Adding the required height parameter
               ),
           ],
         ),

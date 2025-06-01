@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/profile_models.dart';
+import '../../../shared/constants/colors.dart';
+import '../../../shared/constants/styles.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../providers/profile_provider.dart';
@@ -27,7 +29,6 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
   void initState() {
     super.initState();
     _initializeProfile();
-    print("PatientProfileSection initialized with: ${widget.profile}");
   }
 
   @override
@@ -35,13 +36,11 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
     super.didUpdateWidget(oldWidget);
     if (widget.profile != oldWidget.profile) {
       _initializeProfile();
-      print("PatientProfileSection updated with new profile");
     }
   }
 
   void _initializeProfile() {
     _editingProfile = widget.profile?.clone() ?? PatientProfile();
-    print("_editingProfile initialized with: $_editingProfile");
   }
 
   Future<void> _saveChanges() async {
@@ -52,14 +51,21 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
       if (mounted) {
         setState(() => _isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Medical information updated successfully')),
+          SnackBar(
+            content: Text('Medical information updated successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -72,256 +78,314 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
       _isEditing = false;
     }
 
-    // Print details about the patient profile
-    print(
-        "Building PatientProfileSection with bloodType: ${_editingProfile.bloodType}");
-    print("Medical History: ${_editingProfile.medicalHistory}");
-    print("Allergies: ${_editingProfile.allergies}");
-
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Medical Information',
-              style: Theme.of(context).textTheme.titleLarge,
+            // Section header with icon
+            Row(
+              children: [
+                Icon(Icons.medical_services, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Medical Information',
+                  style: AppStyles.heading3.copyWith(color: AppColors.primary),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const Divider(height: 24),
 
             // Blood Type Section
-            _isEditing
-                ?
-                // Editing mode - dropdown
-                DropdownButtonFormField<String>(
-                    value: _editingProfile.bloodType,
-                    decoration: const InputDecoration(
-                      labelText: 'Blood Type',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                        .map((type) => DropdownMenuItem(
-                              value: type,
-                              child: Text(type),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() => _editingProfile.bloodType = value);
-                    },
-                  )
-                :
-                // View mode - regular text
-                Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Row(
-                      children: [
-                        const SizedBox(
-                          width: 120,
-                          child: Text(
-                            'Blood Type:',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.bloodtype, 
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Blood Type',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
                         ),
-                        Text(_editingProfile.bloodType ?? 'Not specified'),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-            const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  _isEditing
+                    ? DropdownButtonFormField<String>(
+                        value: _editingProfile.bloodType,
+                        decoration: InputDecoration(
+                          labelText: 'Blood Type',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+                            .map((type) => DropdownMenuItem(
+                                  value: type,
+                                  child: Text(type),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() => _editingProfile.bloodType = value);
+                        },
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16, 
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.favorite, 
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              _editingProfile.bloodType ?? 'Not specified',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
 
             // Medical History Section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Medical History',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_editingProfile.medicalHistory.isEmpty)
-                  const Text(
-                    "No medical history information available",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
-                ...List.generate(_editingProfile.medicalHistory.length,
-                    (index) {
-                  final history = _editingProfile.medicalHistory[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.circle, size: 8),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(history)),
-                        if (_isEditing)
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              setState(() {
-                                _editingProfile.medicalHistory.removeAt(index);
-                              });
-                            },
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-                if (_isEditing)
-                  CustomButton(
-                    text: 'Add Medical History',
-                    onPressed: () => _addItem('Medical History', (value) {
-                      setState(() => _editingProfile.medicalHistory.add(value));
-                    }),
-                    isSecondary: true,
-                  ),
-              ],
+            _buildSectionWithItems(
+              title: 'Medical History',
+              icon: Icons.history,
+              items: _editingProfile.medicalHistory,
+              emptyMessage: "No medical history information available",
+              onAdd: () => _addItem('Medical History', (value) {
+                setState(() => _editingProfile.medicalHistory.add(value));
+              }),
+              onDelete: (index) {
+                setState(() {
+                  _editingProfile.medicalHistory.removeAt(index);
+                });
+              },
             ),
-            const SizedBox(height: 24),
 
             // Allergies Section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Allergies',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_editingProfile.allergies.isEmpty)
-                  const Text(
-                    "No allergies listed",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
-                ...List.generate(_editingProfile.allergies.length, (index) {
-                  final allergy = _editingProfile.allergies[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.circle, size: 8),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(allergy)),
-                        if (_isEditing)
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              setState(() {
-                                _editingProfile.allergies.removeAt(index);
-                              });
-                            },
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-                if (_isEditing)
-                  CustomButton(
-                    text: 'Add Allergy',
-                    onPressed: () => _addItem('Allergy', (value) {
-                      setState(() => _editingProfile.allergies.add(value));
-                    }),
-                    isSecondary: true,
-                  ),
-              ],
+            _buildSectionWithItems(
+              title: 'Allergies',
+              icon: Icons.warning_amber,
+              items: _editingProfile.allergies,
+              emptyMessage: "No allergies listed",
+              onAdd: () => _addItem('Allergy', (value) {
+                setState(() => _editingProfile.allergies.add(value));
+              }),
+              onDelete: (index) {
+                setState(() {
+                  _editingProfile.allergies.removeAt(index);
+                });
+              },
             ),
-            const SizedBox(height: 24),
 
             // Current Medications Section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Current Medications',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_editingProfile.currentMedications.isEmpty)
-                  const Text(
-                    "No current medications",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
-                ...List.generate(_editingProfile.currentMedications.length,
-                    (index) {
-                  final medication = _editingProfile.currentMedications[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.circle, size: 8),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(medication)),
-                        if (_isEditing)
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              setState(() {
-                                _editingProfile.currentMedications
-                                    .removeAt(index);
-                              });
-                            },
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-                if (_isEditing)
-                  CustomButton(
-                    text: 'Add Medication',
-                    onPressed: () => _addItem('Medication', (value) {
-                      setState(
-                          () => _editingProfile.currentMedications.add(value));
-                    }),
-                    isSecondary: true,
-                  ),
-              ],
+            _buildSectionWithItems(
+              title: 'Current Medications',
+              icon: Icons.medication,
+              items: _editingProfile.currentMedications,
+              emptyMessage: "No current medications",
+              onAdd: () => _addItem('Medication', (value) {
+                setState(() => _editingProfile.currentMedications.add(value));
+              }),
+              onDelete: (index) {
+                setState(() {
+                  _editingProfile.currentMedications.removeAt(index);
+                });
+              },
             ),
-            const SizedBox(height: 24),
+
             // Emergency Contacts Section
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Emergency Contacts',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_editingProfile.emergencyContacts.isEmpty)
-                  const Text(
-                    "No emergency contacts listed",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.emergency,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Emergency Contacts',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
-                ...List.generate(_editingProfile.emergencyContacts.length,
-                    (index) {
-                  final contact = _editingProfile.emergencyContacts[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(contact.name),
-                      subtitle:
-                          Text('${contact.relationship} - ${contact.phone}'),
-                      trailing: _isEditing
-                          ? IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () {
-                                setState(() {
-                                  _editingProfile.emergencyContacts
-                                      .removeAt(index);
-                                });
-                              },
-                            )
-                          : null,
+                ),
+                if (_editingProfile.emergencyContacts.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "No emergency contacts listed",
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic, 
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ..._editingProfile.emergencyContacts.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final contact = entry.value;
+                  
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade200),
+                                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  contact.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              if (_isEditing)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _editingProfile.emergencyContacts.removeAt(index);
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            margin: const EdgeInsets.only(left: 38),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.people,
+                                      size: 14,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Relationship: ${contact.relationship}',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.phone,
+                                      size: 14,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      contact.phone,
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
-                }),
+                }).toList(),
                 if (_isEditing)
-                  CustomButton(
-                    text: 'Add Emergency Contact',
-                    onPressed: _addEmergencyContact,
-                    isSecondary: true,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: CustomButton(
+                      text: 'Add Emergency Contact',
+                      onPressed: _addEmergencyContact,
+                      isSecondary: true,
+                      icon: Icons.add,
+                    ),
                   ),
               ],
             ),
@@ -331,215 +395,193 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Insurance Information',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.health_and_safety,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Insurance Information',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _isEditing
-                        ?
-                        // Editing mode - show input fields
-                        Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: _isEditing
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CustomTextField(
+                            label: 'Insurance Provider',
+                            initialValue: _editingProfile.insuranceInfo?.provider,
+                            prefixIcon: Icons.business,
+                            enabled: true,
+                            onChanged: (value) {
+                              setState(() {
+                                _editingProfile.insuranceInfo ??= InsuranceInfo();
+                                _editingProfile.insuranceInfo!.provider = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          CustomTextField(
+                            label: 'Policy Number',
+                            initialValue: _editingProfile.insuranceInfo?.policyNumber,
+                            prefixIcon: Icons.numbers,
+                            enabled: true,
+                            onChanged: (value) {
+                              setState(() {
+                                _editingProfile.insuranceInfo ??= InsuranceInfo();
+                                _editingProfile.insuranceInfo!.policyNumber = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
                             children: [
-                              CustomTextField(
-                                label: 'Insurance Provider',
-                                initialValue:
-                                    _editingProfile.insuranceInfo?.provider,
-                                enabled: true,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _editingProfile.insuranceInfo ??=
-                                        InsuranceInfo();
-                                    _editingProfile.insuranceInfo!.provider =
-                                        value;
-                                  });
-                                },
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.calendar_today),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _editingProfile.insuranceInfo?.expiryDate != null
+                                            ? _formatDate(_editingProfile.insuranceInfo!.expiryDate!)
+                                            : 'No Expiry Date Set',
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              CustomTextField(
-                                label: 'Policy Number',
-                                initialValue:
-                                    _editingProfile.insuranceInfo?.policyNumber,
-                                enabled: true,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _editingProfile.insuranceInfo ??=
-                                        InsuranceInfo();
-                                    _editingProfile
-                                        .insuranceInfo!.policyNumber = value;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 8),
+                              const SizedBox(width: 8),
                               CustomButton(
-                                text: 'Set Expiry Date',
+                                text: 'Set Expiry',
                                 onPressed: _selectExpiryDate,
                                 isSecondary: true,
+                                icon: Icons.edit_calendar,
                               ),
                             ],
+                          ),
+                        ],
+                      )
+                    : _editingProfile.insuranceInfo == null ||
+                        (_editingProfile.insuranceInfo?.provider == null &&
+                          _editingProfile.insuranceInfo?.policyNumber == null &&
+                          _editingProfile.insuranceInfo?.expiryDate == null)
+                        ? const Center(
+                            child: Text(
+                              "No insurance information available",
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Colors.grey,
+                              ),
+                            ),
                           )
-                        :
-                        // View mode - show as regular text
-                        Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        : Column(
                             children: [
-                              if (_editingProfile.insuranceInfo?.provider !=
-                                  null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Provider:',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(_editingProfile
-                                            .insuranceInfo!.provider!),
-                                      ),
-                                    ],
-                                  ),
+                              if (_editingProfile.insuranceInfo?.provider != null)
+                                _buildInsuranceInfoRow(
+                                  'Provider',
+                                  _editingProfile.insuranceInfo!.provider!,
+                                  Icons.business,
                                 ),
-                              if (_editingProfile.insuranceInfo?.policyNumber !=
-                                  null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Policy Number:',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(_editingProfile
-                                            .insuranceInfo!.policyNumber!),
-                                      ),
-                                    ],
-                                  ),
+                              if (_editingProfile.insuranceInfo?.policyNumber != null)
+                                _buildInsuranceInfoRow(
+                                  'Policy Number',
+                                  _editingProfile.insuranceInfo!.policyNumber!,
+                                  Icons.numbers,
                                 ),
-                              if (_editingProfile.insuranceInfo?.expiryDate !=
-                                  null)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(
-                                      width: 120,
-                                      child: Text(
-                                        'Expiry Date:',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    Text(_formatDate(_editingProfile
-                                        .insuranceInfo!.expiryDate!)),
-                                  ],
-                                ),
-                              if (_editingProfile.insuranceInfo == null ||
-                                  (_editingProfile.insuranceInfo?.provider ==
-                                          null &&
-                                      _editingProfile
-                                              .insuranceInfo?.policyNumber ==
-                                          null &&
-                                      _editingProfile
-                                              .insuranceInfo?.expiryDate ==
-                                          null))
-                                const Text(
-                                  "No insurance information available",
-                                  style: TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.grey),
+                              if (_editingProfile.insuranceInfo?.expiryDate != null)
+                                _buildInsuranceInfoRow(
+                                  'Expiry Date',
+                                  _formatDate(_editingProfile.insuranceInfo!.expiryDate!),
+                                  Icons.calendar_today,
                                 ),
                             ],
                           ),
-                  ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
 
             // Chronic Conditions Section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Chronic Conditions',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_editingProfile.chronicConditions.isEmpty)
-                  const Text(
-                    "No chronic conditions listed",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
-                ...List.generate(_editingProfile.chronicConditions.length,
-                    (index) {
-                  final condition = _editingProfile.chronicConditions[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.circle, size: 8),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(condition)),
-                        if (_isEditing)
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              setState(() {
-                                _editingProfile.chronicConditions
-                                    .removeAt(index);
-                              });
-                            },
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-                if (_isEditing)
-                  CustomButton(
-                    text: 'Add Chronic Condition',
-                    onPressed: () => _addItem('Chronic Condition', (value) {
-                      setState(
-                          () => _editingProfile.chronicConditions.add(value));
-                    }),
-                    isSecondary: true,
-                  ),
-              ],
+            _buildSectionWithItems(
+              title: 'Chronic Conditions',
+              icon: Icons.healing,
+              items: _editingProfile.chronicConditions,
+              emptyMessage: "No chronic conditions listed",
+              onAdd: () => _addItem('Chronic Condition', (value) {
+                setState(() => _editingProfile.chronicConditions.add(value));
+              }),
+              onDelete: (index) {
+                setState(() {
+                  _editingProfile.chronicConditions.removeAt(index);
+                });
+              },
             ),
-            const SizedBox(height: 24),
 
             // Last Checkup Date
             if (_editingProfile.lastCheckupDate != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                margin: const EdgeInsets.only(top: 16, bottom: 24),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      'Last Checkup Date',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Icon(
+                      Icons.event_available,
+                      color: AppColors.primary,
+                      size: 22,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _formatDate(_editingProfile.lastCheckupDate!),
-                      style: Theme.of(context).textTheme.bodyLarge,
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Last Checkup Date',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatDate(_editingProfile.lastCheckupDate!),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -581,6 +623,149 @@ class _PatientProfileSectionState extends State<PatientProfileSection> {
               ),
           ],
         ),
+      ),
+    );
+  }
+  
+  Widget _buildSectionWithItems({
+    required String title,
+    required IconData icon,
+    required List<String> items,
+    required String emptyMessage,
+    required VoidCallback onAdd,
+    required Function(int) onDelete,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: items.isEmpty
+              ? Center(
+                  child: Text(
+                    emptyMessage,
+                    style: const TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: AppColors.secondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(item),
+                          ),
+                          if (_isEditing)
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              onPressed: () => onDelete(index),
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+          ),
+          if (_isEditing)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: CustomButton(
+                text: 'Add $title Item',
+                onPressed: onAdd,
+                isSecondary: true,
+                icon: Icons.add,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsuranceInfoRow(String label, String value, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -682,8 +867,7 @@ class _AddEmergencyContactDialog extends StatefulWidget {
       _AddEmergencyContactDialogState();
 }
 
-class _AddEmergencyContactDialogState
-    extends State<_AddEmergencyContactDialog> {
+class _AddEmergencyContactDialogState extends State<_AddEmergencyContactDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _relationshipController = TextEditingController();
@@ -709,6 +893,7 @@ class _AddEmergencyContactDialogState
             CustomTextField(
               controller: _nameController,
               label: 'Name',
+              prefixIcon: Icons.person,
               validator: (value) {
                 if (value?.isEmpty ?? true) {
                   return 'Name is required';
@@ -716,10 +901,11 @@ class _AddEmergencyContactDialogState
                 return null;
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             CustomTextField(
               controller: _relationshipController,
               label: 'Relationship',
+              prefixIcon: Icons.people,
               validator: (value) {
                 if (value?.isEmpty ?? true) {
                   return 'Relationship is required';
@@ -727,10 +913,11 @@ class _AddEmergencyContactDialogState
                 return null;
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             CustomTextField(
               controller: _phoneController,
               label: 'Phone Number',
+              prefixIcon: Icons.phone,
               keyboardType: TextInputType.phone,
               validator: (value) {
                 if (value?.isEmpty ?? true) {

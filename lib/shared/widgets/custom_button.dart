@@ -7,7 +7,8 @@ class CustomButton extends StatelessWidget {
   final bool isSecondary;
   final bool isLoading;
   final IconData? icon;
-  final double? width; // Add width parameter
+  final double? width;
+  final double? height; // Add width parameter
 
   const CustomButton({
     super.key,
@@ -16,6 +17,7 @@ class CustomButton extends StatelessWidget {
     this.isSecondary = false,
     this.isLoading = false,
     this.icon,
+    this.height, // Add this paramete
     this.width, // Add this parameter
   });
 

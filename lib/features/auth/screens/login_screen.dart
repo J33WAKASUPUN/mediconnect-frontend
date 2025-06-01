@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/constants/styles.dart';
+import '../../../shared/constants/colors.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../../../shared/widgets/loading_overlay.dart';
+import '../../../shared/widgets/styled_alert_dialog.dart';
 import '../widgets/role_toggle.dart';
 
 @JS('saveCredentials')
@@ -37,8 +39,44 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => StyledAlertDialog(
+        title: 'Error',
+        message: message,
+        buttonText: 'Try Again',
+        icon: Icons.error_outline,
+        iconColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => StyledAlertDialog(
+        title: 'Success',
+        message: message,
+        icon: Icons.check_circle_outline,
+        iconColor: Colors.green,
+        onPressed: () {
+          Navigator.pop(context);
+          // Navigate based on role
+          Navigator.of(context).pushReplacementNamed(
+            _selectedRole == 'patient' ? '/patient/dashboard' : '/doctor/dashboard',
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // Show validation error popup if form is not valid
+      _showErrorDialog('Please fill all the required fields correctly.');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -74,16 +112,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Navigate based on role
-      Navigator.of(context).pushReplacementNamed(
-        _selectedRole == 'patient' ? '/patient/dashboard' : '/doctor/dashboard',
-      );
+      // Show success dialog
+      _showSuccessDialog('Login successful! Welcome back.');
+      
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      _showErrorDialog(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -95,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
       isLoading: _isLoading,
       message: 'Logging in...',
       child: Scaffold(
+        backgroundColor: AppColors.surface,
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -103,7 +138,24 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 60),
+                  // Logo
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        Icons.medical_services,
+                        size: 60,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // Welcome text
                   Text(
                     'Welcome Back',
                     style: AppStyles.heading1,
@@ -111,17 +163,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Login to continue',
+                    'Sign in to continue to MediConnect',
                     style: AppStyles.bodyText2,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
+                  // Role toggle
                   RoleToggle(
                     selectedRole: _selectedRole,
-                    onRoleChanged: (role) =>
-                        setState(() => _selectedRole = role),
+                    onRoleChanged: (role) => setState(() => _selectedRole = role),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
+                  // Email field
                   CustomTextField(
                     label: 'Email',
                     controller: _emailController,
@@ -131,10 +184,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        return 'Please enter a valid email address';
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
+                  // Password field
                   CustomTextField(
                     label: 'Password',
                     controller: _passwordController,
@@ -147,16 +204,50 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  // Forgot password
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Login button
                   CustomButton(
                     text: 'Login',
                     onPressed: _login,
                     isLoading: _isLoading,
                   ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/register'),
-                    child: const Text('Don\'t have an account? Register'),
+                  const SizedBox(height: 24),
+                  // Register link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Don't have an account? ",
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pushNamed(context, '/register'),
+                        child: Text(
+                          "Create one",
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

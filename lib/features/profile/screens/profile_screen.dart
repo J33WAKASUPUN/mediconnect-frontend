@@ -1,16 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mediconnect/core/models/user_model.dart';
 import 'package:mediconnect/core/utils/datetime_helper.dart';
-import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart'; // Add this import
+import 'package:mediconnect/features/doctor_calendar/provider/calender_provider.dart';
 import 'package:mediconnect/features/profile/widgets/doctor_profile_section.dart';
-import 'package:mediconnect/features/profile/widgets/patient_profile_section.dart'
-    as patient_profile;
+import 'package:mediconnect/features/profile/widgets/patient_profile_section.dart' as patient_profile;
+import 'package:mediconnect/shared/widgets/custom_textfield.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/constants/colors.dart';
+import '../../../shared/constants/styles.dart';
+import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/custom_button.dart';
-import '../../../shared/widgets/custom_textfield.dart';
 import '../../../shared/widgets/loading_overlay.dart';
 import '../../../shared/widgets/profile_image_picker.dart';
 
@@ -21,7 +24,8 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     this.hideAppBar = false,
-    this.readOnly = false, required Map<String, dynamic> userData,
+    this.readOnly = false,
+    required Map<String, dynamic> userData,
   });
 
   @override
@@ -46,8 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _preloadCalendarData(User user) {
     if (user.role != 'doctor' || _calendarLoading) return;
 
-    final calendarProvider =
-        Provider.of<CalendarProvider>(context, listen: false);
+    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
 
     // Check if we need to load calendar data
     if (calendarProvider.calendar == null) {
@@ -58,22 +61,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final startDate = DateTime(now.year, now.month, 1);
       final endDate = DateTime(now.year, now.month + 1, 0);
 
-      print('Pre-loading calendar data for doctor: ${user.id}');
-
       // Load calendar data
-      calendarProvider
-          .fetchCalendar(
+      calendarProvider.fetchCalendar(
         doctorId: user.id,
         startDate: startDate,
         endDate: endDate,
         forceRefresh: true,
-      )
-          .then((_) {
+      ).then((_) {
         if (mounted) setState(() => _calendarLoading = false);
-        print('Calendar pre-load complete');
       }).catchError((e) {
         if (mounted) setState(() => _calendarLoading = false);
-        print('Error pre-loading calendar: $e');
       });
     }
   }
@@ -96,11 +93,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authProvider = context.watch<AuthProvider>();
     final profileProvider = context.watch<ProfileProvider>();
     final user = authProvider.user;
-    final now = DateTime.now().toUtc();
-    final formattedDateTime =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:'
-        '${now.second.toString().padLeft(2, '0')}';
 
     // Try to preload calendar data when we have a user
     if (user != null && user.role == 'doctor') {
@@ -112,190 +104,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
 
+    // Content to display based on loading/error state
+    Widget buildContent() {
+      if (profileProvider.error != null) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Error: ${profileProvider.error}'),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: 'Retry',
+                onPressed: () => profileProvider.getProfile(),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (user != null) ...[
+              // Basic Profile Section - now contains all user info
+              BasicProfileSection(user: user),
+              const SizedBox(height: 24),
+
+              // Role-specific Additional Profile Section
+              if (user.role == 'patient')
+                patient_profile.PatientProfileSection(
+                  profile: profileProvider.patientProfile,
+                )
+              else if (user.role == 'doctor')
+                Builder(builder: (context) {
+                  return DoctorProfileSection(
+                    profile: profileProvider.doctorProfile,
+                  );
+                }),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Use the AppScaffold for consistent layout
     return LoadingOverlay(
       isLoading: profileProvider.isLoading,
-      child: Scaffold(
-        appBar: widget.hideAppBar
-            ? null
-            : AppBar(
-                title: const Text('Profile'),
-                actions: [
-                  if (!widget.readOnly)
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () {
-                        // Refresh profile
-                        profileProvider.getProfile();
-
-                        // Also refresh calendar if doctor
-                        if (user != null && user.role == 'doctor') {
-                          final calendarProvider =
-                              Provider.of<CalendarProvider>(context,
-                                  listen: false);
-                          calendarProvider.resetState(); // Reset state first
-                          _preloadCalendarData(user); // Reload calendar data
-                        }
-                      },
-                    ),
-                ],
-              ),
-        body: profileProvider.error != null
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Error: ${profileProvider.error}'),
-                    const SizedBox(height: 16),
-                    CustomButton(
-                      text: 'Retry',
-                      onPressed: () => profileProvider.getProfile(),
-                    ),
-                  ],
-                ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Session Info Display
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): $formattedDateTime',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Current User\'s Login: J33WAKASUPUN',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    if (user != null) ...[
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundImage: user.profilePicture != null
-                                ? NetworkImage(user.profilePicture!)
-                                : null,
-                            backgroundColor: user.profilePicture == null
-                                ? Theme.of(context).primaryColor
-                                : null,
-                            onBackgroundImageError: (exception, stackTrace) {
-                              // Handle image load error silently
-                              setState(() {});
-                            },
-                            child: user.profilePicture == null
-                                ? Text(
-                                    '${user.firstName[0]}${user.lastName[0]}'
-                                        .toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${user.firstName} ${user.lastName}',
-                                  style:
-                                      Theme.of(context).textTheme.headlineSmall,
-                                ),
-                                Text(
-                                  user.role.toUpperCase(),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge
-                                      ?.copyWith(
-                                        color: Theme.of(context).primaryColor,
-                                      ),
-                                ),
-                                Text(
-                                  user.email,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Profile Sections
-                      const Text(
-                        'Profile Information',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Last Updated Info
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.update, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Last Updated: ${DateTimeHelper.formatDateTime(profileProvider.lastUpdated)}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Basic Profile Section
-                      BasicProfileSection(user: user),
-                      const SizedBox(height: 24),
-
-                      // Role-specific Additional Profile Section
-                      if (user.role == 'patient')
-                        patient_profile.PatientProfileSection(
-                          profile: profileProvider.patientProfile,
-                        )
-                      else if (user.role == 'doctor')
-                        // Small delay to ensure calendar is preloaded first
-                        Builder(builder: (context) {
-                          return DoctorProfileSection(
-                            profile: profileProvider.doctorProfile,
-                          );
-                        }),
-                    ],
-                  ],
-                ),
-              ),
-      ),
+      child: widget.hideAppBar
+          ? Scaffold(
+              body: buildContent(),
+            )
+          : AppScaffold(
+              title: 'Profile',
+              actions: [
+                if (!widget.readOnly)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    onPressed: () {
+                      // Refresh profile
+                      profileProvider.getProfile();
+                  
+                      // Also refresh calendar if doctor
+                      if (user != null && user.role == 'doctor') {
+                        final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+                        calendarProvider.resetState();
+                        _preloadCalendarData(user);
+                      }
+                    },
+                  ),
+              ],
+              body: buildContent(),
+            ),
     );
   }
 }
 
+// Enhanced BasicProfileSection with improved styling and all user info
 class BasicProfileSection extends StatefulWidget {
   final User? user;
 
@@ -322,9 +208,6 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
   void initState() {
     super.initState();
     _initializeControllers();
-    // Debug print to check if user data is available
-    print(
-        "BasicProfileSection initialized with user: ${widget.user?.toJson()}");
   }
 
   void _initializeControllers() {
@@ -332,10 +215,6 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
     _lastNameController = TextEditingController(text: widget.user?.lastName);
     _phoneController = TextEditingController(text: widget.user?.phoneNumber);
     _addressController = TextEditingController(text: widget.user?.address);
-
-    // Debug print to check controller values
-    print(
-        "Controllers initialized with: firstName=${_firstNameController.text}, lastName=${_lastNameController.text}, phone=${_phoneController.text}, address=${_addressController.text}");
   }
 
   @override
@@ -352,12 +231,12 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
 
     try {
       await context.read<ProfileProvider>().updateBasicProfile(
-            firstName: _firstNameController.text,
-            lastName: _lastNameController.text,
-            phoneNumber: _phoneController.text,
-            address: _addressController.text,
-            profilePicture: _selectedImage,
-          );
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        phoneNumber: _phoneController.text,
+        address: _addressController.text,
+        profilePicture: _selectedImage,
+      );
 
       if (mounted) {
         setState(() => _isEditing = false);
@@ -376,11 +255,11 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Print debug info when building
-    print(
-        "Building BasicProfileSection with: firstName=${widget.user?.firstName}, lastName=${widget.user?.lastName}");
-
+    final profileProvider = context.watch<ProfileProvider>();
+    
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -388,46 +267,111 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Basic Information',
-                style: Theme.of(context).textTheme.titleLarge,
+              // Header Section with profile image and name
+              Center(
+                child: Column(
+                  children: [
+                    // Profile Image
+                    if (_isEditing)
+                      ProfileImagePicker(
+                        currentImageUrl: widget.user?.profilePicture,
+                        selectedImage: _selectedImage,
+                        onImageSelected: (file) {
+                          setState(() => _selectedImage = file);
+                        },
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.3),
+                            width: 3,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: widget.user?.profilePicture != null
+                              ? NetworkImage(widget.user!.profilePicture!)
+                              : null,
+                          backgroundColor: widget.user?.profilePicture == null
+                              ? AppColors.primary
+                              : null,
+                          child: widget.user?.profilePicture == null && widget.user != null
+                              ? Text(
+                                  '${widget.user!.firstName[0]}${widget.user!.lastName[0]}'.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    
+                    // User Name
+                    Text(
+                      widget.user?.role == 'doctor'
+                        ? 'Dr. ${widget.user?.firstName ?? ''} ${widget.user?.lastName ?? ''}'
+                        : '${widget.user?.firstName ?? ''} ${widget.user?.lastName ?? ''}',
+                      style: AppStyles.heading2.copyWith(
+                        color: AppColors.primary,
+                        fontSize: 24,
+                      ),
+                    ),
+                    
+                    // Role Badge
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.user?.role.toUpperCase() ?? '',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    
+                    // Last Updated Subtle Text - only shown when not editing
+                    if (!_isEditing && profileProvider.lastUpdated != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          'Last Updated: ${profileProvider.lastUpdated != null ? 
+                              DateTimeHelper.formatDateTime(profileProvider.lastUpdated) : ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              
+              const Divider(height: 36),
+
+              // Section Header
+              Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Basic Information',
+                    style: AppStyles.heading3.copyWith(color: AppColors.primary),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-
-              // Profile Image Section
-              if (_isEditing)
-                ProfileImagePicker(
-                  currentImageUrl: widget.user?.profilePicture,
-                  selectedImage: _selectedImage,
-                  onImageSelected: (file) {
-                    setState(() => _selectedImage = file);
-                  },
-                )
-              else
-                Center(
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundImage: widget.user?.profilePicture != null
-                        ? NetworkImage(widget.user!.profilePicture!)
-                        : null,
-                    backgroundColor: widget.user?.profilePicture == null
-                        ? Theme.of(context).primaryColor
-                        : null,
-                    child: widget.user?.profilePicture == null &&
-                            widget.user != null
-                        ? Text(
-                            '${widget.user!.firstName[0]}${widget.user!.lastName[0]}'
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 24,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-              const SizedBox(height: 24),
 
               // Personal Information Section
               if (_isEditing) ...[
@@ -482,30 +426,30 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
                   },
                 ),
               ] else ...[
-                // View Mode - Show non-editable information
-                if (widget.user?.firstName != null)
-                  _buildInfoRow('First Name', widget.user!.firstName),
-                if (widget.user?.lastName != null)
-                  _buildInfoRow('Last Name', widget.user!.lastName),
-                if (widget.user?.email != null)
-                  _buildInfoRow('Email', widget.user!.email),
-                if (widget.user?.phoneNumber != null)
-                  _buildInfoRow('Phone Number', widget.user!.phoneNumber),
-                if (widget.user?.address != null)
-                  _buildInfoRow('Address', widget.user!.address),
-                if (widget.user == null ||
-                    (widget.user?.firstName == null &&
-                        widget.user?.lastName == null &&
-                        widget.user?.phoneNumber == null &&
-                        widget.user?.address == null))
-                  const Text(
-                    "No basic information available",
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic, color: Colors.grey),
+                // View Mode - Show styled non-editable information
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoRow('First Name', widget.user?.firstName ?? 'Not specified', Icons.person_outline),
+                      _buildInfoRow('Last Name', widget.user?.lastName ?? 'Not specified', Icons.person_outline),
+                      _buildInfoRow('Email', widget.user?.email ?? 'Not specified', Icons.email_outlined),
+                      _buildInfoRow('Phone Number', widget.user?.phoneNumber ?? 'Not specified', Icons.phone_outlined),
+                      _buildInfoRow('Address', widget.user?.address ?? 'Not specified', Icons.location_on_outlined),
+                    ],
+                  ),
+                ),
               ],
 
               const SizedBox(height: 24),
+              
+              // Edit/Save Button
               Row(
                 children: [
                   Expanded(
@@ -546,24 +490,32 @@ class _BasicProfileSectionState extends State<BasicProfileSection> {
     );
   }
 
-  // Helper method for displaying info in rows with labels
-  Widget _buildInfoRow(String label, String value) {
+  // Enhanced helper method for displaying info rows with labels and icons
+  Widget _buildInfoRow(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 8),
           SizedBox(
-            width: 120,
+            width: 110,
             child: Text(
               '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
               ),
             ),
           ),
           Expanded(
-            child: Text(value),
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
