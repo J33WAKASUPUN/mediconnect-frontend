@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mediconnect/shared/constants/colors.dart';
 import '../../../core/models/todo_model.dart';
 
 class TodoListItem extends StatelessWidget {
@@ -20,21 +21,52 @@ class TodoListItem extends StatelessWidget {
     final priorityColor = _getPriorityColor(todo.priority);
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 8.0),
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: todo.completed ? Colors.grey.shade200 : Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 // Checkbox
-                IconButton(
-                  icon: Icon(
-                    todo.completed ? Icons.check_circle : Icons.circle_outlined,
-                    color: todo.completed ? Colors.green : Colors.grey,
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onToggle,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: todo.completed ? Colors.green : Colors.grey.shade400,
+                              width: 2,
+                            ),
+                            color: todo.completed ? Colors.green : Colors.transparent,
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.check,
+                            size: 16,
+                            color: todo.completed ? Colors.white : Colors.transparent,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  onPressed: onToggle,
                 ),
                 
                 // Title with strikethrough if completed
@@ -43,21 +75,30 @@ class TodoListItem extends StatelessWidget {
                     todo.title,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       decoration: todo.completed ? TextDecoration.lineThrough : null,
-                      color: todo.completed ? Colors.grey : Colors.black,
+                      color: todo.completed ? Colors.grey.shade500 : Colors.black87,
                     ),
                   ),
                 ),
                 
                 // Action buttons
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: onEdit,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: onDelete,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.edit_outlined,
+                      color: AppColors.primary,
+                      onPressed: onEdit,
+                      tooltip: 'Edit task',
+                    ),
+                    _buildActionButton(
+                      icon: Icons.delete_outline,
+                      color: Colors.red.shade400,
+                      onPressed: onDelete,
+                      tooltip: 'Delete task',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -65,12 +106,12 @@ class TodoListItem extends StatelessWidget {
             // Description (if any)
             if (todo.description != null && todo.description!.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(left: 56.0, right: 16.0, bottom: 8.0),
+                padding: const EdgeInsets.only(left: 44, right: 8, top: 4),
                 child: Text(
                   todo.description!,
                   style: TextStyle(
                     fontSize: 14,
-                    color: todo.completed ? Colors.grey : Colors.black87,
+                    color: todo.completed ? Colors.grey.shade500 : Colors.grey.shade700,
                     decoration: todo.completed ? TextDecoration.lineThrough : null,
                   ),
                 ),
@@ -78,47 +119,33 @@ class TodoListItem extends StatelessWidget {
             
             // Labels row
             Padding(
-              padding: const EdgeInsets.only(left: 56.0, right: 16.0),
+              padding: const EdgeInsets.only(left: 44, right: 8, top: 8),
               child: Row(
                 children: [
                   // Priority label
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: priorityColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      todo.priority.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
-                    ),
+                  _buildLabel(
+                    icon: Icons.flag,
+                    text: todo.priority.toUpperCase(),
+                    color: priorityColor,
                   ),
                   const SizedBox(width: 8),
                   
                   // Time label (if any)
                   if (todo.time != null && todo.time!.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time, size: 12, color: Colors.blue),
-                          const SizedBox(width: 4),
-                          Text(
-                            todo.time!,
-                            style: TextStyle(
-                              color: Colors.blue.shade800,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                    _buildLabel(
+                      icon: Icons.access_time,
+                      text: todo.time!,
+                      color: Colors.blue,
+                    ),
+
+                  // Completed label
+                  if (todo.completed)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: _buildLabel(
+                        icon: Icons.check_circle_outline,
+                        text: 'COMPLETED',
+                        color: Colors.green,
                       ),
                     ),
                 ],
@@ -126,6 +153,69 @@ class TodoListItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+  
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildLabel({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

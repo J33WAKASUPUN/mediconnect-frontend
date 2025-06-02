@@ -143,8 +143,8 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                       },
                     ),
                     StyledDrawerItem(
-                      icon: Icons.schedule,
-                      title: 'Schedule',
+                      icon: Icons.calendar_month,
+                      title: 'Calendar',
                       backgroundColor: const Color(0xFFF0F0FF),
                       textColor: AppColors.primary,
                       onTap: () {
@@ -153,8 +153,8 @@ class _DoctorDrawerState extends State<DoctorDrawer> {
                       },
                     ),
                     StyledDrawerItem(
-                      icon: Icons.calendar_month,
-                      title: 'Calendar Management',
+                      icon: Icons.schedule,
+                      title: 'Schedule Management',
                       backgroundColor: const Color(0xFFF0F0FF),
                       textColor: AppColors.primary,
                       onTap: () {

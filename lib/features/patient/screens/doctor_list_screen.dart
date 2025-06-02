@@ -47,11 +47,6 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
 
   final ScrollController _scrollController = ScrollController();
   final FocusNode _searchFocusNode = FocusNode();
-
-  // Colors matching your dashboard
-  static const Color primaryColor = Color(0xFF4D4DFF);
-
-  // Track if search has text for showing clear button
   bool _hasSearchText = false;
 
   @override
@@ -97,155 +92,211 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        elevation: 0,
-        title: const Text(
-          'Your Doctors',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-        automaticallyImplyLeading: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sort, color: Colors.white),
-            onPressed: () => _showSortingOptions(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => context.read<DoctorListProvider>().refresh(),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar with rounded corners on both sides - matching the image
-          // Replace your search bar Container section with this improved version:
-
-          Container(
-            color: primaryColor,
-            padding: const EdgeInsets.fromLTRB(
-                16, 16, 16, 20), // Added bottom padding
-            child: Container(
-              height: 50, // Fixed height to prevent overflow
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(
-                    25), // Half of height for perfect curve
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Search icon with proper padding
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, right: 8),
-                    child: Icon(
-                      Icons.search,
-                      color: Colors.grey,
-                      size: 20,
-                    ),
-                  ),
-
-                  // Text field with proper constraints
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      decoration: InputDecoration(
-                        hintText: 'Find a specialist doctor',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 14,
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal:
-                              0, // Remove horizontal padding since we handle it with Row
-                        ),
-                        isDense: true, // Helps with vertical alignment
-                      ),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                      textInputAction: TextInputAction.search,
-                      textAlignVertical: TextAlignVertical.center,
-                    ),
-                  ),
-
-                  // Clear button with proper padding
-                  if (_hasSearchText)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: GestureDetector(
-                        onTap: _clearSearch,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            shape: BoxShape.circle,
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                // Search bar
+                _buildSearchBar(),
+                
+                // Filter chips
+                _buildSpecialtyFilter(),
+                
+                // Doctor counter
+                Consumer<DoctorListProvider>(
+                  builder: (context, provider, _) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${provider.doctors.length} Doctor${provider.doctors.length != 1 ? 's' : ''}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.grey,
-                            size: 16,
-                          ),
-                        ),
+                          if (provider.doctors.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () => _showSortingOptions(context),
+                              icon: const Icon(Icons.sort, size: 16),
+                              label: const Text('Sort'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                        ],
                       ),
-                    )
-                  else
-                    const SizedBox(
-                        width: 16), // Maintain spacing when no clear button
-                ],
-              ),
-            ),
-          ),
-
-          // Specialty filter chips
-          _buildSpecialtyFilter(),
-
-          // Main content
-          Expanded(
-            child: LoadingOverlay(
-              isLoading: context.watch<DoctorListProvider>().isLoading,
-              child: RefreshIndicator(
-                color: primaryColor,
-                onRefresh: () => context.read<DoctorListProvider>().refresh(),
-                child: Consumer<DoctorListProvider>(
-                  builder: (context, provider, child) {
-                    if (provider.error != null) {
-                      return _buildErrorState(provider.error!);
-                    }
-
-                    final doctors = provider.doctors;
-                    if (doctors.isEmpty) {
-                      return _buildEmptyState();
-                    }
-
-                    return ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: doctors.length, // No +1 for session info
-                      itemBuilder: (context, index) {
-                        return DoctorCard(doctor: doctors[index]);
-                      },
                     );
                   },
                 ),
-              ),
+              ],
+            ),
+          ),
+          // Doctor list
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: Consumer<DoctorListProvider>(
+              builder: (context, provider, _) {
+                if (provider.isLoading) {
+                  return const SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                
+                if (provider.error != null) {
+                  return SliverFillRemaining(
+                    child: _buildErrorState(provider.error!),
+                  );
+                }
+                
+                final doctors = provider.doctors;
+                if (doctors.isEmpty) {
+                  return SliverFillRemaining(
+                    child: _buildEmptyState(),
+                  );
+                }
+                
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => DoctorCard(doctor: doctors[index]),
+                    childCount: doctors.length,
+                  ),
+                );
+              },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 120,
+      pinned: true,
+      backgroundColor: AppColors.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Your Doctors',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                AppColors.primary.withOpacity(0.7),
+                AppColors.primary,
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh, color: Colors.white),
+          onPressed: () => context.read<DoctorListProvider>().refresh(),
+          tooltip: 'Refresh',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      color: AppColors.primary,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Search icon with proper padding
+            const Padding(
+              padding: EdgeInsets.only(left: 16, right: 8),
+              child: Icon(
+                Icons.search,
+                color: Colors.grey,
+                size: 20,
+              ),
+            ),
+
+            // Text field with proper constraints
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Find a specialist doctor',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 0,
+                  ),
+                  isDense: true,
+                ),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+                textInputAction: TextInputAction.search,
+                textAlignVertical: TextAlignVertical.center,
+              ),
+            ),
+
+            // Clear button with proper padding
+            if (_hasSearchText)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: _clearSearch,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.grey,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              )
+            else
+              const SizedBox(width: 16),
+          ],
+        ),
       ),
     );
   }
@@ -265,86 +316,50 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
                     ? provider.currentSpecialty.isEmpty
                     : provider.currentSpecialty == specialty;
 
-                // Special styling for "All" as shown in image
-                if (specialty == 'All') {
-                  return Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Material(
-                      color: isSelected ? primaryColor : Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: primaryColor,
-                          width: 1,
-                        ),
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          provider.setSpecialtyFilter('');
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                size: 16,
-                                color: isSelected ? Colors.white : primaryColor,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                specialty,
-                                style: TextStyle(
-                                  color:
-                                      isSelected ? Colors.white : primaryColor,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                // Other specialty chips - matching image exactly
+                // Special styling for selected specialty
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   child: Material(
-                    color: Colors.white,
+                    color: isSelected ? AppColors.primary : Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                       side: BorderSide(
-                        color: Colors.grey[300]!,
+                        color: isSelected ? AppColors.primary : Colors.grey.shade300,
                         width: 1,
                       ),
                     ),
                     child: InkWell(
                       onTap: () {
                         provider.setSpecialtyFilter(
-                            provider.currentSpecialty == specialty
-                                ? ''
-                                : specialty);
+                            specialty == 'All' ? '' : specialty);
                       },
                       borderRadius: BorderRadius.circular(20),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: specialty == 'All' && isSelected ? 16 : 16,
                           vertical: 12,
                         ),
-                        child: Text(
-                          specialty,
-                          style: TextStyle(
-                            color: Colors.grey[800],
-                            fontWeight: FontWeight.w400,
-                            fontSize: 14,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (specialty == 'All' && isSelected)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: Icon(
+                                  Icons.check_circle,
+                                  size: 16,
+                                  color: isSelected ? Colors.white : AppColors.primary,
+                                ),
+                              ),
+                            Text(
+                              specialty,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.grey.shade800,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -366,7 +381,7 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
           Icon(
             Icons.medical_services_outlined,
             size: 80,
-            color: primaryColor.withOpacity(0.3),
+            color: AppColors.primary.withOpacity(0.3),
           ),
           const SizedBox(height: 16),
           Text(
@@ -391,7 +406,7 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
               context.read<DoctorListProvider>().refresh();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -434,7 +449,7 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
               context.read<DoctorListProvider>().loadDoctors();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -472,11 +487,6 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
               Container(
                 padding:
                     const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
                 alignment: Alignment.centerLeft,
                 child: const Text(
                   'Sort doctors by',
@@ -533,13 +543,13 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? primaryColor.withOpacity(0.1)
+                          ? AppColors.primary.withOpacity(0.1)
                           : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       icon,
-                      color: isSelected ? primaryColor : Colors.grey.shade700,
+                      color: isSelected ? AppColors.primary : Colors.grey.shade700,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -549,14 +559,14 @@ class _DoctorsListScreenState extends State<DoctorsListScreen> {
                       fontSize: 16,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected ? primaryColor : Colors.black87,
+                      color: isSelected ? AppColors.primary : Colors.black87,
                     ),
                   ),
                   const Spacer(),
                   if (isSelected)
                     const Icon(
                       Icons.check_circle,
-                      color: primaryColor,
+                      color: AppColors.primary,
                     ),
                 ],
               ),
